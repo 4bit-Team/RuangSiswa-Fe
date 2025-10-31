@@ -1,6 +1,7 @@
-'use client'
+ 'use client'
 
 import React, { useState } from 'react'
+import Link from 'next/link'
 import { GraduationCap, Menu, X } from 'lucide-react'
 
 const Navbar = () => {
@@ -33,14 +34,15 @@ const Navbar = () => {
               <a href="#footer" className="text-gray-600 hover:text-blue-600 transition-colors">
                 Kontak
               </a>
-              <button className="btn-primary">
+              <Link href="/login" className="btn-primary">
                 Login
-              </button>
+              </Link>
             </div>
 
             <button 
               onClick={() => setIsMenuOpen(!isMenuOpen)}
               className="md:hidden p-2"
+              aria-label={isMenuOpen ? 'Tutup menu' : 'Buka menu'}
             >
               {isMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
             </button>
@@ -61,9 +63,9 @@ const Navbar = () => {
             <a href="#footer" className="block text-gray-600 hover:text-blue-600">
               Kontak
             </a>
-            <button className="w-full btn-primary">
+            <Link href="/login" className="w-full btn-primary">
               Login
-            </button>
+            </Link>
           </div>
         </div>
       )}
