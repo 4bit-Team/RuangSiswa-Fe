@@ -118,7 +118,7 @@ const LoginPage: React.FC = () => {
               </div>
               <div>
                 <h1 className="text-xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-                  SIPKKS SMK
+                  Ruang Siswa
                 </h1>
               </div>
             </div>
