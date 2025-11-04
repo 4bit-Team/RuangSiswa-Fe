@@ -1,10 +1,13 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Upload, ArrowRight, Shield, GraduationCap } from "lucide-react";
 import { jwtDecode } from "jwt-decode";
 
 export default function VerificationPage() {
+  const [extractedData, setExtractedData] = useState<any>(null);
+  const router = useRouter();
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -13,29 +16,24 @@ export default function VerificationPage() {
   // 🔐 Ambil userId dari localStorage / JWT
   useEffect(() => {
     const token = localStorage.getItem("token");
+    const justRegistered = localStorage.getItem("justRegistered");
     const savedId = localStorage.getItem("userId");
 
+    // Jika sudah login, redirect ke dashboard
+    if (token) {
+      router.replace("/dashboard");
+      return;
+    }
+    // Jika belum daftar, redirect ke /register
+    if (!justRegistered) {
+      router.replace("/register");
+      return;
+    }
+    // Ambil userId
     if (savedId) {
       setUserId(savedId);
-      console.log("✅ userId ditemukan di localStorage:", savedId);
-    } else if (token) {
-      try {
-        const decoded: any = jwtDecode(token);
-        const extractedId = decoded?.sub || decoded?.id || null;
-        if (extractedId) {
-          localStorage.setItem("userId", extractedId);
-          setUserId(extractedId);
-          console.log("✅ userId berhasil diekstrak dari token:", extractedId);
-        } else {
-          console.warn("⚠️ userId tidak ditemukan di token");
-        }
-      } catch (err) {
-        console.error("❌ Gagal decode token:", err);
-      }
-    } else {
-      console.warn("⚠️ Tidak ada token atau userId tersimpan");
     }
-  }, []);
+  }, [router]);
 
   // 📸 Handle file change
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -88,8 +86,13 @@ export default function VerificationPage() {
         throw new Error(data.message || "Upload gagal");
       }
 
-      console.log("✅ Kartu pelajar berhasil diunggah & diverifikasi!");
-      window.location.href = "/login";
+      // Tampilkan hasil OCR di frontend sebelum redirect
+      setExtractedData(data.extractedData);
+      // Setelah 3 detik, hapus flag dan redirect
+      setTimeout(() => {
+        localStorage.removeItem("justRegistered");
+        window.location.href = "/login";
+      }, 3000);
     } catch (err) {
       console.error("❌ Terjadi kesalahan saat upload:", err);
     } finally {
@@ -162,23 +165,40 @@ export default function VerificationPage() {
         </div>
 
         {/* Upload button */}
-        <button
-          onClick={handleUpload}
-          disabled={isLoading}
-          className="mt-8 w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-4 rounded-xl font-semibold text-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 disabled:opacity-50 flex items-center justify-center space-x-2"
-        >
-          {isLoading ? (
-            <>
-              <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-              <span>Mengunggah...</span>
-            </>
-          ) : (
-            <>
-              <span>Upload Sekarang</span>
-              <ArrowRight className="w-5 h-5" />
-            </>
-          )}
-        </button>
+        {!extractedData && (
+          <button
+            onClick={handleUpload}
+            disabled={isLoading}
+            className="mt-8 w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-4 rounded-xl font-semibold text-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 disabled:opacity-50 flex items-center justify-center space-x-2"
+          >
+            {isLoading ? (
+              <>
+                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                <span>Mengunggah...</span>
+              </>
+            ) : (
+              <>
+                <span>Upload Sekarang</span>
+                <ArrowRight className="w-5 h-5" />
+              </>
+            )}
+          </button>
+        )}
+
+        {/* Hasil OCR Preview */}
+        {extractedData && (
+          <div className="mt-8 p-6 bg-blue-50 rounded-xl border border-blue-200 shadow">
+            <h2 className="text-lg font-bold mb-4 text-blue-700">Hasil Ekstraksi Kartu Pelajar</h2>
+            <div className="grid grid-cols-2 gap-4">
+              <div><span className="font-semibold">Nama:</span> {extractedData.nama}</div>
+              <div><span className="font-semibold">NIS:</span> {extractedData.nis}</div>
+              <div><span className="font-semibold">TTL:</span> {extractedData.ttl}</div>
+              <div><span className="font-semibold">Gender:</span> {extractedData.gender}</div>
+              <div><span className="font-semibold">Kelas:</span> {extractedData.kelas}</div>
+            </div>
+            <div className="mt-4 text-blue-600">Akan redirect ke login dalam 3 detik...</div>
+          </div>
+        )}
 
         <div className="mt-8 pt-6 border-t border-gray-200 text-center text-gray-500 text-sm flex justify-center items-center space-x-2">
           <Shield className="w-4 h-4" />

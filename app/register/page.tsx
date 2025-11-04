@@ -41,8 +41,9 @@ const RegisterPage: React.FC = () => {
         role: "siswa", // default siswa
       });
 
-      console.log("✅ Registrasi berhasil. Arahkan ke halaman verifikasi kartu pelajar...");
-      router.push("/register/verification");
+  console.log("✅ Registrasi berhasil. Arahkan ke halaman verifikasi kartu pelajar...");
+  localStorage.setItem("justRegistered", "true");
+  router.push("/register/verification");
     } catch (err: any) {
       console.error("❌ Gagal mendaftar:", err.message || err);
     } finally {
