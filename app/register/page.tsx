@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   GraduationCap,
   Mail,
@@ -14,22 +15,36 @@ import {
 } from "lucide-react";
 import { apiRequest } from "@/lib/api";
 
-const LoginPage: React.FC = () => {
+const RegisterPage: React.FC = () => {
+  const router = useRouter(); // <-- pindahkan ke sini
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
   const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [remember, setRemember] = useState(false);
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleLogin = async () => {
+  const handleRegister = async () => {
+    if (password !== confirmPassword) {
+      console.warn("❌ Password dan konfirmasi password tidak cocok.");
+      return;
+    }
+
     setIsLoading(true);
+
     try {
-      const res = await apiRequest("/auth/login", "POST", { username, password });
-      localStorage.setItem("token", res.access_token);
-      alert(`Login berhasil! Selamat datang, ${res.user?.username || "User"}`);
-      window.location.href = "/dashboard";
+      await apiRequest("/auth/register", "POST", {
+        username,
+        email,
+        password,
+        role: "siswa", // default siswa
+      });
+
+      console.log("✅ Registrasi berhasil. Arahkan ke halaman verifikasi kartu pelajar...");
+      router.push("/register/verification");
     } catch (err: any) {
-      alert(err.message || "Login gagal, periksa username/password.");
+      console.error("❌ Gagal mendaftar:", err.message || err);
     } finally {
       setIsLoading(false);
     }
@@ -43,14 +58,14 @@ const LoginPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 flex items-center justify-center p-4 relative">
-      {/* Decorative Background */}
+      {/* Background animation */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-20 left-10 w-72 h-72 bg-blue-400/20 rounded-full blur-3xl animate-pulse"></div>
         <div className="absolute bottom-20 right-10 w-96 h-96 bg-indigo-400/20 rounded-full blur-3xl animate-pulse delay-1000"></div>
       </div>
 
       <div className="relative w-full max-w-6xl grid md:grid-cols-2 gap-8 items-center">
-        {/* Left Section */}
+        {/* Left Side */}
         <div className="hidden md:block space-y-8">
           <div className="space-y-4">
             <div className="flex items-center space-x-3">
@@ -67,13 +82,13 @@ const LoginPage: React.FC = () => {
 
             <div className="space-y-2">
               <h2 className="text-4xl font-bold text-gray-900 leading-tight">
-                Selamat Datang di
+                Bergabung dengan
                 <span className="block bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
                   Portal Digital SMK
                 </span>
               </h2>
               <p className="text-lg text-gray-600 leading-relaxed">
-                Sistem Informasi Pengembangan Kompetensi & Kesejahteraan Siswa yang terintegrasi
+                Daftarkan akun siswa Anda untuk mengakses seluruh fitur akademik & pengembangan kompetensi.
               </p>
             </div>
           </div>
@@ -106,12 +121,12 @@ const LoginPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Right Section */}
+        {/* Right Side */}
         <div className="w-full">
           <div className="bg-white/80 backdrop-blur-xl rounded-3xl shadow-2xl p-8 md:p-10 border border-white/20">
             <div className="text-center mb-8">
-              <h3 className="text-2xl font-bold text-gray-900 mb-2">Masuk ke Akun Anda</h3>
-              <p className="text-gray-600">Masukkan kredensial Anda untuk melanjutkan</p>
+              <h3 className="text-2xl font-bold text-gray-900 mb-2">Daftar Akun Baru</h3>
+              <p className="text-gray-600">Isi data di bawah untuk membuat akun siswa Anda</p>
             </div>
 
             <div className="space-y-5">
@@ -130,6 +145,21 @@ const LoginPage: React.FC = () => {
                 </div>
               </div>
 
+              {/* Email */}
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Email</label>
+                <div className="relative">
+                  <Mail className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="Masukkan email aktif"
+                    className="w-full pl-12 pr-4 py-3.5 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-none transition-all duration-300"
+                  />
+                </div>
+              </div>
+
               {/* Password */}
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">Password</label>
@@ -139,7 +169,7 @@ const LoginPage: React.FC = () => {
                     type={showPassword ? "text" : "password"}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Masukkan password"
+                    placeholder="Buat password"
                     className="w-full pl-12 pr-12 py-3.5 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-none transition-all duration-300"
                   />
                   <button
@@ -152,28 +182,31 @@ const LoginPage: React.FC = () => {
                 </div>
               </div>
 
-              {/* Remember Me & Forgot Password */}
-              <div className="flex items-center justify-between">
-                <label className="flex items-center space-x-2 cursor-pointer">
+              {/* Confirm Password */}
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Konfirmasi Password</label>
+                <div className="relative">
+                  <Lock className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
                   <input
-                    type="checkbox"
-                    checked={remember}
-                    onChange={() => setRemember(!remember)}
-                    className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
+                    type={showConfirm ? "text" : "password"}
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    placeholder="Ulangi password"
+                    className="w-full pl-12 pr-12 py-3.5 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-none transition-all duration-300"
                   />
-                  <span className="text-sm text-gray-600">Ingat saya</span>
-                </label>
-                <button
-                  className="text-sm font-medium text-blue-600 hover:text-indigo-600 transition-colors"
-                  type="button"
-                >
-                  Lupa Password?
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirm(!showConfirm)}
+                    className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  >
+                    {showConfirm ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                  </button>
+                </div>
               </div>
 
-              {/* Login Button */}
+              {/* Register Button */}
               <button
-                onClick={handleLogin}
+                onClick={handleRegister}
                 disabled={isLoading}
                 className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-4 rounded-xl font-semibold text-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 disabled:opacity-50 disabled:transform-none flex items-center justify-center space-x-2"
               >
@@ -184,7 +217,7 @@ const LoginPage: React.FC = () => {
                   </>
                 ) : (
                   <>
-                    <span>Masuk</span>
+                    <span>Daftar Sekarang</span>
                     <ArrowRight className="w-5 h-5" />
                   </>
                 )}
@@ -201,12 +234,12 @@ const LoginPage: React.FC = () => {
               </div>
             </div>
 
-            {/* Register Link */}
+            {/* Login Link */}
             <div className="text-center">
               <p className="text-gray-600">
-                Belum punya akun?{" "}
-                <a href="/register" className="font-semibold text-blue-600 hover:text-indigo-600">
-                  Daftar Sekarang
+                Sudah punya akun?{" "}
+                <a href="/login" className="font-semibold text-blue-600 hover:text-indigo-600">
+                  Masuk Sekarang
                 </a>
               </p>
             </div>
@@ -235,4 +268,4 @@ const LoginPage: React.FC = () => {
   );
 };
 
-export default LoginPage;
+export default RegisterPage;
