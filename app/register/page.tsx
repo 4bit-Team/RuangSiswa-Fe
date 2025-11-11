@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   GraduationCap,
@@ -14,6 +14,8 @@ import {
   BookOpen,
 } from "lucide-react";
 import { apiRequest } from "@/lib/api";
+import { fetchKelas, fetchJurusan } from "@/lib/masterData";
+import { redirectIfLoggedInFromCookie } from "@/lib/authRedirect";
 
 const RegisterPage: React.FC = () => {
   const router = useRouter(); // <-- pindahkan ke sini
@@ -23,7 +25,19 @@ const RegisterPage: React.FC = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [kelas, setKelas] = useState("");
+  const [jurusan, setJurusan] = useState("");
+  const [kelasList, setKelasList] = useState<any[]>([]);
+  const [jurusanList, setJurusanList] = useState<any[]>([]);
+  useEffect(() => {
+    fetchKelas().then(data => setKelasList(data)).catch(() => setKelasList([]));
+    fetchJurusan().then(data => setJurusanList(data)).catch(() => setJurusanList([]));
+  }, []);
   const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    redirectIfLoggedInFromCookie();
+  }, []);
 
   const handleRegister = async () => {
     if (password !== confirmPassword) {
@@ -34,17 +48,26 @@ const RegisterPage: React.FC = () => {
     setIsLoading(true);
 
     try {
-      await apiRequest("/auth/register", "POST", {
+      const response = await apiRequest("/auth/register", "POST", {
         username,
         email,
         password,
-        role: "siswa", // default siswa
+        kelas_id: parseInt(kelas),
+        jurusan_id: parseInt(jurusan),
+        role: "siswa",
       });
 
-  console.log("✅ Registrasi berhasil. Arahkan ke halaman verifikasi kartu pelajar...");
-  localStorage.setItem("justRegistered", "true");
-  router.push("/register/verification");
-    } catch (err: any) {
+      // Simpan userId ke localStorage agar bisa dipakai di halaman verifikasi
+      if (response && response.user && response.user.id) {
+        localStorage.setItem("userId", response.user.id.toString());
+        localStorage.setItem("kelas", kelas);
+        localStorage.setItem("jurusan", jurusan);
+      }
+      
+      localStorage.setItem("justRegistered", "true");
+      console.log("✅ Registrasi berhasil. Arahkan ke halaman verifikasi kartu pelajar...");
+      router.push("/register/verification");
+    } catch (err: any) {  
       console.error("❌ Gagal mendaftar:", err.message || err);
     } finally {
       setIsLoading(false);
@@ -158,6 +181,46 @@ const RegisterPage: React.FC = () => {
                     placeholder="Masukkan email aktif"
                     className="w-full pl-12 pr-4 py-3.5 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-none transition-all duration-300"
                   />
+                </div>
+              </div>
+
+              {/* Kelas */}
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Kelas</label>
+                <div className="relative">
+                  <select
+                    value={kelas}
+                    onChange={(e) => setKelas(e.target.value)}
+                    className="w-full pl-4 pr-10 py-3.5 border-2 border-blue-300 rounded-xl focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 outline-none transition-all duration-300 appearance-none bg-white shadow-sm"
+                  >
+                    <option value="">Pilih Kelas</option>
+                    {kelasList.map((k: any) => (
+                      <option key={k.id} value={k.id}>{k.nama}</option>
+                    ))}
+                  </select>
+                  <span className="absolute right-4 top-1/2 transform -translate-y-1/2 pointer-events-none text-blue-500">
+                    <ArrowRight className="w-5 h-5" />
+                  </span>
+                </div>
+              </div>
+
+              {/* Jurusan */}
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Jurusan</label>
+                <div className="relative">
+                  <select
+                    value={jurusan}
+                    onChange={(e) => setJurusan(e.target.value)}
+                    className="w-full pl-4 pr-10 py-3.5 border-2 border-blue-300 rounded-xl focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 outline-none transition-all duration-300 appearance-none bg-white shadow-sm"
+                  >
+                    <option value="">Pilih Jurusan</option>
+                    {jurusanList.map((j: any) => (
+                      <option key={j.id} value={j.id}>{j.nama + ' - ' + j.kode}</option>
+                    ))}
+                  </select>
+                  <span className="absolute right-4 top-1/2 transform -translate-y-1/2 pointer-events-none text-blue-500">
+                    <ArrowRight className="w-5 h-5" />
+                  </span>
                 </div>
               </div>
 

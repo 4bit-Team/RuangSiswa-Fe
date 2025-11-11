@@ -4,7 +4,7 @@ import { ChevronRight, Zap } from 'lucide-react'
 const Hero = () => {
   const stats = [
     { number: "14+", label: "Modul Terintegrasi" },
-    { number: "5", label: "Jenis User Role" },
+    { number: "4", label: "Jenis User Role" },
     { number: "100%", label: "Digital Solution" },
     { number: "24/7", label: "Akses Sistem" }
   ]

@@ -12,10 +12,14 @@ export async function apiRequest(
   };
   if (token) headers["Authorization"] = `Bearer ${token}`;
 
-  const res = await fetch(`${API_URL}${endpoint}`, {
+  // Always use API_URL from env for all requests
+  const url = `${API_URL}${endpoint.startsWith("/") ? endpoint : "/" + endpoint}`;
+
+  const res = await fetch(url, {
     method,
     headers,
     body: body ? JSON.stringify(body) : undefined,
+    credentials: 'include',
   });
 
   if (!res.ok) {

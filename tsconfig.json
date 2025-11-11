@@ -22,10 +22,11 @@
         "name": "next"
       }
     ],
+    "baseUrl": ".",  
     "paths": {
-      "@/*": [
-        "./*"
-      ]
+      "@/*": ["./*"],
+      "@types": ["types/index.ts"], 
+      "@types/*": ["types/*"]
     }
   },
   "include": [

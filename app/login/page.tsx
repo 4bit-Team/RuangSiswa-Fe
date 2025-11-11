@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   GraduationCap,
   Mail,
@@ -12,24 +12,92 @@ import {
   Zap,
   BookOpen,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { apiRequest } from "@/lib/api";
+import { redirectIfLoggedInFromCookie } from "@/lib/authRedirect";
 
 const LoginPage: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
-  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [remember, setRemember] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const router = useRouter();
+
+  useEffect(() => {
+    redirectIfLoggedInFromCookie();
+  }, []);
+
+  const fetchProfileAndSetCookie = async () => {
+    try {
+      const res = await fetch("/auth/me", {
+        method: "GET",
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Gagal ambil profile");
+      const profile = await res.json();
+      document.cookie = `auth_profile=${encodeURIComponent(JSON.stringify(profile))}; path=/`;
+      return profile;
+    } catch (err) {
+      console.error("Gagal ambil profile:", err);
+      return null;
+    }
+  };
 
   const handleLogin = async () => {
+
+    if (!email || !password) {
+      alert("Email dan password wajib diisi!");
+      return;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      alert("Format email tidak valid!");
+      return;
+    }
+
     setIsLoading(true);
     try {
-      const res = await apiRequest("/auth/login", "POST", { username, password });
-      localStorage.setItem("token", res.access_token);
-      alert(`Login berhasil! Selamat datang, ${res.user?.username || "User"}`);
-      window.location.href = "/dashboard";
+      const res = await apiRequest("/auth/login", "POST", { email, password });
+      const role = res.user?.role;
+      const username = res.user?.username;
+
+      if (!role) {
+        alert("Login gagal! Anda tidak memiliki role yang valid.");
+        setIsLoading(false);
+        return;
+      }
+
+      localStorage.setItem("token", res.token);
+      localStorage.setItem("role", role);
+
+      const profile = await fetchProfileAndSetCookie();
+
+      try {
+        await apiRequest("/log/login", "POST", { username: profile?.username || username || "User", email: profile?.email, role: profile?.role });
+      } catch (err) {
+        console.error("Gagal kirim log login ke backend", err);
+      }
+
+      if (role === "siswa") {
+        window.location.href = "/home";
+      } else if (role === "kesiswaan") {
+        window.location.href = "/dashboard-kesiswaan";
+      } else if (role === "bk") {
+        window.location.href = "/dashboard-bk";
+      } else if (role === "admin") {
+        window.location.href = "/dashboard-admin";
+      } else {
+        alert("Role tidak dikenali! Login dibatalkan.");
+        localStorage.removeItem("token");
+      }
     } catch (err: any) {
-      alert(err.message || "Login gagal, periksa username/password.");
+      if (err.response?.status === 400) {
+        alert(err.response.data?.message || "Login gagal! Email atau password salah.");
+      } else {
+        alert(err.message || "Terjadi kesalahan, coba lagi nanti.");
+      }
     } finally {
       setIsLoading(false);
     }
@@ -43,7 +111,7 @@ const LoginPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 flex items-center justify-center p-4 relative">
-      {/* Decorative Background */}
+      {/* Background */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-20 left-10 w-72 h-72 bg-blue-400/20 rounded-full blur-3xl animate-pulse"></div>
         <div className="absolute bottom-20 right-10 w-96 h-96 bg-indigo-400/20 rounded-full blur-3xl animate-pulse delay-1000"></div>
@@ -92,18 +160,6 @@ const LoginPage: React.FC = () => {
               </div>
             ))}
           </div>
-
-          {/* Stats */}
-          <div className="grid grid-cols-3 gap-4">
-            {["14+ Modul", "5 User Role", "24/7 Akses"].map((stat, i) => (
-              <div key={i} className="bg-white/60 backdrop-blur-sm rounded-xl p-4 text-center border border-blue-100">
-                <div className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-                  {stat.split(" ")[0]}
-                </div>
-                <div className="text-xs text-gray-600 mt-1">{stat.split(" ")[1]}</div>
-              </div>
-            ))}
-          </div>
         </div>
 
         {/* Right Section */}
@@ -115,16 +171,16 @@ const LoginPage: React.FC = () => {
             </div>
 
             <div className="space-y-5">
-              {/* Username */}
+              {/* Email */}
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Username</label>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Email</label>
                 <div className="relative">
                   <Mail className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
                   <input
-                    type="text"
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    placeholder="Masukkan username"
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="Masukkan email"
                     className="w-full pl-12 pr-4 py-3.5 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-none transition-all duration-300"
                   />
                 </div>
@@ -152,7 +208,7 @@ const LoginPage: React.FC = () => {
                 </div>
               </div>
 
-              {/* Remember Me & Forgot Password */}
+              {/* Remember & Forgot */}
               <div className="flex items-center justify-between">
                 <label className="flex items-center space-x-2 cursor-pointer">
                   <input
@@ -191,18 +247,8 @@ const LoginPage: React.FC = () => {
               </button>
             </div>
 
-            {/* Divider */}
-            <div className="relative my-6">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-gray-200"></div>
-              </div>
-              <div className="relative flex justify-center text-sm">
-                <span className="px-4 bg-white text-gray-500">Atau</span>
-              </div>
-            </div>
-
-            {/* Register Link */}
-            <div className="text-center">
+            {/* Register */}
+            <div className="text-center mt-6">
               <p className="text-gray-600">
                 Belum punya akun?{" "}
                 <a href="/register" className="font-semibold text-blue-600 hover:text-indigo-600">
@@ -220,7 +266,7 @@ const LoginPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Help Text */}
+          {/* Help */}
           <div className="text-center mt-6">
             <p className="text-sm text-gray-600">
               Butuh bantuan?{" "}

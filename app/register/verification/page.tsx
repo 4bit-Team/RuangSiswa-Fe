@@ -1,79 +1,71 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Upload, ArrowRight, Shield, GraduationCap } from "lucide-react";
-import { jwtDecode } from "jwt-decode";
+import { getUserFromCookieOrRedirect } from "@/lib/authRedirect";
 
 export default function VerificationPage() {
   const [extractedData, setExtractedData] = useState<any>(null);
+  const [uploadMessage, setUploadMessage] = useState<string | null>(null);
   const router = useRouter();
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
+  const [userKelas, setUserKelas] = useState<string>("");
+  const [userJurusan, setUserJurusan] = useState<string>("");
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  // 🔐 Ambil userId dari localStorage / JWT
-  useEffect(() => {
-    const token = localStorage.getItem("token");
-    const justRegistered = localStorage.getItem("justRegistered");
-    const savedId = localStorage.getItem("userId");
+   useEffect(() => {
+    const user = getUserFromCookieOrRedirect(router);
+    if (!user) return;
 
-    // Jika sudah login, redirect ke dashboard
-    if (token) {
-      router.replace("/dashboard");
-      return;
-    }
-    // Jika belum daftar, redirect ke /register
-    if (!justRegistered) {
-      router.replace("/register");
-      return;
-    }
-    // Ambil userId
-    if (savedId) {
-      setUserId(savedId);
-    }
+    // Simpan data user sementara
+    setUserId(user.id?.toString() || null);
+    setUserKelas(user.kelas?.nama?.toUpperCase() || "-");
+    setUserJurusan(user.jurusan?.nama?.toUpperCase() || "-");
+
+    // Simpan sementara di localStorage (supaya bertahan reload)
+    localStorage.setItem("userId", user.id?.toString());
+    localStorage.setItem("kelas", user.kelas?.nama || "");
+    localStorage.setItem("jurusan", user.jurusan?.nama || "");
   }, [router]);
 
-  // 📸 Handle file change
+  // Handle file input
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
     if (!f) return;
 
     if (!["image/jpeg", "image/png", "image/webp"].includes(f.type)) {
-      console.warn("⚠️ Format file tidak valid:", f.type);
+      alert("⚠️ Format file tidak valid! Hanya JPG, PNG, atau WEBP.");
       return;
     }
     if (f.size > 5 * 1024 * 1024) {
-      console.warn("⚠️ Ukuran file terlalu besar (>5MB)");
+      alert("⚠️ Ukuran file terlalu besar! Maksimal 5MB.");
       return;
     }
 
     setFile(f);
     setPreview(URL.createObjectURL(f));
+    setUploadMessage(null);
+    setExtractedData(null);
   };
 
-  // 🚀 Upload kartu pelajar
+  // Upload ke backend
   const handleUpload = async () => {
-    if (!file) {
-      console.warn("⚠️ Silakan pilih file kartu pelajar terlebih dahulu");
-      return;
-    }
-    if (!userId) {
-      console.error("❌ User ID tidak ditemukan. Silakan login ulang.");
-      return;
-    }
+    if (!file) return alert("Silakan pilih foto kartu pelajar terlebih dahulu!");
+    if (!userId) return alert("User ID tidak ditemukan, silakan login ulang.");
 
     setIsLoading(true);
     try {
       const formData = new FormData();
       formData.append("kartu_pelajar", file);
       formData.append("userId", userId);
+      formData.append("kelas", userKelas);
+      formData.append("jurusan", userJurusan);
 
-      const apiUrl =
-        process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api";
-      console.log("📤 Mengirim ke:", `${apiUrl}/student-card/upload`);
-
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api";
       const res = await fetch(`${apiUrl}/student-card/upload`, {
         method: "POST",
         body: formData,
@@ -82,27 +74,26 @@ export default function VerificationPage() {
       const data = await res.json();
       console.log("📥 Respon dari server:", data);
 
-      if (!res.ok) {
-        throw new Error(data.message || "Upload gagal");
-      }
-
-      // Tampilkan hasil OCR di frontend sebelum redirect
-      setExtractedData(data.extractedData);
-      // Setelah 3 detik, hapus flag dan redirect
-      setTimeout(() => {
-        localStorage.removeItem("justRegistered");
-        window.location.href = "/login";
-      }, 3000);
-    } catch (err) {
-      console.error("❌ Terjadi kesalahan saat upload:", err);
+      setUploadMessage(data.message);
+      setExtractedData(data.extractedData || null);
+    } catch (err: any) {
+      console.error("❌ Upload gagal:", err);
+      setUploadMessage("❌ Terjadi kesalahan saat upload kartu pelajar.");
     } finally {
       setIsLoading(false);
     }
   };
 
+  const handleReuploadClick = () => {
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+      fileInputRef.current.click();
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 flex items-center justify-center p-4 relative overflow-hidden">
-      {/* Background blobs */}
+      {/* Background */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-20 left-10 w-72 h-72 bg-blue-400/20 rounded-full blur-3xl animate-pulse"></div>
         <div className="absolute bottom-20 right-10 w-96 h-96 bg-indigo-400/20 rounded-full blur-3xl animate-pulse delay-1000"></div>
@@ -156,6 +147,8 @@ export default function VerificationPage() {
               onClick={() => {
                 setFile(null);
                 setPreview(null);
+                setExtractedData(null);
+                setUploadMessage(null);
               }}
               className="mt-3 text-sm text-red-500 hover:text-red-600 font-medium"
             >
@@ -185,18 +178,90 @@ export default function VerificationPage() {
           </button>
         )}
 
-        {/* Hasil OCR Preview */}
+        {/* Hasil dari backend */}
+        {uploadMessage && (
+          <div
+            className={`mt-6 p-4 rounded-xl text-center font-semibold ${
+              uploadMessage.startsWith("✅")
+                ? "bg-green-100 text-green-700 border border-green-300"
+                : "bg-red-100 text-red-700 border border-red-300"
+            }`}
+          >
+            {uploadMessage}
+          </div>
+        )}
+
+        {/* Tampilkan hasil OCR jika ada */}
         {extractedData && (
           <div className="mt-8 p-6 bg-blue-50 rounded-xl border border-blue-200 shadow">
-            <h2 className="text-lg font-bold mb-4 text-blue-700">Hasil Ekstraksi Kartu Pelajar</h2>
+            <h2 className="text-lg font-bold mb-4 text-blue-700">
+              Hasil Ekstraksi Kartu Pelajar
+            </h2>
             <div className="grid grid-cols-2 gap-4">
-              <div><span className="font-semibold">Nama:</span> {extractedData.nama}</div>
-              <div><span className="font-semibold">NIS:</span> {extractedData.nis}</div>
-              <div><span className="font-semibold">TTL:</span> {extractedData.ttl}</div>
-              <div><span className="font-semibold">Gender:</span> {extractedData.gender}</div>
-              <div><span className="font-semibold">Kelas:</span> {extractedData.kelas}</div>
+              <div>
+                <span className="font-semibold">Nama:</span> {extractedData.nama}
+              </div>
+              <div>
+                <span className="font-semibold">NIS:</span> {extractedData.nis}
+              </div>
+              <div>
+                <span className="font-semibold">NISN:</span> {extractedData.nisn || "-"}
+              </div>
+              <div>
+                <span className="font-semibold">TTL:</span> {extractedData.ttl}
+              </div>
+              <div>
+                <span className="font-semibold">Gender:</span> {extractedData.gender}
+              </div>
+              <div>
+                <span className="font-semibold">Kelas:</span> {extractedData.kelas}
+              </div>
+              <div>
+                <span className="font-semibold">Jurusan:</span> {extractedData.jurusan}
+              </div>
             </div>
-            <div className="mt-4 text-blue-600">Akan redirect ke login dalam 3 detik...</div>
+
+            {/* Status dari backend */}
+            {extractedData.validasi && (
+              <div className="mt-4">
+                <span className="font-semibold">Status Verifikasi:</span>
+                <span
+                  className={
+                    extractedData.validasi.status === "sesuai"
+                      ? "text-green-600 font-bold ml-2"
+                      : "text-red-600 font-bold ml-2"
+                  }
+                >
+                  {extractedData.validasi.status === "sesuai"
+                    ? "Kelas & Jurusan Sesuai"
+                    : "Kelas/Jurusan Tidak Sesuai"}
+                </span>
+              </div>
+            )}
+
+            {/* Tombol lanjut */}
+            <div className="mt-6 flex gap-4">
+              {extractedData.validasi?.status === "sesuai" && (
+                <button
+                  className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-6 py-3 rounded-xl font-semibold hover:shadow-xl transition-all duration-300"
+                  onClick={() => {
+                    localStorage.removeItem("justRegistered");
+                    localStorage.removeItem("kelas");
+                    localStorage.removeItem("jurusan");
+                    window.location.href = "/login";
+                  }}
+                >
+                  Lanjut ke Login
+                </button>
+              )}
+
+              <button
+                className="bg-white border border-blue-600 text-blue-600 px-6 py-3 rounded-xl font-semibold hover:bg-blue-50 transition-all duration-300"
+                onClick={handleReuploadClick}
+              >
+                Upload Ulang
+              </button>
+            </div>
           </div>
         )}
 
