@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { Heart, MessageCircle, Calendar, Users } from 'lucide-react';
-import { StatCardProps, UpdateCardProps } from '../types';
+import { StatCardProps, UpdateCardProps } from '@types';
 
 
 const StatCard: React.FC<StatCardProps> = ({ icon: Icon, label, value, color }) => (

@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { Phone, Video, MoreVertical, Send, Search } from 'lucide-react';
-import { ChatListItemProps, ChatBubbleProps } from '../types';
+import { ChatListItemProps, ChatBubbleProps } from '@types';
 
 
 const ChatListItem: React.FC<ChatListItemProps> = ({

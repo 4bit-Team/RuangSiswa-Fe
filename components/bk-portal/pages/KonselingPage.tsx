@@ -2,7 +2,7 @@
 
 import React from 'react'
 import { Heart, MessageSquare, Shield, Clock, Calendar, Users, MessageCircle } from 'lucide-react'
-import { SessionItemProps, CounselingCardProps } from '../types'
+import { SessionItemProps, CounselingCardProps } from '@types'
 
 const SessionItem: React.FC<SessionItemProps> = ({ icon: Icon, title, counselor, date, time, status, statusColor }) => (
   <div className="bg-white rounded-lg p-4 flex items-center justify-between">

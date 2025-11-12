@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react'
 import { Users, Video, Calendar, Clock, Check } from 'lucide-react'
-import { ReservationItemProps, CounselorCardProps } from '../types'
+import { ReservationItemProps, CounselorCardProps } from '@types'
 
 const ReservationItem: React.FC<ReservationItemProps> = ({ icon: Icon, type, tag, tagColor, counselor, date, time, status, statusColor }) => (
   <div className="bg-white rounded-lg p-4 flex items-center justify-between">
