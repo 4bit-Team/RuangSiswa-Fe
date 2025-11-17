@@ -36,28 +36,40 @@ export function getUserFromCookieOrRedirect(router?: any) {
   try {
     const justRegistered = localStorage.getItem("justRegistered");
 
+    // 🔹 Cek cookie auth_profile
     const match = document.cookie.match(/auth_profile=([^;]+)/);
-    if (!match) {
-      // Kalau belum login dan bukan dari register → ke /register
-      if (!justRegistered) {
-        console.warn("Belum login & bukan dari register, redirect ke /register...");
-        if (router) router.replace("/register");
+    if (match) {
+      const user = JSON.parse(decodeURIComponent(match[1]));
+
+      if (user && user.id && user.role) {
+        return user;
+      } else {
+        console.warn("Cookie auth_profile tidak valid.");
       }
-      return null;
     }
 
-    const user = JSON.parse(decodeURIComponent(match[1]));
+    // 🔹 Kalau cookie kosong tapi user baru register
+    if (justRegistered) {
+      const localId = localStorage.getItem("userId");
+      const localKelas = localStorage.getItem("kelas");
+      const localJurusan = localStorage.getItem("jurusan");
 
-    // Validasi isi cookie
-    if (!user || !user.id || !user.role) {
-      console.warn("Data cookie auth_profile tidak valid, redirect ke /register...");
-      if (router) router.replace("/register");
-      return null;
+      if (localId) {
+        return {
+          id: parseInt(localId),
+          role: "student",
+          kelas: { nama: localKelas || "-" },
+          jurusan: { nama: localJurusan || "-" },
+        };
+      }
     }
 
-    return user;
+    // 🔹 Kalau bukan dari register → arahkan ke /register
+    console.warn("Belum login & bukan dari register, redirect ke /register...");
+    if (!justRegistered && router) router.replace("/register");
+    return null;
   } catch (err) {
-    console.error("Gagal membaca cookie auth_profile:", err);
+    console.error("Gagal membaca auth_profile:", err);
     if (router) router.replace("/register");
     return null;
   }

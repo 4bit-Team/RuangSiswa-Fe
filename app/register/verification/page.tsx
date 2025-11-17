@@ -19,17 +19,29 @@ export default function VerificationPage() {
 
    useEffect(() => {
     const user = getUserFromCookieOrRedirect(router);
-    if (!user) return;
 
-    // Simpan data user sementara
-    setUserId(user.id?.toString() || null);
-    setUserKelas(user.kelas?.nama?.toUpperCase() || "-");
-    setUserJurusan(user.jurusan?.nama?.toUpperCase() || "-");
+    if (user) {
+      setUserId(user.id?.toString() || null);
+      setUserKelas(user.kelas?.nama?.toUpperCase() || "-");
+      setUserJurusan(user.jurusan?.nama?.toUpperCase() || "-");
 
-    // Simpan sementara di localStorage (supaya bertahan reload)
-    localStorage.setItem("userId", user.id?.toString());
-    localStorage.setItem("kelas", user.kelas?.nama || "");
-    localStorage.setItem("jurusan", user.jurusan?.nama || "");
+      // Simpan sementara untuk reload berikutnya
+      localStorage.setItem("userId", user.id?.toString() || "");
+      localStorage.setItem("kelas", user.kelas?.nama || "");
+      localStorage.setItem("jurusan", user.jurusan?.nama || "");
+    } else {
+      // 🔹 fallback kalau getUserFromCookieOrRedirect return null
+      const localId = localStorage.getItem("userId");
+      const localKelas = localStorage.getItem("kelas");
+      const localJurusan = localStorage.getItem("jurusan");
+
+      if (localId) setUserId(localId);
+      if (localKelas) setUserKelas(localKelas.toUpperCase());
+      if (localJurusan) setUserJurusan(localJurusan.toUpperCase());
+    }
+
+    // Debug (sementara)
+    console.log("✅ userId:", userId || localStorage.getItem("userId"));
   }, [router]);
 
   // Handle file input
@@ -54,14 +66,18 @@ export default function VerificationPage() {
 
   // Upload ke backend
   const handleUpload = async () => {
+    const user = userId || localStorage.getItem("userId");
+    const kelas = userKelas || localStorage.getItem("kelas");
+    const jurusan = userJurusan || localStorage.getItem("jurusan");
+
     if (!file) return alert("Silakan pilih foto kartu pelajar terlebih dahulu!");
-    if (!userId) return alert("User ID tidak ditemukan, silakan login ulang.");
+    if (!user) return alert("User ID tidak ditemukan, silakan login ulang.");
 
     setIsLoading(true);
     try {
       const formData = new FormData();
       formData.append("kartu_pelajar", file);
-      formData.append("userId", userId);
+      formData.append("userId", user);
       formData.append("kelas", userKelas);
       formData.append("jurusan", userJurusan);
 
