@@ -120,3 +120,17 @@ export interface ReservasiPageProps {
   selectedTab: string;
   setSelectedTab: (tab: string) => void;
 }
+
+export interface NewsItemProps {
+  id: number;
+  title: string;
+  description: string;
+  author: string;
+  date: string;
+  category: string;
+  status: string;
+  image?: string;
+  likes: number;
+  comments: number;
+  views: number;
+}

@@ -50,43 +50,58 @@ const AskQuestionModal: React.FC<AskQuestionModalProps> = ({
     onClose()
   }
 
+  React.useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden'
+    }
+    return () => {
+      document.body.style.overflow = 'unset'
+    }
+  }, [isOpen])
+
   if (!isOpen) return null
 
   const categoryLabel = categories.find((c) => c.id === selectedCategory)?.label || 'Umum'
 
   return (
-    <div
-      className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) {
-          handleClose()
-        }
-      }}
-    >
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-        <div className={`${isSubmitted ? 'bg-gradient-to-r from-green-500 to-emerald-500' : 'bg-gradient-to-r from-orange-500 to-yellow-500'} px-6 py-6 text-white flex items-center justify-between sticky top-0 z-10`}>
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center">
-              <HelpCircle className="w-6 h-6" />
-            </div>
-            <div>
-              <h2 className="text-2xl font-bold">
-                {isSubmitted ? '✅ Pertanyaan Terkirim' : 'Ajukan Pertanyaan'}
-              </h2>
-              <p className="text-white/80 text-sm">
-                {isSubmitted ? 'Konselor akan menjawab dalam waktu singkat' : 'Tanyakan apa yang sedang Anda pikirkan'}
-              </p>
-            </div>
-          </div>
-          <button
-            onClick={handleClose}
-            className="p-2 hover:bg-white/20 rounded-lg transition-colors"
-          >
-            <X className="w-6 h-6" />
-          </button>
-        </div>
+    <>
+      {/* Backdrop with blur */}
+      <div
+        className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40 transition-opacity duration-300 ease-out"
+        onClick={handleClose}
+      />
 
-        <div className="p-6">
+      {/* Modal Container */}
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
+        <div
+          className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto pointer-events-auto"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Header */}
+          <div className={`${isSubmitted ? 'bg-gradient-to-r from-green-500 to-emerald-500' : 'bg-gradient-to-r from-orange-500 to-yellow-500'} px-6 py-6 text-white flex items-center justify-between sticky top-0 z-10`}>
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center">
+                <HelpCircle className="w-6 h-6" />
+              </div>
+              <div>
+                <h2 className="text-2xl font-bold">
+                  {isSubmitted ? '✅ Pertanyaan Terkirim' : 'Ajukan Pertanyaan'}
+                </h2>
+                <p className="text-white/80 text-sm">
+                  {isSubmitted ? 'Konselor akan menjawab dalam waktu singkat' : 'Tanyakan apa yang sedang Anda pikirkan'}
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={handleClose}
+              className="p-2 hover:bg-white/20 rounded-lg transition-colors flex-shrink-0"
+            >
+              <X className="w-6 h-6" />
+            </button>
+          </div>
+
+          {/* Content */}
+          <div className="p-6">
           {!isSubmitted ? (
             <div className="space-y-6">
               <div>
@@ -169,11 +184,19 @@ const AskQuestionModal: React.FC<AskQuestionModalProps> = ({
                   <p className="text-blue-600">Menunggu Jawaban</p>
                 </div>
               </div>
+              <button
+                onClick={handleClose}
+                className="w-full mt-6 py-3 bg-orange-500 hover:bg-orange-600 text-white rounded-lg font-medium transition-all duration-300 flex items-center justify-center gap-2"
+              >
+                <Send className="w-4 h-4" />
+                Ajukan Pertanyaan Lagi
+              </button>
             </div>
           )}
+          </div>
         </div>
       </div>
-    </div>
+    </>
   )
 }
 

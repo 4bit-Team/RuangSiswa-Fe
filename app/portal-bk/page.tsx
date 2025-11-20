@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState } from 'react'
+import React, { useState, use } from 'react'
 import Sidebar from '@/components/bk-portal/layout/Sidebar'
 import Header from '@/components/bk-portal/layout/Header'
 import DashboardPage from '@/components/bk-portal/pages/DashboardPage'
@@ -9,9 +9,22 @@ import KonsultasiPage from '@/components/bk-portal/pages/KonsultasiPage'
 import KonselingPage from '@/components/bk-portal/pages/KonselingPage'
 import ReservasiPage from '@/components/bk-portal/pages/ReservasiPage'
 import ProfilPage from '@/components/bk-portal/pages/ProfilPage'
+import BeritaPage from '@/components/bk-portal/pages/BeritaPage'
 
-const BKPortal: React.FC = () => {
+const BKPortal: React.FC<{ searchParams?: Promise<{ topic?: string }> }> = ({ searchParams }) => {
   const [activePage, setActivePage] = useState<string>('dashboard')
+  const params = searchParams ? use(searchParams) : {}
+  const topicParam = params?.topic
+
+  // Parse activePage to handle berita-{topic} format
+  const getPageAndTopic = (page: string) => {
+    if (page.startsWith('berita-')) {
+      return { page: 'berita', topic: page.replace('berita-', '') }
+    }
+    return { page, topic: null }
+  }
+
+  const currentPageInfo = getPageAndTopic(activePage)
 
   // title/subtitle shown in the Header component
   const titleMap: Record<string, { title: string; subtitle?: string }> = {
@@ -21,26 +34,32 @@ const BKPortal: React.FC = () => {
     reservasi: { title: 'Reservasi', subtitle: 'Jadwalkan sesi dengan konselor' },
     chat: { title: 'Chat BK', subtitle: 'Percakapan langsung dengan konselor' },
     profil: { title: 'Profil', subtitle: 'Kelola informasi akun Anda' },
+    berita: { title: 'Berita & Artikel BK', subtitle: 'Baca artikel dan tips dari konselor BK' },
   }
 
-  const header = titleMap[activePage] ?? titleMap.dashboard
+  const header = titleMap[currentPageInfo.page] ?? titleMap.dashboard
 
   const renderContent = () => {
-    switch (activePage) {
+    const page = currentPageInfo.page
+    const topic = currentPageInfo.topic
+    
+    switch (page) {
       case 'dashboard':
-        return <DashboardPage />
+        return <DashboardPage setActivePage={setActivePage} />
       case 'konseling':
         return <KonselingPage />
       case 'konsultasi':
-        return <KonsultasiPage />
+        return <KonsultasiPage setActivePage={setActivePage} />
       case 'reservasi':
         return <ReservasiPage />
       case 'chat':
         return <ChatPage />
       case 'profil':
         return <ProfilPage />
+      case 'berita':
+        return <BeritaPage selectedTopic={topic || topicParam} setActivePage={setActivePage} />
       default:
-        return <DashboardPage />
+        return <DashboardPage setActivePage={setActivePage} />
     }
   }
 
