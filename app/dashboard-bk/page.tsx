@@ -9,6 +9,7 @@ import LaporanPage from '@/components/dashboard-bk/pages/LaporanPage'
 import BeritaPage from '@/components/dashboard-bk/pages/BeritaPage'
 import StatistikPage from '@/components/dashboard-bk/pages/StatistikPage'
 import PengaturanPage from '@/components/dashboard-bk/pages/PengaturanPage'
+import ChatBKPage from '@/components/dashboard-bk/pages/ChatBKPage'
 
 const DashboardBK: React.FC = () => {
   const [activePage, setActivePage] = useState<string>('dashboard')
@@ -17,6 +18,7 @@ const DashboardBK: React.FC = () => {
   const titleMap: Record<string, { title: string; subtitle: string }> = {
     dashboard: { title: 'Dashboard BK', subtitle: 'Ringkasan aktivitas dan pengumuman' },
     siswa: { title: 'Daftar Siswa', subtitle: 'Kelola data siswa dan riwayat konseling' },
+    chat: { title: 'Chat BK', subtitle: 'Percakapan langsung dengan konselor' },
     laporan: { title: 'Laporan Konseling', subtitle: 'Kelola dan buat laporan konseling siswa' },
     berita: { title: 'Berita & Artikel BK', subtitle: 'Kelola dan publikasikan artikel untuk siswa' },
     statistik: { title: 'Statistik & Analytics', subtitle: 'Analisis performa dan tren konseling' },
@@ -31,6 +33,8 @@ const DashboardBK: React.FC = () => {
         return <DashboardPage />
       case 'siswa':
         return <DaftarSiswaPage />
+      case 'chat':
+        return <ChatBKPage />
       case 'laporan':
         return <LaporanPage />
       case 'berita':

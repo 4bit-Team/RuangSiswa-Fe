@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useEffect } from 'react';
-import { Home, Users, FileText, Newspaper, BarChart3, Settings, Menu, X } from 'lucide-react';
+import { Home, Users, MessageCircle, FileText, Newspaper, BarChart3, Settings, Menu, X } from 'lucide-react';
 
 interface SidebarProps {
   activePage: string;
@@ -34,6 +34,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, setActivePage, sidebarOpe
   const menuItems = [
     { id: 'dashboard', icon: Home, label: 'Dashboard' },
     { id: 'siswa', icon: Users, label: 'Daftar Siswa' },
+    { id: 'chat', icon: MessageCircle, label: 'Chat' },
     { id: 'laporan', icon: FileText, label: 'Laporan' },
     { id: 'berita', icon: Newspaper, label: 'Berita' },
     { id: 'statistik', icon: BarChart3, label: 'Statistik' },
@@ -107,5 +108,4 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, setActivePage, sidebarOpe
     </>
   );
 };
-
 export default Sidebar;

@@ -1,8 +1,7 @@
 'use client'
 
 import React, { useState } from 'react';
-import { Search, Plus, Eye, Edit, Trash2, User, Calendar } from 'lucide-react';
-import Modal from '../modals/Modal';
+import { Search, Plus, Eye, Edit, Trash2, User, Calendar, BookOpen, X } from 'lucide-react';
 
 // Interfaces
 interface ArticleCardProps {
@@ -169,53 +168,119 @@ const BeritaPage: React.FC = () => {
       </div>
 
       {/* Modal: Buat Berita */}
-      <Modal 
-        isOpen={openModal === 'create'} 
-        onClose={() => setOpenModal(null)} 
-        title="Buat Berita & Artikel Baru"
-        size="lg"
-      >
-        <form className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Judul Artikel</label>
-            <input type="text" placeholder="Masukkan judul artikel" className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Kategori</label>
-              <select className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                <option>Akademik</option>
-                <option>Kesehatan Mental</option>
-                <option>Karir</option>
-                <option>Sosial</option>
-              </select>
+      <div>
+        {openModal === 'create' && (
+          <>
+            <div
+              className="fixed inset-0 bg-black bg-opacity-50 z-40 transition-opacity"
+              onClick={() => setOpenModal(null)}
+            />
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+              <div
+                className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="bg-gradient-to-r from-blue-500 to-purple-600 text-white p-6 flex items-center justify-between rounded-t-2xl">
+                  <div>
+                    <h2 className="text-2xl font-bold">Kelola Berita</h2>
+                    <p className="text-blue-100 text-sm mt-1">Tambah atau ubah informasi berita</p>
+                  </div>
+                  <button
+                    onClick={() => setOpenModal(null)}
+                    className="p-1 hover:bg-white hover:bg-opacity-20 rounded-lg transition-colors"
+                  >
+                    <X size={24} />
+                  </button>
+                </div>
+
+                <div className="p-6">
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      console.log('News created');
+                      setOpenModal(null);
+                    }}
+                    className="space-y-4"
+                  >
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Judul Berita
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="Masukkan judul berita"
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Kategori
+                      </label>
+                      <select className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <option value="">Pilih Kategori</option>
+                        <option value="akademik">Akademik</option>
+                        <option value="sosial">Sosial</option>
+                        <option value="karir">Karir</option>
+                        <option value="pengumuman">Pengumuman</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Ringkasan
+                      </label>
+                      <textarea
+                        placeholder="Masukkan ringkasan berita..."
+                        rows={2}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Konten
+                      </label>
+                      <textarea
+                        placeholder="Masukkan konten berita lengkap..."
+                        rows={4}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Status
+                      </label>
+                      <select className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <option value="">Pilih Status</option>
+                        <option value="draft">Draft</option>
+                        <option value="published">Published</option>
+                      </select>
+                    </div>
+
+                    <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
+                      <button
+                        type="button"
+                        onClick={() => setOpenModal(null)}
+                        className="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 font-medium transition"
+                      >
+                        Batal
+                      </button>
+                      <button
+                        type="submit"
+                        className="px-6 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-medium transition"
+                      >
+                        Simpan Berita
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </div>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
-              <select className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                <option>Draft</option>
-                <option>Published</option>
-              </select>
-            </div>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Ringkasan Singkat</label>
-            <textarea rows={2} placeholder="Masukkan ringkasan singkat artikel..." className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"></textarea>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Konten Artikel</label>
-            <textarea rows={6} placeholder="Masukkan konten lengkap artikel..." className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"></textarea>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Tag</label>
-            <input type="text" placeholder="Masukkan tag (dipisahkan dengan koma)" className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-          </div>
-          <div className="flex justify-end space-x-3 pt-4">
-            <button type="button" onClick={() => setOpenModal(null)} className="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 font-medium">Batal</button>
-            <button type="submit" className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium">Buat Berita</button>
-          </div>
-        </form>
-      </Modal>
+          </>
+        )}
+      </div>
     </div>
   );
 };

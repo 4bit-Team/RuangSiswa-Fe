@@ -1,8 +1,7 @@
 'use client'
 
 import React, { useState } from 'react';
-import { Calendar, Users, FileText, Bell, BarChart3, Clock, MapPin, User, Plus } from 'lucide-react';
-import Modal from '../modals/Modal';
+import { Calendar, Users, FileText, Bell, BarChart3, Clock, MapPin, User, Plus, CheckCircle, X, Eye } from 'lucide-react';
 
 // Prop types
 interface StatCardProps {
@@ -243,175 +242,433 @@ const DashboardBKPage: React.FC = () => {
       </div>
 
       {/* Modal: Buat Janji Baru */}
-      <Modal 
-        isOpen={openModal === 'appointment'} 
-        onClose={() => setOpenModal(null)} 
-        title="Buat Janji Konseling Baru"
-        size="lg"
-      >
-        <form className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Nama Siswa</label>
-              <input type="text" placeholder="Masukkan nama siswa" className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+      <div>
+        {openModal === 'appointment' && (
+          <>
+            <div
+              className="fixed inset-0 bg-black bg-opacity-50 z-40 transition-opacity"
+              onClick={() => setOpenModal(null)}
+            />
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+              <div
+                className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="bg-gradient-to-r from-blue-500 to-purple-600 text-white p-6 flex items-center justify-between rounded-t-2xl">
+                  <div>
+                    <h2 className="text-2xl font-bold">Buat Janji Temu</h2>
+                    <p className="text-blue-100 text-sm mt-1">Jadwalkan janji temu dengan konselor</p>
+                  </div>
+                  <button
+                    onClick={() => setOpenModal(null)}
+                    className="p-1 hover:bg-white hover:bg-opacity-20 rounded-lg transition-colors"
+                  >
+                    <X size={24} />
+                  </button>
+                </div>
+
+                <div className="p-6">
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      console.log('Appointment created');
+                      setOpenModal(null);
+                    }}
+                    className="space-y-4"
+                  >
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Nama Siswa
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="Masukkan nama siswa"
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Tanggal
+                        </label>
+                        <input
+                          type="date"
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Jam
+                        </label>
+                        <input
+                          type="time"
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Pilih Konselor
+                      </label>
+                      <select className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <option value="">Pilih Konselor</option>
+                        <option value="bu-sarah">Bu Sarah</option>
+                        <option value="pak-budi">Pak Budi</option>
+                        <option value="bu-rina">Bu Rina</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Ruangan
+                      </label>
+                      <select className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <option value="">Pilih Ruangan</option>
+                        <option value="ruang-bk-1">Ruang BK 1</option>
+                        <option value="ruang-bk-2">Ruang BK 2</option>
+                        <option value="ruang-bk-3">Ruang BK 3</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Catatan (Opsional)
+                      </label>
+                      <textarea
+                        placeholder="Masukkan catatan tambahan..."
+                        rows={3}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+
+                    <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
+                      <button
+                        type="button"
+                        onClick={() => setOpenModal(null)}
+                        className="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 font-medium transition"
+                      >
+                        Batal
+                      </button>
+                      <button
+                        type="submit"
+                        className="px-6 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-medium transition"
+                      >
+                        Buat Janji
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </div>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Kelas</label>
-              <select className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                <option>XII IPA 1</option>
-                <option>XII IPA 2</option>
-                <option>XI IPS 2</option>
-              </select>
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Tanggal</label>
-              <input type="date" className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Waktu</label>
-              <input type="time" className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-            </div>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Topik Konsultasi</label>
-            <select className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
-              <option>Akademik</option>
-              <option>Karir</option>
-              <option>Sosial</option>
-              <option>Keluarga</option>
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Ruangan</label>
-            <select className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
-              <option>Ruang BK 1</option>
-              <option>Ruang BK 2</option>
-              <option>Ruang Konseling</option>
-            </select>
-          </div>
-          <div className="flex justify-end space-x-3 pt-4">
-            <button type="button" onClick={() => setOpenModal(null)} className="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 font-medium">Batal</button>
-            <button type="submit" className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium">Buat Janji</button>
-          </div>
-        </form>
-      </Modal>
+          </>
+        )}
+      </div>
 
       {/* Modal: Tambah Siswa */}
-      <Modal 
-        isOpen={openModal === 'student'} 
-        onClose={() => setOpenModal(null)} 
-        title="Tambah Siswa Baru"
-        size="lg"
-      >
-        <form className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Nama Lengkap</label>
-              <input type="text" placeholder="Masukkan nama lengkap" className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+      <div>
+        {openModal === 'student' && (
+          <>
+            <div
+              className="fixed inset-0 bg-black bg-opacity-50 z-40 transition-opacity"
+              onClick={() => setOpenModal(null)}
+            />
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+              <div
+                className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="bg-gradient-to-r from-blue-500 to-purple-600 text-white p-6 flex items-center justify-between rounded-t-2xl">
+                  <div>
+                    <h2 className="text-2xl font-bold">Kelola Data Siswa</h2>
+                    <p className="text-blue-100 text-sm mt-1">Tambah atau ubah informasi siswa</p>
+                  </div>
+                  <button
+                    onClick={() => setOpenModal(null)}
+                    className="p-1 hover:bg-white hover:bg-opacity-20 rounded-lg transition-colors"
+                  >
+                    <X size={24} />
+                  </button>
+                </div>
+
+                <div className="p-6">
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      console.log('Student added');
+                      setOpenModal(null);
+                    }}
+                    className="space-y-4"
+                  >
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Nama Siswa
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="Masukkan nama siswa"
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        NISN
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="Masukkan NISN siswa"
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Kelas
+                        </label>
+                        <select className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                          <option value="">Pilih Kelas</option>
+                          <option value="10-a">10-A</option>
+                          <option value="10-b">10-B</option>
+                          <option value="11-a">11-A</option>
+                          <option value="12-a">12-A</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Jurusan
+                        </label>
+                        <select className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                          <option value="">Pilih Jurusan</option>
+                          <option value="ipa">IPA</option>
+                          <option value="ips">IPS</option>
+                          <option value="bahasa">Bahasa</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        No. Telepon
+                      </label>
+                      <input
+                        type="tel"
+                        placeholder="Masukkan no. telepon"
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Alamat
+                      </label>
+                      <textarea
+                        placeholder="Masukkan alamat siswa..."
+                        rows={3}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+
+                    <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
+                      <button
+                        type="button"
+                        onClick={() => setOpenModal(null)}
+                        className="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 font-medium transition"
+                      >
+                        Batal
+                      </button>
+                      <button
+                        type="submit"
+                        className="px-6 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-medium transition"
+                      >
+                        Simpan Data
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </div>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">NISN</label>
-              <input type="text" placeholder="Masukkan NISN" className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Kelas</label>
-              <select className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                <option>XII IPA 1</option>
-                <option>XII IPA 2</option>
-                <option>XI IPS 2</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Masalah Utama</label>
-              <select className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                <option>Akademik</option>
-                <option>Karir</option>
-                <option>Sosial</option>
-              </select>
-            </div>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
-            <input type="email" placeholder="Masukkan email siswa" className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-          </div>
-          <div className="flex justify-end space-x-3 pt-4">
-            <button type="button" onClick={() => setOpenModal(null)} className="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 font-medium">Batal</button>
-            <button type="submit" className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium">Tambah Siswa</button>
-          </div>
-        </form>
-      </Modal>
+          </>
+        )}
+      </div>
 
       {/* Modal: Buat Laporan */}
-      <Modal 
-        isOpen={openModal === 'report'} 
-        onClose={() => setOpenModal(null)} 
-        title="Buat Laporan Konseling"
-        size="lg"
-      >
-        <form className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Siswa</label>
-            <select className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
-              <option>Ahmad Fauzi</option>
-              <option>Siti Nurhaliza</option>
-              <option>Budi Santoso</option>
-            </select>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Tipe Laporan</label>
-              <select className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                <option>Konseling</option>
-                <option>Progress</option>
-                <option>Insiden</option>
-                <option>Evaluasi</option>
-              </select>
+      <div>
+        {openModal === 'report' && (
+          <>
+            <div
+              className="fixed inset-0 bg-black bg-opacity-50 z-40 transition-opacity"
+              onClick={() => setOpenModal(null)}
+            />
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+              <div
+                className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="bg-gradient-to-r from-blue-500 to-purple-600 text-white p-6 flex items-center justify-between rounded-t-2xl">
+                  <div>
+                    <h2 className="text-2xl font-bold">Buat Laporan</h2>
+                    <p className="text-blue-100 text-sm mt-1">Buat laporan konseling siswa</p>
+                  </div>
+                  <button
+                    onClick={() => setOpenModal(null)}
+                    className="p-1 hover:bg-white hover:bg-opacity-20 rounded-lg transition-colors"
+                  >
+                    <X size={24} />
+                  </button>
+                </div>
+
+                <div className="p-6">
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      console.log('Report created');
+                      setOpenModal(null);
+                    }}
+                    className="space-y-4"
+                  >
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Judul Laporan
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="Masukkan judul laporan"
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Jenis Laporan
+                      </label>
+                      <select className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <option value="">Pilih Jenis Laporan</option>
+                        <option value="konseling">Konseling</option>
+                        <option value="progress">Progress</option>
+                        <option value="insiden">Insiden</option>
+                        <option value="evaluasi">Evaluasi</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Nama Siswa
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="Masukkan nama siswa"
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Kategori
+                      </label>
+                      <select className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <option value="">Pilih Kategori</option>
+                        <option value="akademik">Akademik</option>
+                        <option value="sosial">Sosial</option>
+                        <option value="keluarga">Keluarga</option>
+                        <option value="karir">Karir</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Deskripsi
+                      </label>
+                      <textarea
+                        placeholder="Masukkan deskripsi laporan..."
+                        rows={4}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Status
+                      </label>
+                      <select className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <option value="">Pilih Status</option>
+                        <option value="draft">Draft</option>
+                        <option value="pending">Pending</option>
+                        <option value="selesai">Selesai</option>
+                      </select>
+                    </div>
+
+                    <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
+                      <button
+                        type="button"
+                        onClick={() => setOpenModal(null)}
+                        className="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 font-medium transition"
+                      >
+                        Batal
+                      </button>
+                      <button
+                        type="submit"
+                        className="px-6 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-medium transition"
+                      >
+                        Simpan Laporan
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </div>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Tanggal</label>
-              <input type="date" className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-            </div>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Deskripsi Laporan</label>
-            <textarea rows={4} placeholder="Masukkan deskripsi laporan konseling..." className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"></textarea>
-          </div>
-          <div className="flex justify-end space-x-3 pt-4">
-            <button type="button" onClick={() => setOpenModal(null)} className="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 font-medium">Batal</button>
-            <button type="submit" className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium">Buat Laporan</button>
-          </div>
-        </form>
-      </Modal>
+          </>
+        )}
+      </div>
 
       {/* Modal: Lihat Jadwal */}
-      <Modal 
-        isOpen={openModal === 'schedule'} 
-        onClose={() => setOpenModal(null)} 
-        title="Jadwal Lengkap"
-        size="lg"
-      >
-        <div className="space-y-4">
-          {schedules.map((schedule, idx) => (
-            <div key={idx} className="p-4 border border-gray-200 rounded-lg">
-              <div className="flex items-start justify-between mb-2">
+      <div>
+        {openModal === 'schedule' && (
+          <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto">
+              {/* Header */}
+              <div className="sticky top-0 bg-gradient-to-r from-blue-500 to-purple-600 text-white p-6 rounded-t-2xl flex items-center justify-between">
                 <div>
-                  <p className="font-semibold text-gray-900">{schedule.student} ({schedule.class})</p>
-                  <p className="text-sm text-gray-600">{schedule.duration}</p>
+                  <h2 className="text-2xl font-bold flex items-center space-x-2">
+                    <Eye size={28} />
+                    <span>Jadwal Lengkap</span>
+                  </h2>
+                  <p className="text-blue-100 text-sm mt-1">Lihat semua jadwal konseling Anda</p>
                 </div>
-                <span className={`text-xs px-3 py-1 ${schedule.status === 'Selesai' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'} rounded-full font-medium`}>
-                  {schedule.status}
-                </span>
+                <button
+                  onClick={() => setOpenModal(null)}
+                  className="p-1 hover:bg-white hover:bg-opacity-20 rounded-lg transition-colors"
+                >
+                  <X size={24} />
+                </button>
               </div>
-              <p className="text-sm text-gray-600 mb-1">{schedule.topic}</p>
-              <p className="text-xs text-gray-500">{schedule.room}</p>
+
+              {/* Content */}
+              <div className="px-6 py-6">
+                <div className="space-y-4">
+                  {schedules.map((schedule, idx) => (
+                    <div key={idx} className="p-4 border border-gray-200 rounded-lg">
+                      <div className="flex items-start justify-between mb-2">
+                        <div>
+                          <p className="font-semibold text-gray-900">{schedule.student} ({schedule.class})</p>
+                          <p className="text-sm text-gray-600">{schedule.duration}</p>
+                        </div>
+                        <span className={`text-xs px-3 py-1 ${schedule.status === 'Selesai' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'} rounded-full font-medium`}>
+                          {schedule.status}
+                        </span>
+                      </div>
+                      <p className="text-sm text-gray-600 mb-1">{schedule.topic}</p>
+                      <p className="text-xs text-gray-500">{schedule.room}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
-          ))}
-        </div>
-      </Modal>
+          </div>
+        )}
+      </div>
     </div>
   );
 };

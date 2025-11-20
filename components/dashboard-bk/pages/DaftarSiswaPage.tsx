@@ -1,8 +1,7 @@
 'use client'
 
 import React, { useState } from 'react';
-import { Search, Plus, Filter, MoreVertical } from 'lucide-react';
-import Modal from '../modals/Modal';
+import { Search, Plus, Filter, MoreVertical, X } from 'lucide-react';
 
 // Interfaces
 interface StudentRowProps {
@@ -147,66 +146,132 @@ const DaftarSiswaPage: React.FC = () => {
       </div>
 
       {/* Modal: Tambah Siswa */}
-      <Modal 
-        isOpen={openModal === 'add'} 
-        onClose={() => setOpenModal(null)} 
-        title="Tambah Siswa Baru"
-        size="lg"
-      >
-        <form className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Nama Lengkap</label>
-              <input type="text" placeholder="Masukkan nama lengkap" className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+      <div>
+        {openModal === 'add' && (
+          <>
+            <div
+              className="fixed inset-0 bg-black bg-opacity-50 z-40 transition-opacity"
+              onClick={() => setOpenModal(null)}
+            />
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+              <div
+                className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="bg-gradient-to-r from-blue-500 to-purple-600 text-white p-6 flex items-center justify-between rounded-t-2xl">
+                  <div>
+                    <h2 className="text-2xl font-bold">Kelola Data Siswa</h2>
+                    <p className="text-blue-100 text-sm mt-1">Tambah atau ubah informasi siswa</p>
+                  </div>
+                  <button
+                    onClick={() => setOpenModal(null)}
+                    className="p-1 hover:bg-white hover:bg-opacity-20 rounded-lg transition-colors"
+                  >
+                    <X size={24} />
+                  </button>
+                </div>
+
+                <div className="p-6">
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      console.log('Student added');
+                      setOpenModal(null);
+                    }}
+                    className="space-y-4"
+                  >
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Nama Siswa
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="Masukkan nama siswa"
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        NISN
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="Masukkan NISN siswa"
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Kelas
+                        </label>
+                        <select className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                          <option value="">Pilih Kelas</option>
+                          <option value="10-a">10-A</option>
+                          <option value="10-b">10-B</option>
+                          <option value="11-a">11-A</option>
+                          <option value="12-a">12-A</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Jurusan
+                        </label>
+                        <select className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                          <option value="">Pilih Jurusan</option>
+                          <option value="ipa">IPA</option>
+                          <option value="ips">IPS</option>
+                          <option value="bahasa">Bahasa</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        No. Telepon
+                      </label>
+                      <input
+                        type="tel"
+                        placeholder="Masukkan no. telepon"
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Alamat
+                      </label>
+                      <textarea
+                        placeholder="Masukkan alamat siswa..."
+                        rows={3}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+
+                    <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
+                      <button
+                        type="button"
+                        onClick={() => setOpenModal(null)}
+                        className="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 font-medium transition"
+                      >
+                        Batal
+                      </button>
+                      <button
+                        type="submit"
+                        className="px-6 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-medium transition"
+                      >
+                        Simpan Data
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </div>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">NISN</label>
-              <input type="text" placeholder="Masukkan NISN" className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Kelas</label>
-              <select className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                <option>XII IPA 1</option>
-                <option>XII IPA 2</option>
-                <option>XI IPS 2</option>
-                <option>X MIPA 3</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
-              <select className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                <option>Active</option>
-                <option>Need Attention</option>
-                <option>Inactive</option>
-              </select>
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Masalah Utama</label>
-              <select className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                <option>Karir</option>
-                <option>Akademik</option>
-                <option>Sosial</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
-              <input type="email" placeholder="Masukkan email" className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-            </div>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Nomor Telepon</label>
-            <input type="tel" placeholder="Masukkan nomor telepon" className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-          </div>
-          <div className="flex justify-end space-x-3 pt-4">
-            <button type="button" onClick={() => setOpenModal(null)} className="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 font-medium">Batal</button>
-            <button type="submit" className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium">Tambah Siswa</button>
-          </div>
-        </form>
-      </Modal>
+          </>
+        )}
+      </div>
     </div>
   );
 };
