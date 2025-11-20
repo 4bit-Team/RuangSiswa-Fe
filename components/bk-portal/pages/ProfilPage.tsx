@@ -1,9 +1,10 @@
 'use client'
 
 import React, { useEffect, useState } from 'react'
-import { Bell, Shield, ChevronRight, Mail, Phone, Calendar, Edit2, LogOut } from 'lucide-react'
+import { Bell, Shield, ChevronRight, Mail, Phone, Calendar, LogOut } from 'lucide-react'
 import { apiRequest } from '@/lib/api'
 import { HistoryItemProps, SettingItemProps } from '@types'
+import EditProfileModalButton from './EditProfileModalButton'
 
 const HistoryItem: React.FC<HistoryItemProps> = ({ title, counselor, date, status, statusColor }) => (
   <div className="flex items-center justify-between p-4 border-b border-gray-100">
@@ -88,10 +89,7 @@ const ProfilPage: React.FC = () => {
           </div>
 
           <div className="flex items-center justify-end">
-            <button className="inline-flex items-center gap-2 px-4 py-2 border border-gray-200 rounded-md shadow-sm hover:bg-gray-50">
-              <Edit2 className="w-4 h-4 text-gray-600" />
-              <span className="text-sm font-medium">Edit Profil</span>
-            </button>
+            <EditProfileModalButton user={user} />
           </div>
         </div>
 
@@ -135,7 +133,7 @@ const ProfilPage: React.FC = () => {
           <SettingItem icon={Bell} label="Notifikasi" />
           <SettingItem icon={Shield} label="Privasi & Keamanan" />
           <div className="border-t mt-2">
-            <button onClick={handleLogout} className="w-full text-left px-4 py-4 flex items-center gap-3 text-red-600 hover:bg-red-50">
+            <button onClick={handleLogout} className="w-full text-left px-4 py-4 flex items-center gap-3 text-red-600 hover:bg-red-50 transition-colors duration-200">
               <LogOut className="w-5 h-5" />
               <span className="font-medium">Keluar</span>
             </button>

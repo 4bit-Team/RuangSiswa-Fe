@@ -1,8 +1,9 @@
 'use client'
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Phone, Video, MoreVertical, Send, Search } from 'lucide-react';
 import { ChatListItemProps, ChatBubbleProps } from '@types';
+import { CallModal } from '../modals';
 
 
 const ChatListItem: React.FC<ChatListItemProps> = ({
@@ -75,119 +76,136 @@ const ChatBubble: React.FC<ChatBubbleProps> = ({ message, time, sender }) => (
   </div>
 );
 
-const ChatPage: React.FC = () => (
-  <div className="flex h-[calc(100vh-72px)]">
-    {/* Chat List */}
-    <div className="w-96 border-r border-gray-200 bg-white">
-      <div className="p-4 border-b border-gray-200">
-        <div className="relative">
-          <input
-            type="text"
-            placeholder="Cari percakapan..."
-            className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-        </div>
-      </div>
-      <div className="overflow-y-auto h-full">
-        <ChatListItem
-          initial="S"
-          name="Bu Sarah"
-          role="Konselor BK"
-          message="Hai Andi, saya siap membantu kamu"
-          time="10:03"
-          active={true}
-          unread={0}
-          online={true}
-        />
-        <ChatListItem
-          initial="B"
-          name="Pak Budi"
-          role="Konselor Karir"
-          message="Sampai jumpa di sesi berikutnya"
-          time="Kemarin"
-          active={false}
-          unread={2}
-          online={false}
-        />
-        <ChatListItem
-          initial="R"
-          name="Bu Rina"
-          role="Konselor Akademik"
-          message="Terima kasih atas konsultasinya"
-          time="2 hari lalu"
-          active={false}
-          unread={0}
-          online={true}
-        />
-      </div>
-    </div>
+const ChatPage: React.FC = () => {
+  const [callModalOpen, setCallModalOpen] = useState(false);
 
-    {/* Chat Window */}
-    <div className="flex-1 flex flex-col bg-white">
-      <div className="p-4 border-b border-gray-200 flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
-            <span className="text-white font-semibold">S</span>
-          </div>
-          <div>
-            <h4 className="font-medium text-gray-900">Bu Sarah</h4>
-            <p className="text-xs text-green-500">Online</p>
+  return (
+    <div className="flex h-[calc(100vh-72px)]">
+      {/* Chat List */}
+      <div className="w-96 border-r border-gray-200 bg-white">
+        <div className="p-4 border-b border-gray-200">
+          <div className="relative">
+            <input
+              type="text"
+              placeholder="Cari percakapan..."
+              className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
           </div>
         </div>
-        <div className="flex gap-4">
-          <button className="text-gray-500 hover:text-gray-700">
-            <Phone className="w-5 h-5" />
-          </button>
-          <button className="text-gray-500 hover:text-gray-700">
-            <Video className="w-5 h-5" />
-          </button>
-          <button className="text-gray-500 hover:text-gray-700">
-            <MoreVertical className="w-5 h-5" />
-          </button>
-        </div>
-      </div>
-
-      <div className="flex-1 p-4 overflow-y-auto bg-gray-50">
-        <div className="max-w-3xl mx-auto">
-          <div className="text-center mb-6">
-            <span className="text-xs text-gray-500 bg-white px-3 py-1 rounded-full">
-              Hari ini
-            </span>
-          </div>
-
-          <ChatBubble
-            message="Hai Andi, saya siap membantu kamu. Apa yang sedang kamu rasakan?"
+        <div className="overflow-y-auto h-full">
+          <ChatListItem
+            initial="S"
+            name="Bu Sarah"
+            role="Konselor BK"
+            message="Hai Andi, saya siap membantu kamu"
             time="10:03"
-            sender="counselor"
+            active={true}
+            unread={0}
+            online={true}
           />
-          <ChatBubble
-            message="Terima kasih Bu Sarah. Saya merasa sedikit tertekan dengan ujian yang akan datang"
-            time="10:05"
-            sender="user"
+          <ChatListItem
+            initial="B"
+            name="Pak Budi"
+            role="Konselor Karir"
+            message="Sampai jumpa di sesi berikutnya"
+            time="Kemarin"
+            active={false}
+            unread={2}
+            online={false}
           />
-          <ChatBubble
-            message="Saya mengerti perasaanmu. Mari kita diskusikan strategi yang bisa membantu kamu menghadapi ujian dengan lebih tenang"
-            time="10:06"
-            sender="counselor"
+          <ChatListItem
+            initial="R"
+            name="Bu Rina"
+            role="Konselor Akademik"
+            message="Terima kasih atas konsultasinya"
+            time="2 hari lalu"
+            active={false}
+            unread={0}
+            online={true}
           />
         </div>
       </div>
 
-      <div className="p-4 border-t border-gray-200">
-        <div className="flex gap-4">
-          <input
-            type="text"
-            placeholder="Ketik pesan..."
-            className="flex-1 px-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-          <button className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600">
-            <Send className="w-5 h-5" />
-          </button>
+      {/* Chat Window */}
+      <div className="flex-1 flex flex-col bg-white">
+        <div className="p-4 border-b border-gray-200 flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
+              <span className="text-white font-semibold">S</span>
+            </div>
+            <div>
+              <h4 className="font-medium text-gray-900">Bu Sarah</h4>
+              <p className="text-xs text-green-500">Online</p>
+            </div>
+          </div>
+          <div className="flex gap-4">
+            <button 
+              onClick={() => setCallModalOpen(true)}
+              className="text-gray-500 hover:text-blue-600 transition-colors duration-200 hover:bg-blue-50 p-2 rounded-lg"
+            >
+              <Phone className="w-5 h-5" />
+            </button>
+            <button 
+              onClick={() => setCallModalOpen(true)}
+              className="text-gray-500 hover:text-purple-600 transition-colors duration-200 hover:bg-purple-50 p-2 rounded-lg"
+            >
+              <Video className="w-5 h-5" />
+            </button>
+            <button className="text-gray-500 hover:text-gray-700 transition-colors duration-200 hover:bg-gray-100 p-2 rounded-lg">
+              <MoreVertical className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+
+        <div className="flex-1 p-4 overflow-y-auto bg-gray-50">
+          <div className="max-w-3xl mx-auto">
+            <div className="text-center mb-6">
+              <span className="text-xs text-gray-500 bg-white px-3 py-1 rounded-full">
+                Hari ini
+              </span>
+            </div>
+
+            <ChatBubble
+              message="Hai Andi, saya siap membantu kamu. Apa yang sedang kamu rasakan?"
+              time="10:03"
+              sender="counselor"
+            />
+            <ChatBubble
+              message="Terima kasih Bu Sarah. Saya merasa sedikit tertekan dengan ujian yang akan datang"
+              time="10:05"
+              sender="user"
+            />
+            <ChatBubble
+              message="Saya mengerti perasaanmu. Mari kita diskusikan strategi yang bisa membantu kamu menghadapi ujian dengan lebih tenang"
+              time="10:06"
+              sender="counselor"
+            />
+          </div>
+        </div>
+
+        <div className="p-4 border-t border-gray-200">
+          <div className="flex gap-4">
+            <input
+              type="text"
+              placeholder="Ketik pesan..."
+              className="flex-1 px-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <button className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600">
+              <Send className="w-5 h-5" />
+            </button>
+          </div>
         </div>
       </div>
+
+      <CallModal
+        isOpen={callModalOpen}
+        onClose={() => setCallModalOpen(false)}
+        counselorName="Bu Sarah Wijaya"
+        counselorInitial="S"
+      />
     </div>
-  </div>
-);
+  );
+};
 
 export default ChatPage;

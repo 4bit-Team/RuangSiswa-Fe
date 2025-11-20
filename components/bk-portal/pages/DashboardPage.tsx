@@ -1,8 +1,9 @@
 'use client'
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Heart, MessageCircle, Calendar, Users } from 'lucide-react';
 import { StatCardProps, UpdateCardProps } from '@types';
+import { LikeModal, CommentModal } from '../modals';
 
 
 const StatCard: React.FC<StatCardProps> = ({ icon: Icon, label, value, color }) => (
@@ -22,32 +23,56 @@ const ContentWrapper: React.FC<{ children: React.ReactNode }> = ({ children }) =
   </div>
 );
 
-const UpdateCard: React.FC<UpdateCardProps> = ({ avatar, name, time, message, likes, comments }) => (
-  <div className="border border-gray-200 rounded-xl p-6">
-    <div className="flex gap-4">
-      <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center flex-shrink-0">
-        <span className="text-white font-semibold">{avatar}</span>
-      </div>
-      <div className="flex-1">
-        <div className="flex items-center justify-between mb-2">
-          <h4 className="font-semibold text-gray-900">{name}</h4>
-          <span className="text-sm text-gray-500">{time}</span>
+const UpdateCard: React.FC<UpdateCardProps> = ({ avatar, name, time, message, likes, comments }) => {
+  const [likeModalOpen, setLikeModalOpen] = useState(false);
+  const [commentModalOpen, setCommentModalOpen] = useState(false);
+
+  return (
+    <div className="border border-gray-200 rounded-xl p-6">
+      <div className="flex gap-4">
+        <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center flex-shrink-0">
+          <span className="text-white font-semibold">{avatar}</span>
         </div>
-        <p className="text-gray-700 leading-relaxed">{message}</p>
-        <div className="flex items-center gap-6 mt-4">
-          <button className="flex items-center gap-2 text-gray-500 hover:text-pink-600">
-            <Heart className="w-5 h-5" />
-            <span>{likes}</span>
-          </button>
-          <button className="flex items-center gap-2 text-gray-500 hover:text-blue-600">
-            <MessageCircle className="w-5 h-5" />
-            <span>{comments}</span>
-          </button>
+        <div className="flex-1">
+          <div className="flex items-center justify-between mb-2">
+            <h4 className="font-semibold text-gray-900">{name}</h4>
+            <span className="text-sm text-gray-500">{time}</span>
+          </div>
+          <p className="text-gray-700 leading-relaxed">{message}</p>
+          <div className="flex items-center gap-6 mt-4">
+            <button 
+              onClick={() => setLikeModalOpen(true)}
+              className="flex items-center gap-2 text-gray-500 hover:text-pink-600 transition-colors duration-200"
+            >
+              <Heart className="w-5 h-5" />
+              <span>{likes}</span>
+            </button>
+            <button 
+              onClick={() => setCommentModalOpen(true)}
+              className="flex items-center gap-2 text-gray-500 hover:text-blue-600 transition-colors duration-200"
+            >
+              <MessageCircle className="w-5 h-5" />
+              <span>{comments}</span>
+            </button>
+          </div>
         </div>
       </div>
+
+      <LikeModal
+        isOpen={likeModalOpen}
+        onClose={() => setLikeModalOpen(false)}
+        initialLikes={likes}
+        authorName={name}
+      />
+      <CommentModal
+        isOpen={commentModalOpen}
+        onClose={() => setCommentModalOpen(false)}
+        initialComments={comments}
+        authorName={name}
+      />
     </div>
-  </div>
-);
+  );
+};
 
 const DashboardPage: React.FC = () => {
   return (

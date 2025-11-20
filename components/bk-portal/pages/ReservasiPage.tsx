@@ -2,7 +2,8 @@
 
 import React, { useState } from 'react'
 import { Users, Video, Calendar, Clock, Check } from 'lucide-react'
-import { ReservationItemProps, CounselorCardProps } from '@types'
+import { ReservationItemProps } from '@types'
+import CounselorCardWithModal from './CounselorCardWithModal'
 
 const ReservationItem: React.FC<ReservationItemProps> = ({ icon: Icon, type, tag, tagColor, counselor, date, time, status, statusColor }) => (
   <div className="bg-white rounded-lg p-4 flex items-center justify-between">
@@ -25,24 +26,6 @@ const ReservationItem: React.FC<ReservationItemProps> = ({ icon: Icon, type, tag
   </div>
 )
 
-const CounselorCard: React.FC<CounselorCardProps> = ({ initial, name, status, statusColor, specialty }) => (
-  <button className="bg-white rounded-xl border-2 border-gray-200 p-6 hover:border-blue-500 hover:shadow-lg transition-all text-left">
-    <div className="flex items-center gap-3 mb-3">
-      <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
-        <span className="text-white font-semibold">{initial}</span>
-      </div>
-      <div className="flex-1">
-        <h5 className="font-semibold text-gray-900">{name}</h5>
-        <div className="flex items-center gap-2 mt-1">
-          <div className={`w-2 h-2 rounded-full ${statusColor}`}></div>
-          <span className="text-xs text-gray-600">{status}</span>
-        </div>
-      </div>
-    </div>
-    <p className="text-sm text-gray-600">{specialty}</p>
-  </button>
-)
-
 const ReservasiPage: React.FC = () => {
   const [selectedTab, setSelectedTab] = useState<string>('tatap-muka')
 
@@ -61,19 +44,40 @@ const ReservasiPage: React.FC = () => {
         </div>
 
         <div className="flex gap-2 mb-6">
-          <button onClick={() => setSelectedTab('tatap-muka')} className={`flex-1 py-3 rounded-lg font-medium transition-colors ${selectedTab === 'tatap-muka' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+          <button onClick={() => setSelectedTab('tatap-muka')} className={`flex-1 py-3 rounded-lg font-medium transition-colors duration-200 ${selectedTab === 'tatap-muka' ? 'bg-gray-900 text-white shadow-lg' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
             Tatap Muka
           </button>
-          <button onClick={() => setSelectedTab('sesi-chat')} className={`flex-1 py-3 rounded-lg font-medium transition-colors ${selectedTab === 'sesi-chat' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+          <button onClick={() => setSelectedTab('sesi-chat')} className={`flex-1 py-3 rounded-lg font-medium transition-colors duration-200 ${selectedTab === 'sesi-chat' ? 'bg-gray-900 text-white shadow-lg' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
             Sesi Chat
           </button>
         </div>
 
         <h4 className="font-semibold text-gray-900 mb-4">Pilih Konselor</h4>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-          <CounselorCard initial="S" name="Bu Sarah Wijaya" status="Tersedia" statusColor="bg-green-500" specialty="Konseling Pribadi & Emosional" />
-          <CounselorCard initial="B" name="Pak Budi Santoso" status="Tersedia" statusColor="bg-green-500" specialty="Konseling Akademik & Karir" />
-          <CounselorCard initial="D" name="Bu Dina Kartika" status="Tidak Tersedia" statusColor="bg-gray-400" specialty="Konseling Sosial & Pertemanan" />
+          <CounselorCardWithModal 
+            initial="S" 
+            name="Bu Sarah Wijaya" 
+            status="Tersedia" 
+            statusColor="bg-green-500" 
+            specialty="Konseling Pribadi & Emosional"
+            selectedTab={selectedTab}
+          />
+          <CounselorCardWithModal 
+            initial="B" 
+            name="Pak Budi Santoso" 
+            status="Tersedia" 
+            statusColor="bg-green-500" 
+            specialty="Konseling Akademik & Karir"
+            selectedTab={selectedTab}
+          />
+          <CounselorCardWithModal 
+            initial="D" 
+            name="Bu Dina Kartika" 
+            status="Tidak Tersedia" 
+            statusColor="bg-gray-400" 
+            specialty="Konseling Sosial & Pertemanan"
+            selectedTab={selectedTab}
+          />
         </div>
 
         <div className="border-t border-gray-200 pt-6">
@@ -87,7 +91,7 @@ const ReservasiPage: React.FC = () => {
           <h4 className="font-semibold text-gray-900 mb-4">Pilih Waktu</h4>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
             {['08:00', '09:00', '10:00', '11:00', '13:00', '14:00', '15:00', '16:00'].map((time, idx) => (
-              <button key={idx} className={`py-3 rounded-lg border-2 transition-all ${idx === 2 || idx === 6 ? 'border-gray-300 text-gray-400 cursor-not-allowed' : 'border-gray-200 hover:border-blue-500 hover:bg-blue-50'}`} disabled={idx === 2 || idx === 6}>
+              <button key={idx} className={`py-3 rounded-lg border-2 transition-all duration-200 ${idx === 2 || idx === 6 ? 'border-gray-300 text-gray-400 cursor-not-allowed' : 'border-gray-200 hover:border-blue-500 hover:bg-blue-50'}`} disabled={idx === 2 || idx === 6}>
                 <div className="flex flex-col items-center gap-1">
                   <Clock className="w-5 h-5" />
                   <span className="font-medium">{time}</span>
@@ -101,11 +105,7 @@ const ReservasiPage: React.FC = () => {
             <div className="space-y-2 text-sm">
               <div className="flex items-center gap-2">
                 <Check className="w-4 h-4 text-blue-600" />
-                <span className="text-gray-700">Tipe: Konseling Tatap Muka</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Check className="w-4 h-4 text-blue-600" />
-                <span className="text-gray-700">Konselor: Belum dipilih</span>
+                <span className="text-gray-700">Tipe: Konseling {selectedTab === 'tatap-muka' ? 'Tatap Muka' : 'Chat'}</span>
               </div>
               <div className="flex items-center gap-2">
                 <Check className="w-4 h-4 text-blue-600" />
@@ -113,16 +113,14 @@ const ReservasiPage: React.FC = () => {
               </div>
               <div className="flex items-center gap-2">
                 <Check className="w-4 h-4 text-blue-600" />
-                <span className="text-gray-700">Waktu: Belum dipilih</span>
+                <span className="text-gray-700">Waktu: Pilih dari menu di atas</span>
               </div>
             </div>
           </div>
-
-          <button className="w-full bg-gradient-to-r from-blue-500 to-purple-600 text-white py-3 rounded-lg font-medium hover:opacity-90 transition-opacity">Konfirmasi Reservasi</button>
         </div>
       </div>
     </div>
   )
-}
+};
 
 export default ReservasiPage

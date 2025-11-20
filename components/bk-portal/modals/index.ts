@@ -1,0 +1,7 @@
+export { default as BaseModal } from './BaseModal'
+export { default as LikeModal } from './LikeModal'
+export { default as CommentModal } from './CommentModal'
+export { default as CallModal } from './CallModal'
+export { default as AppointmentScheduleModal } from './AppointmentScheduleModal'
+export { default as AskQuestionModal } from './AskQuestionModal'
+export { default as EditProfileModal } from './EditProfileModal'

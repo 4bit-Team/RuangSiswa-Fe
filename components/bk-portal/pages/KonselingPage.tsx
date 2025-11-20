@@ -1,8 +1,9 @@
 "use client"
 
-import React from 'react'
+import React, { useState } from 'react'
 import { Heart, MessageSquare, Shield, Clock, Calendar, Users, MessageCircle } from 'lucide-react'
 import { SessionItemProps, CounselingCardProps } from '@types'
+import { AppointmentScheduleModal } from '../modals'
 
 const SessionItem: React.FC<SessionItemProps> = ({ icon: Icon, title, counselor, date, time, status, statusColor }) => (
   <div className="bg-white rounded-lg p-4 flex items-center justify-between">
@@ -19,25 +20,43 @@ const SessionItem: React.FC<SessionItemProps> = ({ icon: Icon, title, counselor,
   </div>
 )
 
-const CounselingCard: React.FC<CounselingCardProps> = ({ icon: Icon, title, description, duration, color, badge }) => (
-  <div className="bg-white rounded-xl border border-gray-200 p-6 hover:shadow-lg transition-shadow">
-    <div className="relative">
-      <div className={`w-12 h-12 ${color} rounded-xl flex items-center justify-center mb-4`}>
-        <Icon className="w-6 h-6 text-white" />
+const CounselingCard: React.FC<CounselingCardProps> = ({ icon: Icon, title, description, duration, color, badge }) => {
+  const [modalOpen, setModalOpen] = useState(false);
+
+  return (
+    <>
+      <div className="bg-white rounded-xl border border-gray-200 p-6 hover:shadow-lg transition-shadow">
+        <div className="relative">
+          <div className={`w-12 h-12 ${color} rounded-xl flex items-center justify-center mb-4`}>
+            <Icon className="w-6 h-6 text-white" />
+          </div>
+          {badge && (
+            <span className="absolute top-0 right-0 bg-orange-100 text-orange-700 px-2 py-1 rounded-full text-xs font-medium">{badge}</span>
+          )}
+        </div>
+        <h4 className="font-bold text-gray-900 mb-2">{title}</h4>
+        <p className="text-sm text-gray-600 mb-4">{description}</p>
+        <div className="flex items-center gap-2 text-gray-500 text-sm mb-4">
+          <Clock className="w-4 h-4" />
+          <span>{duration}</span>
+        </div>
+        <button 
+          onClick={() => setModalOpen(true)}
+          className="w-full bg-gradient-to-r from-blue-500 to-purple-600 text-white py-2 rounded-lg font-medium hover:opacity-90 transition-opacity duration-200 hover:shadow-lg"
+        >
+          Buat Janji
+        </button>
       </div>
-      {badge && (
-        <span className="absolute top-0 right-0 bg-orange-100 text-orange-700 px-2 py-1 rounded-full text-xs font-medium">{badge}</span>
-      )}
-    </div>
-    <h4 className="font-bold text-gray-900 mb-2">{title}</h4>
-    <p className="text-sm text-gray-600 mb-4">{description}</p>
-    <div className="flex items-center gap-2 text-gray-500 text-sm mb-4">
-      <Clock className="w-4 h-4" />
-      <span>{duration}</span>
-    </div>
-    <button className="w-full bg-gradient-to-r from-blue-500 to-purple-600 text-white py-2 rounded-lg font-medium hover:opacity-90 transition-opacity">Buat Janji</button>
-  </div>
-)
+
+      <AppointmentScheduleModal
+        isOpen={modalOpen}
+        onClose={() => setModalOpen(false)}
+        counselingType={title}
+        counselorName="Bu Sarah Wijaya"
+      />
+    </>
+  )
+}
 
 const KonselingPage: React.FC = () => (
   <div className="pt-16 px-8 space-y-6">
