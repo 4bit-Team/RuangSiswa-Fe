@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { Phone, Video, MoreVertical, Send, Search } from 'lucide-react';
 import { ChatListItemProps, ChatBubbleProps } from '@types';
-import { CallModal } from '../modals';
+import CallModal from '../modals/CallModal';
 
 
 const ChatListItem: React.FC<ChatListItemProps> = ({

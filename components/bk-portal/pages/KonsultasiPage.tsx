@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react';
+import React, { useState } from 'react'
 import {
   ChevronRight,
   Search,
@@ -11,9 +11,9 @@ import {
   BookOpen,
   Lightbulb,
   ChevronDown,
-} from 'lucide-react';
-import { CategoryCardProps, QuestionItemProps } from '@types';
-import { AskQuestionModal } from '../modals';
+} from 'lucide-react'
+import { CategoryCardProps, QuestionItemProps } from '@types'
+import AskQuestionModal from '../modals/AskQuestionModal'
 
 
 const CategoryCard: React.FC<CategoryCardProps & { gradient?: string; onOpen?: () => void }> = ({ icon: Icon, title, description, articles, gradient, onOpen }) => {

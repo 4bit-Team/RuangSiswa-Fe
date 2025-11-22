@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react'
 import { CounselorCardProps } from '@types'
-import { AppointmentScheduleModal } from '../modals'
+import AppointmentScheduleModal from '../modals/AppointmentScheduleModal'
 
 const CounselorCard: React.FC<CounselorCardProps & { onBook?: () => void }> = ({ initial, name, status, statusColor, specialty, onBook }) => (
   <button 

@@ -3,8 +3,8 @@
 import React, { useState } from 'react';
 import { Heart, MessageCircle, Calendar, Users, ArrowRight, Eye } from 'lucide-react';
 import { StatCardProps } from '@types';
-import { NewsDetailModal } from '../modals';
-import { NewsItemProps } from '../types';
+import NewsDetailModal from '../modals/NewsDetailModal';
+import { NewsItemProps } from '@types';
 
 
 const StatCard: React.FC<StatCardProps> = ({ icon: Icon, label, value, color }) => (
