@@ -13,13 +13,13 @@ export function redirectIfLoggedInFromCookie() {
     const role = user.role;
 
     if (role === "siswa") {
-      window.location.href = "/home";
+      window.location.href = "/home/siswa";
     } else if (role === "kesiswaan") {
-      window.location.href = "/dashboard-kesiswaan";
+      window.location.href = "/home/kesiswaan";
     } else if (role === "bk") {
-      window.location.href = "/dashboard-bk";
+      window.location.href = "/home/bk";
     } else if (role === "admin") {
-      window.location.href = "/dashboard-admin";
+      window.location.href = "/admin";
     }
   } catch (err) {
     console.error("Cookie auth_profile tidak valid:", err);

@@ -25,6 +25,8 @@
     "baseUrl": ".",  
     "paths": {
       "@/*": ["./*"],
+      "@lib/*": ["lib/*"],
+      "@hooks/*": ["hooks/*"],
       "@types": ["types/index.ts"], 
       "@types/*": ["types/*"]
     }

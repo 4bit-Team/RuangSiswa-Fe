@@ -2,8 +2,8 @@
 
 import React, { useState } from 'react';
 import { Heart, MessageCircle } from 'lucide-react';
-import { BaseModal } from './index';
-import { NewsItemProps } from '../types';
+import BaseModal from './BaseModal';
+import { NewsItemProps } from '@types';
 
 interface NewsDetailModalProps {
   isOpen: boolean;

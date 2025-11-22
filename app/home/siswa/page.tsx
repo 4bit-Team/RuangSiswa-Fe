@@ -1,19 +1,40 @@
 "use client"
 
 import React, { useState } from 'react'
-import Sidebar from '@/components/bk-portal/layout/Sidebar'
-import Header from '@/components/bk-portal/layout/Header'
-import DashboardPage from '@/components/bk-portal/pages/DashboardPage'
-import ChatPage from '@/components/bk-portal/pages/ChatPage'
-import KonsultasiPage from '@/components/bk-portal/pages/KonsultasiPage'
-import KonselingPage from '@/components/bk-portal/pages/KonselingPage'
-import ReservasiPage from '@/components/bk-portal/pages/ReservasiPage'
-import ProfilPage from '@/components/bk-portal/pages/ProfilPage'
+import Sidebar from '@/components/portal-siswa/layout/Sidebar'
+import Header from '@/components/portal-siswa/layout/Header'
+import DashboardPage from '@/components/portal-siswa/pages/DashboardPage'
+import ChatPage from '@/components/portal-siswa/pages/ChatPage'
+import KonsultasiPage from '@/components/portal-siswa/pages/KonsultasiPage'
+import KonselingPage from '@/components/portal-siswa/pages/KonselingPage'
+import ReservasiPage from '@/components/portal-siswa/pages/ReservasiPage'
+import ProfilPage from '@/components/portal-siswa/pages/ProfilPage'
+import BeritaPage from '@/components/portal-siswa/pages/BeritaPage'
 import { verifyAuthOrRedirect } from "@/lib/authRedirect";
 
-const BKPortal: React.FC = () => {
-  const [activePage, setActivePage] = useState<string>('dashboard')
+const BKPortal: React.FC<{ searchParams?: Promise<{ topic?: string }> }> = ({ searchParams }) => {
   const [userProfile, setUserProfile] = useState<any>(null);
+  const [activePage, setActivePage] = useState<string>('dashboard')
+  const [params, setParams] = useState<{ topic?: string }>({})
+  
+  React.useEffect(() => {
+    if (searchParams) {
+      searchParams.then((result) => {
+        setParams(result || {})
+      })
+    }
+  }, [searchParams])
+  
+  const topicParam = params?.topic
+
+  const getPageAndTopic = (page: string) => {
+    if (page.startsWith('berita-')) {
+      return { page: 'berita', topic: page.replace('berita-', '') }
+    }
+    return { page, topic: null }
+  }
+
+  const currentPageInfo = getPageAndTopic(activePage)
 
   React.useEffect(() => {
   verifyAuthOrRedirect().then((user) => {
@@ -30,12 +51,17 @@ const BKPortal: React.FC = () => {
     reservasi: { title: 'Reservasi', subtitle: 'Jadwalkan sesi dengan konselor' },
     chat: { title: 'Chat BK', subtitle: 'Percakapan langsung dengan konselor' },
     profil: { title: 'Profil', subtitle: 'Kelola informasi akun Anda' },
+    berita: { title: 'Berita & Artikel BK', subtitle: 'Baca artikel dan tips dari konselor BK' },
   }
 
   const header = titleMap[activePage] ?? titleMap.dashboard
 
+
   const renderContent = () => {
-    switch (activePage) {
+    const page = currentPageInfo.page
+    const topic = currentPageInfo.topic
+
+    switch (page) {
       case 'dashboard':
         return <DashboardPage />
       case 'konseling':
@@ -48,8 +74,10 @@ const BKPortal: React.FC = () => {
         return <ChatPage />
       case 'profil':
         return <ProfilPage />
+      case 'berita':
+        return <BeritaPage selectedTopic={topic || topicParam} setActivePage={setActivePage} />
       default:
-        return <DashboardPage />
+        return <DashboardPage setActivePage={setActivePage} />
     }
   }
 
