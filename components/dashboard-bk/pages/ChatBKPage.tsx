@@ -3,6 +3,23 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { Send, Search, Phone, Video, MoreVertical, Smile, Paperclip, Loader } from 'lucide-react'
 import { apiRequest, API_URL } from '@lib/api'
+import CallUI from '../../call/CallUI'
+import {
+  createPeerConnection,
+  createOffer,
+  createAnswer,
+  handleRemoteOffer,
+  handleRemoteAnswer,
+  addIceCandidate,
+  getLocalAudioStream,
+  getLocalVideoStream,
+  stopMediaStream,
+  addLocalStreamToPeerConnection,
+  onIceCandidate,
+  onRemoteStream,
+  onConnectionStateChange,
+  onIceConnectionStateChange,
+} from '@lib/webrtc'
 import { useAuth } from '@/hooks/useAuth'
 import { io, Socket } from 'socket.io-client'
 
@@ -62,6 +79,17 @@ const ChatBKPage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('')
   const [callType, setCallType] = useState<'audio' | 'video' | null>(null)
   const [showCallModal, setShowCallModal] = useState(false)
+  const [incomingCall, setIncomingCall] = useState<any>(null)
+  const [incomingCallModalOpen, setIncomingCallModalOpen] = useState(false)
+  const [activeCall, setActiveCall] = useState<any>(null)
+  const [callDuration, setCallDuration] = useState(0)
+  const [isConnected, setIsConnected] = useState(false)
+  const [hasRemoteStream, setHasRemoteStream] = useState(false)
+  const peerConnectionRef = useRef<RTCPeerConnection | null>(null)
+  const localVideoRef = useRef<HTMLVideoElement | null>(null)
+  const remoteVideoRef = useRef<HTMLVideoElement | null>(null)
+  const localStreamRef = useRef<MediaStream | null>(null)
+  const remoteStreamRef = useRef<MediaStream | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const socketRef = useRef<Socket | null>(null)
 
@@ -118,6 +146,61 @@ const ChatBKPage: React.FC = () => {
         
         // Refresh conversation list to update last message (don't await)
         fetchConversations()
+      })
+
+      socket.on('call-incoming', (data: any) => {
+        console.log('📞 [ChatBKPage] Incoming call received:', data)
+        setIncomingCall(data)
+        setIncomingCallModalOpen(true)
+      })
+
+      socket.on('call-answer', async (data: any) => {
+        console.log('📞 [ChatBKPage] Call answer received:', data)
+        try {
+          if (peerConnectionRef.current && data.answer) {
+            await handleRemoteAnswer(peerConnectionRef.current, data.answer)
+            if (Array.isArray(data.iceCandidates)) {
+              for (const c of data.iceCandidates) {
+                try {
+                  await addIceCandidate(peerConnectionRef.current, c)
+                } catch (e) {
+                  console.warn('Failed to add remote ICE candidate', e)
+                }
+              }
+            }
+            setActiveCall((prev: any) => ({ ...(prev || {}), callId: data.callId }))
+          }
+        } catch (error) {
+          console.error('Error handling remote answer:', error)
+        }
+      })
+
+      socket.on('ice-candidate', async (data: any) => {
+        console.log('📞 [ChatBKPage] ICE candidate received:', data)
+        try {
+          if (peerConnectionRef.current && data.candidate) {
+            await addIceCandidate(peerConnectionRef.current, data)
+          }
+        } catch (error) {
+          console.error('Error adding remote ICE candidate:', error)
+        }
+      })
+
+      socket.on('call-rejected', (data: any) => {
+        console.log('📞 [ChatBKPage] Call rejected:', data)
+        alert('Panggilan ditolak')
+        setIncomingCall(null)
+        setIncomingCallModalOpen(false)
+        setActiveCall(null)
+      })
+
+      socket.on('call-ended', (data: any) => {
+        console.log('📞 [ChatBKPage] Call ended:', data)
+        alert('Panggilan berakhir')
+        if (localStreamRef.current) stopMediaStream(localStreamRef.current)
+        if (peerConnectionRef.current) peerConnectionRef.current.close()
+        setActiveCall(null)
+        setCallDuration(0)
       })
 
       socketRef.current = socket
@@ -373,22 +456,114 @@ const ChatBKPage: React.FC = () => {
         ? activeConversation.receiver.id 
         : activeConversation.sender.id
 
-      // Emit call-initiate event via WebSocket
-      socketRef.current.emit('call-initiate', {
-        callerId: user?.id,
-        receiverId: receiverId,
-        callType: callType,
-        conversationId: activeCounselorId,
-      }, (response: any) => {
-        if (response?.status === 'initiated') {
-          console.log(`📞 ${callType} call initiated successfully, callId:`, response.callId)
-          // TODO: Open call video/audio UI here
-        } else {
-          alert('Gagal memulai panggilan')
+      // Initialize peer connection
+      peerConnectionRef.current = createPeerConnection()
+
+      // Handle ICE candidates
+      onIceCandidate(peerConnectionRef.current, (candidate) => {
+        if (!candidate) {
+          console.log('ICE gathering complete for caller (BK)')
+          return
+        }
+        
+        const candidateObj = {
+          callId: activeCall?.callId || null,
+          candidate: candidate.candidate, // Send just the candidate string
+          sdpMLineIndex: candidate.sdpMLineIndex,
+          sdpMid: candidate.sdpMid,
+        }
+        
+        console.log('[ChatBKPage] Sending ICE candidate:', candidateObj)
+        socketRef.current?.emit('ice-candidate', candidateObj)
+      })
+
+      // Handle remote stream
+      onRemoteStream(peerConnectionRef.current, (stream) => {
+        console.log('Remote stream received:', stream)
+        remoteStreamRef.current = stream
+        setHasRemoteStream(true)
+        if (remoteVideoRef.current) remoteVideoRef.current.srcObject = stream
+      })
+
+      onConnectionStateChange(peerConnectionRef.current, (state) => {
+        console.log('Peer connection state:', state)
+        if (state === 'connected') {
+          console.log('✅ Peer connection established')
+          setIsConnected(true)
+        } else if (state === 'failed' || state === 'closed') {
+          console.error('❌ Peer connection failed/closed:', state)
+          setIsConnected(false)
+          setHasRemoteStream(false)
+          // hangup cleanup
+          if (localStreamRef.current) stopMediaStream(localStreamRef.current)
+          if (peerConnectionRef.current) peerConnectionRef.current.close()
+          setActiveCall(null)
+          setCallDuration(0)
+        } else if (state === 'disconnected') {
+          console.warn('⚠️ Peer connection disconnected, but not calling hangup (ICE may reconnect)')
+          setIsConnected(false)
         }
       })
 
-      handleCloseCall()
+      // Also listen to ICE connection state as fallback
+      onIceConnectionStateChange(peerConnectionRef.current, (state) => {
+        console.log('ICE connection state:', state)
+        if (state === 'connected' || state === 'completed') {
+          console.log('✅ ICE connection established')
+          setIsConnected(true)
+        } else if (state === 'failed') {
+          console.error('❌ ICE connection failed')
+          setIsConnected(false)
+          setHasRemoteStream(false)
+          if (localStreamRef.current) stopMediaStream(localStreamRef.current)
+          if (peerConnectionRef.current) peerConnectionRef.current.close()
+          setActiveCall(null)
+          setCallDuration(0)
+        } else if (state === 'disconnected') {
+          console.warn('⚠️ ICE disconnected (may be temporary)')
+          setIsConnected(false)
+        }
+      })
+
+      // Get local media
+      try {
+        const stream = callType === 'audio' ? await getLocalAudioStream() : await getLocalVideoStream()
+        
+        console.log('📹 [ChatBKPage] Got local stream:', {
+          videoTracks: (stream as MediaStream).getVideoTracks().length,
+          audioTracks: (stream as MediaStream).getAudioTracks().length,
+        })
+        
+        localStreamRef.current = stream
+        console.log('📹 [ChatBKPage] Stream stored in localStreamRef.current:', localStreamRef.current)
+        // ✅ Don't attach here - CallUI not mounted yet. Will attach via useEffect after activeCall is set
+        addLocalStreamToPeerConnection(peerConnectionRef.current, stream)
+
+        // Create offer
+        const offerSDP = await createOffer(peerConnectionRef.current)
+
+        // Emit call-initiate WITH OFFER
+        socketRef.current.emit('call-initiate', {
+          callerId: user?.id,
+          receiverId: receiverId,
+          callType: callType,
+          conversationId: activeCounselorId,
+          offer: offerSDP, // ✅ Include offer immediately
+        }, (response: any) => {
+          if (response?.status === 'initiated') {
+            const callId = response.callId
+            setActiveCall({ callId, receiverId, callType, isInitiator: true, remoteUserName: activeConversation.receiver.fullName })
+          } else {
+            alert('Gagal memulai panggilan')
+          }
+        })
+
+        handleCloseCall()
+      } catch (error: any) {
+        console.error('Error getting media:', error)
+        const errorMessage = error?.message || 'Gagal mengakses kamera/mikrofon'
+        alert(errorMessage)
+      }
     } catch (error) {
       console.error('Error initiating call:', error)
       alert('Gagal memulai panggilan')
@@ -399,6 +574,196 @@ const ChatBKPage: React.FC = () => {
     setShowCallModal(false)
     setCallType(null)
   }
+
+  const handleAcceptIncomingCall = async () => {
+    if (!socketRef.current || !incomingCall) return
+
+    try {
+      console.log('📞 Accepting incoming call:', incomingCall.callId)
+      
+      // Initialize peer connection
+      peerConnectionRef.current = createPeerConnection()
+
+      onIceCandidate(peerConnectionRef.current, (candidate) => {
+        if (!candidate) {
+          console.log('ICE gathering complete for receiver (BK)')
+          return
+        }
+        
+        const candidateObj = {
+          callId: incomingCall.callId,
+          candidate: candidate.candidate, // Send just the candidate string
+          sdpMLineIndex: candidate.sdpMLineIndex,
+          sdpMid: candidate.sdpMid,
+        }
+        
+        console.log('[ChatBKPage] Sending ICE candidate (receiver):', candidateObj)
+        socketRef.current?.emit('ice-candidate', candidateObj)
+      })
+
+      onRemoteStream(peerConnectionRef.current, (stream) => {
+        console.log('Remote stream received:', stream)
+        remoteStreamRef.current = stream
+        setHasRemoteStream(true)
+        if (remoteVideoRef.current) remoteVideoRef.current.srcObject = stream
+      })
+
+      onConnectionStateChange(peerConnectionRef.current, (state) => {
+        console.log('Peer connection state (receiver):', state)
+        if (state === 'connected') {
+          console.log('✅ Peer connection established')
+          setIsConnected(true)
+        } else if (state === 'failed' || state === 'closed') {
+          console.error('❌ Peer connection failed/closed:', state)
+          setIsConnected(false)
+          setHasRemoteStream(false)
+          if (localStreamRef.current) stopMediaStream(localStreamRef.current)
+          if (peerConnectionRef.current) peerConnectionRef.current.close()
+          setActiveCall(null)
+          setCallDuration(0)
+        } else if (state === 'disconnected') {
+          console.warn('⚠️ Peer connection disconnected, but not calling hangup (ICE may reconnect)')
+          setIsConnected(false)
+        }
+      })
+
+      // Also listen to ICE connection state as fallback
+      onIceConnectionStateChange(peerConnectionRef.current, (state) => {
+        console.log('ICE connection state (receiver):', state)
+        if (state === 'connected' || state === 'completed') {
+          console.log('✅ ICE connection established')
+          setIsConnected(true)
+        } else if (state === 'failed') {
+          console.error('❌ ICE connection failed')
+          setIsConnected(false)
+          setHasRemoteStream(false)
+          if (localStreamRef.current) stopMediaStream(localStreamRef.current)
+          if (peerConnectionRef.current) peerConnectionRef.current.close()
+          setActiveCall(null)
+          setCallDuration(0)
+        } else if (state === 'disconnected') {
+          console.warn('⚠️ ICE disconnected (may be temporary)')
+          setIsConnected(false)
+        }
+      })
+
+      try {
+        const stream = incomingCall.callType === 'audio' ? await getLocalAudioStream() : await getLocalVideoStream()
+        
+        console.log('📹 [ChatBKPage] Got local stream (accept):', {
+          videoTracks: (stream as MediaStream).getVideoTracks().length,
+          audioTracks: (stream as MediaStream).getAudioTracks().length,
+        })
+        
+        localStreamRef.current = stream
+        console.log('📹 [ChatBKPage] Stream stored in localStreamRef.current (accept):', localStreamRef.current)
+        // ✅ Don't attach here - CallUI not mounted yet. Will attach via useEffect after activeCall is set
+
+        addLocalStreamToPeerConnection(peerConnectionRef.current, stream)
+
+        // Pastikan offer valid sebelum createAnswer
+        if (!incomingCall?.offer) {
+          console.error('❌ Tidak ada SDP offer pada incomingCall:', incomingCall)
+          alert('Panggilan tidak valid: offer SDP tidak ditemukan.')
+          return
+        }
+
+        // Create answer from received offer
+        const answerSDP = await createAnswer(peerConnectionRef.current, incomingCall.offer)
+
+        // Send answer via WebSocket
+        socketRef.current.emit('call-accept', {
+          callId: incomingCall.callId,
+          answer: answerSDP,
+        }, (response: any) => {
+          if (response?.status === 'accepted') {
+            console.log('\u2705 Call accepted successfully')
+            setActiveCall({ callId: incomingCall.callId, callerId: incomingCall.callerId, callType: incomingCall.callType, isInitiator: false, remoteUserName: incomingCall.callerName })
+          } else {
+            alert('Gagal menerima panggilan')
+          }
+        })
+
+        setIncomingCallModalOpen(false)
+        setIncomingCall(null)
+      } catch (error: any) {
+        console.error('Error getting media:', error)
+        const errorMessage = error?.message || 'Gagal mengakses kamera/mikrofon'
+        alert(errorMessage)
+      }
+    } catch (error) {
+      console.error('Error accepting call:', error)
+      alert('Gagal menerima panggilan')
+    }
+  }
+
+  const handleRejectIncomingCall = async () => {
+    if (!socketRef.current || !incomingCall) return
+
+    try {
+      console.log('❌ Rejecting incoming call:', incomingCall.callId)
+      
+      socketRef.current.emit('call-reject', {
+        callId: incomingCall.callId,
+        reason: 'User declined',
+      }, (response: any) => {
+        if (response?.status === 'rejected') {
+          console.log('✅ Call rejected successfully')
+        } else {
+          alert('Gagal menolak panggilan')
+        }
+      })
+
+      setIncomingCallModalOpen(false)
+      setIncomingCall(null)
+    } catch (error) {
+      console.error('Error rejecting call:', error)
+      alert('Gagal menolak panggilan')
+    }
+  }
+
+  const handleHangup = async () => {
+    if (!activeCall) return
+
+    try {
+      socketRef.current?.emit('call-end', { callId: activeCall.callId, duration: callDuration })
+    } catch (error) {
+      console.error('Error ending call:', error)
+    } finally {
+      if (localStreamRef.current) stopMediaStream(localStreamRef.current)
+      if (peerConnectionRef.current) peerConnectionRef.current.close()
+      setActiveCall(null)
+      setCallDuration(0)
+    }
+  }
+
+  // Attach local stream to video element AFTER CallUI is mounted
+  useEffect(() => {
+    if (activeCall && localStreamRef.current && localVideoRef.current) {
+      console.log('✅ [ChatBKPage] Attaching local stream to video element')
+      console.log('Stream:', localStreamRef.current)
+      console.log('Video ref:', localVideoRef.current)
+      localVideoRef.current.srcObject = localStreamRef.current
+      console.log('✅ [ChatBKPage] Stream attached! srcObject:', localVideoRef.current.srcObject)
+    } else {
+      console.log('⚠️ [ChatBKPage] Cannot attach stream:', {
+        activeCall: !!activeCall,
+        localStreamRef: !!localStreamRef.current,
+        localVideoRef: !!localVideoRef.current,
+      })
+    }
+  }, [activeCall, localStreamRef.current])
+
+  useEffect(() => {
+    let timer: any = null
+    if (activeCall && isConnected) {
+      timer = setInterval(() => setCallDuration((d) => d + 1), 1000)
+    } else if (!activeCall) {
+      setCallDuration(0)
+    }
+
+    return () => { if (timer) clearInterval(timer) }
+  }, [activeCall, isConnected])
 
   if (authLoading) {
     return (
@@ -693,6 +1058,59 @@ const ChatBKPage: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Incoming Call Modal */}
+      {incomingCallModalOpen && incomingCall && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 text-center">
+            <div className="mb-6">
+              <div className={`w-20 h-20 ${incomingCall.callType === 'video' ? 'bg-red-100' : 'bg-green-100'} rounded-full flex items-center justify-center mx-auto mb-4`}>
+                {incomingCall.callType === 'video' ? (
+                  <Video className="w-10 h-10 text-red-600" />
+                ) : (
+                  <Phone className="w-10 h-10 text-green-600" />
+                )}
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                {incomingCall.callType === 'video' ? 'Panggilan Video Masuk' : 'Panggilan Suara Masuk'}
+              </h3>
+              <p className="text-gray-600 mb-4">{incomingCall.callerName} menelepon Anda</p>
+              <div className="text-4xl mb-4 animate-pulse">
+                {incomingCall.callType === 'video' ? '📹' : '📞'}
+              </div>
+            </div>
+
+            <div className="space-y-3 flex gap-3 justify-center">
+              <button
+                onClick={handleAcceptIncomingCall}
+                className="flex-1 px-4 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg font-semibold transition"
+              >
+                ✓ Terima
+              </button>
+              <button
+                onClick={handleRejectIncomingCall}
+                className="flex-1 px-4 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg font-semibold transition"
+              >
+                ✕ Tolak
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Active Call UI */}
+      {activeCall && (
+        <CallUI
+          callId={activeCall.callId}
+          callType={activeCall.callType}
+          remoteUserName={activeCall.remoteUserName || incomingCall?.callerName || ''}
+          localVideoRef={localVideoRef}
+          remoteVideoRef={remoteVideoRef}
+          onHangup={handleHangup}
+          isConnected={isConnected}
+          callDuration={callDuration}
+          hasRemoteStream={hasRemoteStream}
+        />
       )}
     </div>
   )
