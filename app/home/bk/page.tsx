@@ -10,6 +10,8 @@ import BeritaPage from '@/components/dashboard-bk/pages/BeritaPage'
 import StatistikPage from '@/components/dashboard-bk/pages/StatistikPage'
 import PengaturanPage from '@/components/dashboard-bk/pages/PengaturanPage'
 import ChatBKPage from '@/components/dashboard-bk/pages/ChatBKPage'
+import ReservasiManagementPage from '@/components/dashboard-bk/pages/ReservasiManagementPage'
+import ReservasiApprovalPage from '@/components/dashboard-bk/pages/ReservasiApprovalPage'
 
 const DashboardBK: React.FC = () => {
   const [activePage, setActivePage] = useState<string>('dashboard')
@@ -19,6 +21,8 @@ const DashboardBK: React.FC = () => {
     dashboard: { title: 'Dashboard BK', subtitle: 'Ringkasan aktivitas dan pengumuman' },
     siswa: { title: 'Daftar Siswa', subtitle: 'Kelola data siswa dan riwayat konseling' },
     chat: { title: 'Chat BK', subtitle: 'Percakapan langsung dengan konselor' },
+    persetujuan: { title: 'Persetujuan Reservasi', subtitle: 'Setujui atau tolak reservasi konseling dari siswa' },
+    // reservasi: { title: 'Manajemen Reservasi', subtitle: 'Kelola semua reservasi konseling' },
     laporan: { title: 'Laporan Konseling', subtitle: 'Kelola dan buat laporan konseling siswa' },
     berita: { title: 'Berita & Artikel BK', subtitle: 'Kelola dan publikasikan artikel untuk siswa' },
     statistik: { title: 'Statistik & Analytics', subtitle: 'Analisis performa dan tren konseling' },
@@ -35,6 +39,10 @@ const DashboardBK: React.FC = () => {
         return <DaftarSiswaPage />
       case 'chat':
         return <ChatBKPage />
+      case 'persetujuan':
+        return <ReservasiApprovalPage />
+      case 'reservasi':
+        return <ReservasiManagementPage />
       case 'laporan':
         return <LaporanPage />
       case 'berita':

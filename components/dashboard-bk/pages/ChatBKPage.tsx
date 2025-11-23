@@ -2,8 +2,9 @@
 
 import React, { useState, useRef, useEffect } from 'react'
 import { Send, Search, Phone, Video, MoreVertical, Smile, Paperclip, Loader } from 'lucide-react'
-import { apiRequest } from '@lib/api'
+import { apiRequest, API_URL } from '@lib/api'
 import { useAuth } from '@/hooks/useAuth'
+import { io, Socket } from 'socket.io-client'
 
 interface APIMessage {
   id: number
@@ -19,8 +20,8 @@ interface APIMessage {
 
 interface APIConversation {
   id: number
-  sender: { id: number; fullName: string; profile?: { photoUrl?: string } }
-  receiver: { id: number; fullName: string; profile?: { photoUrl?: string } }
+  sender: { id: number; fullName: string; username?: string; photoUrl?: string }
+  receiver: { id: number; fullName: string; username?: string; photoUrl?: string }
   lastMessage?: APIMessage
   messages?: APIMessage[]
   unreadCount?: number
@@ -59,12 +60,73 @@ const ChatBKPage: React.FC = () => {
   const [loading, setLoading] = useState(true)
   const [sendingMessage, setSendingMessage] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
+  const [callType, setCallType] = useState<'audio' | 'video' | null>(null)
+  const [showCallModal, setShowCallModal] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const socketRef = useRef<Socket | null>(null)
 
   // Auto-scroll to bottom
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
+
+  // Initialize WebSocket connection
+  useEffect(() => {
+    if (user && token && !authLoading) {
+      // Extract base URL from API_URL (remove /api suffix)
+      const baseUrl = API_URL.replace('/api', '')
+      const socket = io(`${baseUrl}/chat`, {
+        auth: {
+          token: token,
+        },
+        reconnection: true,
+        reconnectionDelay: 1000,
+        reconnectionDelayMax: 5000,
+        reconnectionAttempts: 5,
+      })
+
+      socket.on('connect', () => {
+        console.log('✅ [ChatBKPage] WebSocket connected')
+      })
+
+      socket.on('disconnect', () => {
+        console.log('❌ [ChatBKPage] WebSocket disconnected')
+      })
+
+      socket.on('message-received', (data: any) => {
+        console.log('📨 [ChatBKPage] Message received via WebSocket:', data)
+        
+        setMessages((prev: Message[]) => {
+          // Check if message already exists to prevent duplicates
+          const messageExists = prev.some((msg) => msg.id === data.message.id)
+          if (messageExists) {
+            console.log('⚠️ [ChatBKPage] Message already exists, skipping duplicate:', data.message.id)
+            return prev
+          }
+          
+          const newMessage: Message = {
+            id: data.message.id,
+            sender: data.message.sender.id === user?.id ? 'user' : 'counselor',
+            content: data.message.isDeleted ? '[Pesan dihapus]' : data.message.content,
+            timestamp: formatMessageTime(data.message.createdAt),
+            isEdited: data.message.isEdited,
+            isDeleted: data.message.isDeleted,
+          }
+          
+          return [...prev, newMessage]
+        })
+        
+        // Refresh conversation list to update last message (don't await)
+        fetchConversations()
+      })
+
+      socketRef.current = socket
+
+      return () => {
+        socket.disconnect()
+      }
+    }
+  }, [user, token, authLoading])
 
   // Fetch conversations on mount
   useEffect(() => {
@@ -78,6 +140,12 @@ const ChatBKPage: React.FC = () => {
     if (activeCounselorId && token) {
       fetchMessages(activeCounselorId)
       markConversationAsRead(activeCounselorId)
+      
+      // Join conversation room in WebSocket
+      if (socketRef.current) {
+        socketRef.current.emit('join-conversation', { conversationId: activeCounselorId })
+        console.log('🚪 [ChatBKPage] Joined conversation:', activeCounselorId)
+      }
     }
   }, [activeCounselorId, token])
 
@@ -102,11 +170,11 @@ const ChatBKPage: React.FC = () => {
             ...conv,
             otherUserId: otherUser.id,
             initial: otherUser.fullName?.charAt(0).toUpperCase() || 'U',
-            name: otherUser.fullName || 'Unknown',
+            name: otherUser.fullName || otherUser.username || 'Unknown',
             message: lastMsg?.content || 'Mulai percakapan',
             time,
             unread: conv.unreadCount || 0,
-            photoUrl: otherUser.profile?.photoUrl,
+            photoUrl: otherUser.photoUrl,
           }
         })
         
@@ -205,10 +273,11 @@ const ChatBKPage: React.FC = () => {
         isDeleted: false,
       }
 
-      setMessages((prev: Message[]) => [...prev, userMessage])
-      
-      // Refresh conversations list
-      await fetchConversations()
+      setMessages((prev: Message[]) => {
+        // Only add if not already present
+        const exists = prev.some((msg) => msg.id === response.id)
+        return exists ? prev : [...prev, userMessage]
+      })
     } catch (error: any) {
       console.error('Error sending message:', error)
       console.error('Error details:', error?.message, error?.response?.data)
@@ -275,6 +344,61 @@ const ChatBKPage: React.FC = () => {
   )
 
   const activeCounselor = conversations.find((c: FormattedConversation) => c.id === activeCounselorId) as FormattedConversation | undefined
+
+  const handleVoiceCall = () => {
+    if (!activeCounselor) return
+    setCallType('audio')
+    setShowCallModal(true)
+    console.log('🎙️ Initiating voice call with', activeCounselor.name)
+  }
+
+  const handleVideoCall = () => {
+    if (!activeCounselor) return
+    setCallType('video')
+    setShowCallModal(true)
+    console.log('📹 Initiating video call with', activeCounselor.name)
+  }
+
+  const handleConfirmCall = async () => {
+    if (!activeCounselor || !socketRef.current || !activeCounselorId) return
+
+    try {
+      console.log(`✅ Confirmed ${callType} call with ${activeCounselor.name}`)
+      
+      // Get active conversation to get receiver ID
+      const activeConversation = conversations.find(c => c.id === activeCounselorId)
+      if (!activeConversation) return
+
+      const receiverId = activeConversation.sender.id === user?.id 
+        ? activeConversation.receiver.id 
+        : activeConversation.sender.id
+
+      // Emit call-initiate event via WebSocket
+      socketRef.current.emit('call-initiate', {
+        callerId: user?.id,
+        receiverId: receiverId,
+        callType: callType,
+        conversationId: activeCounselorId,
+      }, (response: any) => {
+        if (response?.status === 'initiated') {
+          console.log(`📞 ${callType} call initiated successfully, callId:`, response.callId)
+          // TODO: Open call video/audio UI here
+        } else {
+          alert('Gagal memulai panggilan')
+        }
+      })
+
+      handleCloseCall()
+    } catch (error) {
+      console.error('Error initiating call:', error)
+      alert('Gagal memulai panggilan')
+    }
+  }
+
+  const handleCloseCall = () => {
+    setShowCallModal(false)
+    setCallType(null)
+  }
 
   if (authLoading) {
     return (
@@ -403,10 +527,18 @@ const ChatBKPage: React.FC = () => {
 
               {/* Action Buttons */}
               <div className="flex gap-3">
-                <button className="p-2 hover:bg-gray-100 rounded-lg transition text-gray-600">
+                <button 
+                  onClick={handleVoiceCall}
+                  className="p-2 hover:bg-gray-100 rounded-lg transition text-gray-600 hover:text-blue-600"
+                  title="Mulai panggilan suara"
+                >
                   <Phone className="w-5 h-5" />
                 </button>
-                <button className="p-2 hover:bg-gray-100 rounded-lg transition text-gray-600">
+                <button 
+                  onClick={handleVideoCall}
+                  className="p-2 hover:bg-gray-100 rounded-lg transition text-gray-600 hover:text-blue-600"
+                  title="Mulai video call"
+                >
                   <Video className="w-5 h-5" />
                 </button>
                 <button className="p-2 hover:bg-gray-100 rounded-lg transition text-gray-600">
@@ -517,6 +649,51 @@ const ChatBKPage: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* Simple Call Alert Modal */}
+      {showCallModal && activeCounselor && callType && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 text-center">
+            <div className="mb-6">
+              <div className={`w-20 h-20 ${callType === 'video' ? 'bg-red-100' : 'bg-blue-100'} rounded-full flex items-center justify-center mx-auto mb-4`}>
+                {callType === 'video' ? (
+                  <Video className="w-10 h-10 text-red-600" />
+                ) : (
+                  <Phone className="w-10 h-10 text-blue-600" />
+                )}
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                Konfirmasi {callType === 'video' ? 'Panggilan Video' : 'Panggilan Suara'}
+              </h3>
+              <p className="text-gray-600 mb-4">Anda akan memanggil {activeCounselor.name}</p>
+              <p className="text-sm text-gray-500 bg-blue-50 p-3 rounded-lg">
+                {callType === 'video' 
+                  ? 'Pastikan kamera dan mikrofon Anda aktif sebelum melanjutkan' 
+                  : 'Pastikan mikrofon Anda aktif sebelum melanjutkan'}
+              </p>
+            </div>
+
+            <div className="space-y-3">
+              <button
+                onClick={handleConfirmCall}
+                className={`w-full px-4 py-3 text-white rounded-lg font-semibold transition ${
+                  callType === 'video'
+                    ? 'bg-red-600 hover:bg-red-700'
+                    : 'bg-blue-600 hover:bg-blue-700'
+                }`}
+              >
+                {callType === 'video' ? '📹 Mulai Video Call' : '🎙️ Mulai Panggilan Suara'}
+              </button>
+              <button
+                onClick={handleCloseCall}
+                className="w-full px-4 py-3 bg-gray-200 hover:bg-gray-300 text-gray-900 rounded-lg font-semibold transition"
+              >
+                Batalkan
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
