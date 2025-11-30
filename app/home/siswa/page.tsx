@@ -10,6 +10,10 @@ import KonselingPage from '@/components/portal-siswa/pages/KonselingPage'
 import ReservasiPage from '@/components/portal-siswa/pages/ReservasiPage'
 import ProfilPage from '@/components/portal-siswa/pages/ProfilPage'
 import BeritaPage from '@/components/portal-siswa/pages/BeritaPage'
+import KehadiranPage from '@/components/portal-siswa/pages/KehadiranPage'
+import KeterlambatanPage from '@/components/portal-siswa/pages/KeterlambatanPage'
+import StatusBimbinganPage from '@/components/portal-siswa/pages/StatusBimbinganPage'
+import PrestasiPage from '@/components/portal-siswa/pages/PrestasiPage'
 import { verifyAuthOrRedirect } from "@/lib/authRedirect";
 
 const BKPortal: React.FC<{ searchParams?: Promise<{ topic?: string }> }> = ({ searchParams }) => {
@@ -50,6 +54,10 @@ const BKPortal: React.FC<{ searchParams?: Promise<{ topic?: string }> }> = ({ se
     konsultasi: { title: 'Konsultasi', subtitle: 'Ajukan pertanyaan dan baca artikel' },
     reservasi: { title: 'Reservasi', subtitle: 'Jadwalkan sesi dengan konselor' },
     chat: { title: 'Chat BK', subtitle: 'Percakapan langsung dengan konselor' },
+    kehadiran: { title: 'Kehadiran Kelas', subtitle: 'Rekap kehadiran dan statistik kehadiran Anda' },
+    keterlambatan: { title: 'Keterlambatan Masuk', subtitle: 'Pantau riwayat keterlambatan Anda' },
+    'status-bimbingan': { title: 'Status Bimbingan', subtitle: 'Progres dan riwayat sesi bimbingan Anda dengan konselor BK' },
+    prestasi: { title: 'Prestasi Anda', subtitle: 'Kumpulan penghargaan dan prestasi yang telah Anda raih' },
     profil: { title: 'Profil', subtitle: 'Kelola informasi akun Anda' },
     berita: { title: 'Berita & Artikel BK', subtitle: 'Baca artikel dan tips dari konselor BK' },
   }
@@ -72,6 +80,14 @@ const BKPortal: React.FC<{ searchParams?: Promise<{ topic?: string }> }> = ({ se
         return <ReservasiPage />
       case 'chat':
         return <ChatPage />
+      case 'kehadiran':
+        return <KehadiranPage />
+      case 'keterlambatan':
+        return <KeterlambatanPage />
+      case 'status-bimbingan':
+        return <StatusBimbinganPage />
+      case 'prestasi':
+        return <PrestasiPage />
       case 'profil':
         return <ProfilPage />
       case 'berita':

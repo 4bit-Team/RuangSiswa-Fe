@@ -155,6 +155,52 @@ const DashboardPage: React.FC<{ setActivePage?: (page: string) => void }> = ({ s
         </div>
 
         <div className="bg-white rounded-xl border border-gray-200 p-6">
+          <h3 className="font-bold text-gray-900 text-lg mb-6">Status Progress Bimbingan</h3>
+          
+          <div className="space-y-6">
+            {/* Main Progress Bar */}
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <div>
+                  <p className="text-sm font-semibold text-gray-900">Penyelesaian Program Bimbingan</p>
+                  <p className="text-xs text-gray-600 mt-1">Anda telah menyelesaikan 7 dari 10 sesi yang direncanakan</p>
+                </div>
+                <span className="text-2xl font-bold text-purple-600">70%</span>
+              </div>
+              <div className="w-full bg-gray-200 rounded-full h-4">
+                <div 
+                  className="bg-gradient-to-r from-purple-400 to-purple-600 h-4 rounded-full transition-all duration-500"
+                  style={{ width: '70%' }}
+                ></div>
+              </div>
+            </div>
+
+            {/* Progress Details */}
+            <div className="grid grid-cols-3 gap-4 pt-4 border-t border-gray-200">
+              <div className="text-center">
+                <p className="text-xs text-gray-600 mb-1">Selesai</p>
+                <p className="text-2xl font-bold text-green-600">7</p>
+              </div>
+              <div className="text-center border-l border-r border-gray-200">
+                <p className="text-xs text-gray-600 mb-1">Dalam Proses</p>
+                <p className="text-2xl font-bold text-orange-600">2</p>
+              </div>
+              <div className="text-center">
+                <p className="text-xs text-gray-600 mb-1">Akan Datang</p>
+                <p className="text-2xl font-bold text-blue-600">1</p>
+              </div>
+            </div>
+
+            {/* Current Focus */}
+            <div className="bg-gradient-to-r from-purple-50 to-blue-50 rounded-lg p-4 border border-purple-100">
+              <p className="text-xs text-gray-600 uppercase tracking-wide mb-1">Fokus Utama Saat Ini</p>
+              <p className="text-sm font-semibold text-gray-900">Manajemen Stress dan Waktu</p>
+              <p className="text-xs text-gray-600 mt-2">Konselor: Bu Sarah Wijaya</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-xl border border-gray-200 p-6">
           <div className="flex items-center justify-between mb-6">
             <h3 className="font-bold text-gray-900 text-lg">Berita Terbaru dari BK</h3>
             <button
