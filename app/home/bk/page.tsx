@@ -12,10 +12,18 @@ import PengaturanPage from '@/components/dashboard-bk/pages/PengaturanPage'
 import ChatBKPage from '@/components/dashboard-bk/pages/ChatBKPage'
 import ReservasiManagementPage from '@/components/dashboard-bk/pages/ReservasiManagementPage'
 import ReservasiApprovalPage from '@/components/dashboard-bk/pages/ReservasiApprovalPage'
+import { verifyAuthOrRedirect } from "@/lib/authRedirect";
 
 const DashboardBK: React.FC = () => {
+  const [userProfile, setUserProfile] = useState<any>(null);
   const [activePage, setActivePage] = useState<string>('dashboard')
   const [sidebarOpen, setSidebarOpen] = useState(false)
+
+  React.useEffect(() => {
+    verifyAuthOrRedirect().then((user) => {
+      if (user) setUserProfile(user);
+    });
+  }, []);
 
   const titleMap: Record<string, { title: string; subtitle: string }> = {
     dashboard: { title: 'Dashboard BK', subtitle: 'Ringkasan aktivitas dan pengumuman' },

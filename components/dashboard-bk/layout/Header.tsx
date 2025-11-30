@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState, useEffect } from 'react';
+import { apiRequest } from '@/lib/api'
 import { Search, Bell, Menu, Mail, Phone, LogOut, User, Settings, HelpCircle } from 'lucide-react';
 
 interface HeaderProps {
@@ -10,9 +11,45 @@ interface HeaderProps {
 }
 
 const Header: React.FC<HeaderProps> = ({ title, subtitle, onMenuClick }) => {
+  const [user, setUser] = useState<any>(null)
   const [isMobile, setIsMobile] = useState(true);
   const [notificationOpen, setNotificationOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+
+  const handleLogout = async () => {
+    try {
+      await apiRequest('/auth/logout', 'POST')
+    } catch (err) {
+      // ignore errors but continue to clear client state
+      console.error('Logout gagal:', err)
+    }
+  
+    localStorage.clear()
+    sessionStorage.clear()
+  
+    // clear common cookies (best-effort)
+    try {
+      document.cookie = 'auth_profile=; path=/; domain=.ruangsiswa.my.id; expires=Thu, 01 Jan 1970 00:00:00 GMT'
+      document.cookie = 'access_token=; path=/; domain=.ruangsiswa.my.id; expires=Thu, 01 Jan 1970 00:00:00 GMT'
+    } catch (e) {
+      // ignore
+    }
+  
+    // navigate to login
+    window.location.replace('/login')
+  }
+  
+  useEffect(() => {
+    try {
+      const match = document.cookie.match(/auth_profile=([^;]+)/)
+      if (match) {
+        const parsed = JSON.parse(decodeURIComponent(match[1]))
+        setUser(parsed)
+      }
+    } catch (err) {
+      console.error('Gagal memuat profil dari cookie:', err)
+    }
+  }, [])
 
   useEffect(() => {
     const checkIsMobile = () => {
@@ -158,7 +195,7 @@ const Header: React.FC<HeaderProps> = ({ title, subtitle, onMenuClick }) => {
                 }}
                 className="w-10 h-10 bg-indigo-600 rounded-full flex items-center justify-center text-white font-semibold text-sm hover:bg-indigo-700 transition-colors"
               >
-                IB
+                {user?.username?.[0]?.toUpperCase() || 'U'}
               </button>
 
               {/* Profile Dropdown */}
@@ -173,21 +210,21 @@ const Header: React.FC<HeaderProps> = ({ title, subtitle, onMenuClick }) => {
                     <div className="bg-gradient-to-r from-blue-500 to-purple-600 text-white p-6">
                       <div className="flex items-center gap-4">
                         <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center text-indigo-600 font-bold text-xl">
-                          IB
+                          {user?.username?.[0]?.toUpperCase() || 'U'}
                         </div>
                         <div>
-                          <h3 className="font-semibold text-lg">Ibu Sarah Wijaya</h3>
-                          <p className="text-blue-100 text-sm">Guru BK Senior</p>
+                          <h3 className="font-semibold text-lg">{user?.username || 'Nama belum diatur'}</h3>
+                          <p className="text-blue-100 text-sm">{user?.specialty || 'bk role'}</p>
                         </div>
                       </div>
                       <div className="mt-4 space-y-2 text-sm">
                         <div className="flex items-center gap-2">
                           <Mail size={16} />
-                          <span>sarah.wijaya@school.ac.id</span>
+                          <span>{user?.email || '-'}</span>
                         </div>
                         <div className="flex items-center gap-2">
                           <Phone size={16} />
-                          <span>+62 812-3456-7890</span>
+                          <span>{user?.phone_number || '-'}</span>
                         </div>
                       </div>
                     </div>
@@ -220,7 +257,7 @@ const Header: React.FC<HeaderProps> = ({ title, subtitle, onMenuClick }) => {
 
                       <div className="border-t border-gray-200 my-2"></div>
 
-                      <button className="w-full flex items-center gap-3 px-4 py-3 text-red-600 hover:bg-red-50 rounded-lg transition-colors text-left">
+                      <button onClick={handleLogout} className="w-full flex items-center gap-3 px-4 py-3 text-red-600 hover:bg-red-50 rounded-lg transition-colors text-left">
                         <LogOut size={18} />
                         <span className="font-medium">Keluar</span>
                       </button>

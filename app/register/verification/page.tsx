@@ -93,8 +93,8 @@ export default function VerificationPage() {
       setUploadMessage(data.message);
       setExtractedData(data.extractedData || null);
     } catch (err: any) {
-      console.error("❌ Upload gagal:", err);
-      setUploadMessage("❌ Terjadi kesalahan saat upload kartu pelajar.");
+      console.error("Upload gagal:", err);
+      setUploadMessage("Terjadi kesalahan saat upload kartu pelajar.");
     } finally {
       setIsLoading(false);
     }
@@ -234,6 +234,9 @@ export default function VerificationPage() {
               </div>
               <div>
                 <span className="font-semibold">Jurusan:</span> {extractedData.jurusan}
+              </div>
+              <div>
+                <span className="font-semibold">Kelas:</span> {extractedData.kelas_lengkap}
               </div>
             </div>
 

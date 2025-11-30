@@ -8,7 +8,7 @@ import EditProfileModalButton from './EditProfileModalButton'
 
 // Logo SMKN 1 Cibinong dari public folder
 const Smkn1Logo = () => (
-  <img src="@public/logo.svg" alt="logo" className="w-16 h-16" />
+  <img src="/logo.svg" alt="SMKN 1 Cibinong" className="w-16 h-16" />
 );
 
 type StudentCardData = {
@@ -46,20 +46,48 @@ const StudentCardView: React.FC<StudentCardViewProps> = ({ userId }) => {
   const [selectedKelas, setSelectedKelas] = useState<string>('');
 
   useEffect(() => {
-    fetch('/api/student_card/extracted_data')
-      .then(res => res.json())
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
+    fetch(`${apiUrl}/student-card/extracted_data`)
+      .then(res => {
+        if (!res.ok) throw new Error(`API error: ${res.status}`);
+        return res.json();
+      })
       .then((data: StudentCardData[]) => {
-        const userCards = data.filter(card => card.user_id === userId);
+        // ✅ Convert userId ke string untuk comparison dengan user_id dari API
+        const userIdStr = userId?.toString();
+        console.log(`🔍 [StudentCard] Filtering cards - userId=${userIdStr}, available users:`, data.map(d => d.user_id));
+        
+        const userCards = data.filter(card => {
+          const match = card.user_id?.toString() === userIdStr;
+          console.log(`  - Checking card user_id="${card.user_id}" vs "${userIdStr}": ${match ? '✅' : '❌'}`);
+          return match;
+        });
+        
+        console.log(`🔍 [StudentCard] Found ${userCards.length} cards for user ${userIdStr}`);
         setCards(userCards);
         if (userCards.length > 0) setSelectedKelas(userCards[0].kelas);
+      })
+      .catch(err => {
+        console.error('Gagal memuat data kartu pelajar:', err);
+        setCards([]);
       });
   }, [userId]);
-    console.log('Student cards data:', cards);
 
   const kelasOptions = Array.from(new Set(cards.map(card => card.kelas)));
   const card = cards.find(c => c.kelas === selectedKelas);
 
   if (!userId) return null;
+
+  if (cards.length === 0) {
+    return (
+      <div className="flex flex-col items-center w-full py-8">
+        <div className="w-full max-w-md p-6 bg-blue-50 border border-blue-200 rounded-lg text-center">
+          <p className="text-sm text-blue-600 font-medium">📋 Kartu pelajar belum diverifikasi</p>
+          <p className="text-xs text-blue-500 mt-2">Silakan upload kartu pelajar Anda di halaman verifikasi untuk melihatnya di sini.</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col items-center w-full py-8">
@@ -76,79 +104,90 @@ const StudentCardView: React.FC<StudentCardViewProps> = ({ userId }) => {
         </select>
       </div>
       
-      <div className="relative w-full max-w-2xl aspect-video rounded-xl shadow-2xl overflow-hidden bg-white" style={{ maxWidth: '800px' }}>
-        {/* Header Biru dengan Info Sekolah */}
-        <div className="bg-blue-800 h-24 flex items-start p-4 gap-4">
-          <div className="flex-shrink-0">
-            <Smkn1Logo />
+      {/* Student Card */}
+      <div 
+        className="w-full max-w-4xl rounded-lg overflow-hidden shadow-2xl relative"
+        style={{
+          backgroundImage: 'url(/frame.png)',
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          aspectRatio: '16 / 9',
+        }}
+      >
+        {/* Header Section with Logo and Text */}
+        <div className="absolute top-0 left-0 right-0 bg-blue-600 px-6 pt-2 pb-4 flex gap-3 justify-center items-start z-20" style={{ backgroundColor: '#3F52DC' }}>
+          {/* Logo */}
+          <div className="flex-shrink-0 mt-1">
+            <img src="/logo.svg" alt="SMKN 1 Cibinong" className="w-16 h-16" />
           </div>
-          <div className="flex-grow">
-            <div className="text-white text-xs font-bold leading-tight">
-              <div>PEMERINTAH DAERAH PROVINSI JAWA BARAT</div>
-              <div>DINAS PENDIDIKAN</div>
-              <div>CABANG DINAS PENDIDIKAN WILAYAH 1</div>
-              <div className="text-yellow-300 font-bold">SEKOLAH MENENGAH KEJURUAN NEGERI 1 CIBINONG</div>
-              <div className="text-xs font-normal mt-1">
-                Jl. Karadenan No.7 Cibinong Bogor 16193 • (0251) 866 3846 Fax. (0251) 866 5558<br/>
-                Email: admin@smkn1cibinong.sch.id • Website: www.smkn1cibinong.sch.id
-              </div>
+
+          {/* Header Text */}
+          <div className="text-center text-white text-xs font-medium leading-tight max-w-2xl">
+            <div>PEMERINTAH DAERAH PROVINSI JAWA BARAT</div>
+            <div>DINAS PENDIDIKAN</div>
+            <div>CABANG DINAS PENDIDIKAN WILAYAH 1</div>
+            <div className="font-bold">SEKOLAH MENENGAH KEJURUAN NEGERI 1 CIBINONG</div>
+            <div className="text-xs font-normal mt-1">
+              Jl. Karadenan No.7 Cibinong Bogor 16193 • (0251) 866 3846 Fax. (0251) 866 5558
+            </div>
+            <div className="text-xs font-normal">
+              Email: admin@smkn1cibinong.sch.id • Website: www.smkn1cibinong.sch.id
             </div>
           </div>
         </div>
 
-        {/* Main Content Area */}
-        <div className="flex h-32 relative">
-          {/* Foto Frame */}
-          <div className="flex-shrink-0 w-40 bg-gray-100 border-8 border-gray-300 flex items-center justify-center m-4">
-            <span className="text-gray-400 text-xs">Foto</span>
-          </div>
+        {/* Title centered at top */}
+        <div className="absolute top-36 left-0 right-0 flex justify-center z-10">
+          <h2 
+            className="font-bold text-5xl"
+            style={{
+              color: '#FDF05C',
+              textShadow: '-1.5px -1.5px 0 #222222, 1.5px -1.5px 0 #222222, -1.5px 1.5px 0 #222222, 1.5px 1.5px 0 #222222, -1px 0 0 #222222, 1px 0 0 #222222, 0 -1px 0 #222222, 0 1px 0 #222222'
+            }}
+          >
+            KARTU PELAJAR
+          </h2>
+        </div>
 
-          {/* Data Kartu Pelajar */}
-          <div className="flex-grow p-4 flex flex-col justify-between">
-            {/* Judul dan Jurusan */}
-            <div>
-              <div className="text-yellow-600 font-bold text-lg tracking-widest">KARTU PELAJAR</div>
-              <div className="text-black font-semibold text-sm" style={{ letterSpacing: '0.5px' }}>
-                {card?.jurusan?.toUpperCase() || 'JURUSAN'}
+        {/* Content layout */}
+        <div className="w-full h-full flex items-center p-8 pt-32">
+          {/* Left side - Data */}
+          <div className="flex-grow">
+            <div className="text-lg font-semibold text-black space-y-3">
+              <div className="flex">
+                <span className="w-24">NAMA</span>
+                <span className="mx-2">:</span>
+                <span className="flex-grow">{card?.nama || '-'}</span>
+              </div>
+              <div className="flex">
+                <span className="w-24">NIS/NISN</span>
+                <span className="mx-2">:</span>
+                <span className="flex-grow">{card?.nis || '-'} / {card?.nisn || '-'}</span>
+              </div>
+              <div className="flex">
+                <span className="w-24">T.T.L</span>
+                <span className="mx-2">:</span>
+                <span className="flex-grow">{card?.ttl || '-'}</span>
+              </div>
+              <div className="flex">
+                <span className="w-24">L / P</span>
+                <span className="mx-2">:</span>
+                <span className="flex-grow">{genderLabel(card?.gender || '')}</span>
+              </div>
+              <div className="flex">
+                <span className="w-24">KELAS</span>
+                <span className="mx-2">:</span>
+                <span className="flex-grow">{card?.kelas || '-'}</span>
               </div>
             </div>
-
-            {/* Data Tabel */}
-            <table className="text-xs text-black font-medium w-full">
-              <tbody>
-                <tr>
-                  <td className="align-top font-bold pr-2">NAMA</td>
-                  <td className="align-top pr-2">:</td>
-                  <td className="align-top">{card?.nama || '-'}</td>
-                </tr>
-                <tr>
-                  <td className="align-top font-bold pr-2">NIS/NISN</td>
-                  <td className="align-top pr-2">:</td>
-                  <td className="align-top">{card ? `${card.nis} / ${card.nisn}` : '-'}</td>
-                </tr>
-                <tr>
-                  <td className="align-top font-bold pr-2">T.T.L</td>
-                  <td className="align-top pr-2">:</td>
-                  <td className="align-top">{card?.ttl || '-'}</td>
-                </tr>
-                <tr>
-                  <td className="align-top font-bold pr-2">L / P</td>
-                  <td className="align-top pr-2">:</td>
-                  <td className="align-top">{card ? genderLabel(card.gender) : '-'}</td>
-                </tr>
-                <tr>
-                  <td className="align-top font-bold pr-2">KELAS</td>
-                  <td className="align-top pr-2">:</td>
-                  <td className="align-top">{card?.kelas || '-'}</td>
-                </tr>
-              </tbody>
-            </table>
           </div>
 
-          {/* Decorative Wave on Right */}
-          <svg className="absolute right-0 top-0 h-full w-24 opacity-10" viewBox="0 0 100 200" fill="none">
-            <path d="M0,0 Q50,0 100,100 Q50,200 0,200 Z" fill="#2563eb" />
-          </svg>
+          {/* Right side - Photo Frame */}
+          <div className="flex-shrink-0 ml-8">
+            <div className="w-48 h-56 border-4 border-black bg-gray-300 flex items-center justify-center">
+              <span className="text-gray-600 text-sm">Foto</span>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -231,7 +270,7 @@ const ProfilPage: React.FC = () => {
               </div>
               <div className="mt-3 space-y-1 text-sm text-gray-600">
                 <div className="flex items-center gap-2"><Mail className="w-4 h-4 text-gray-400" /> <span>{user?.email || '-'}</span></div>
-                <div className="flex items-center gap-2"><Phone className="w-4 h-4 text-gray-400" /> <span>{user?.phone || '-'}</span></div>
+                <div className="flex items-center gap-2"><Phone className="w-4 h-4 text-gray-400" /> <span>{user?.phone_number || '-'}</span></div>
                 <div className="flex items-center gap-2"><Calendar className="w-4 h-4 text-gray-400" /> <span>Bergabung sejak {user?.joined ? user.joined : 'Januari 2024'}</span></div>
               </div>
             </div>
