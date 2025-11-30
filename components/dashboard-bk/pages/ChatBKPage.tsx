@@ -1,120 +1,388 @@
 'use client'
 
 import React, { useState, useRef, useEffect } from 'react'
-import { Send, Search, Phone, Video, MoreVertical, Smile, Paperclip } from 'lucide-react'
+import { Send, Search, Phone, Video, MoreVertical, Smile, Paperclip, Loader } from 'lucide-react'
+import { apiRequest, API_URL } from '@lib/api'
+import CallUI from '../../call/CallUI'
+import {
+  createPeerConnection,
+  createOffer,
+  createAnswer,
+  handleRemoteOffer,
+  handleRemoteAnswer,
+  addIceCandidate,
+  getLocalAudioStream,
+  getLocalVideoStream,
+  stopMediaStream,
+  addLocalStreamToPeerConnection,
+  onIceCandidate,
+  onRemoteStream,
+  onConnectionStateChange,
+  onIceConnectionStateChange,
+} from '@lib/webrtc'
+import { useAuth } from '@/hooks/useAuth'
+import { io, Socket } from 'socket.io-client'
+
+interface APIMessage {
+  id: number
+  content: string
+  messageType: string
+  sender: { id: number; fullName: string }
+  receiver: { id: number; fullName: string }
+  createdAt: string
+  isEdited: boolean
+  isDeleted: boolean
+  readStatuses?: Array<{ isRead: boolean }>
+}
+
+interface APIConversation {
+  id: number
+  sender: { id: number; fullName: string; username?: string; photoUrl?: string }
+  receiver: { id: number; fullName: string; username?: string; photoUrl?: string }
+  lastMessage?: APIMessage
+  messages?: APIMessage[]
+  unreadCount?: number
+  lastMessageAt: string
+}
 
 interface Message {
-  id: string
+  id: number
   sender: 'user' | 'counselor'
   content: string
   timestamp: string
+  isEdited: boolean
+  isDeleted: boolean
 }
 
-interface Counselor {
-  id: string
+interface FormattedConversation {
+  id: number
+  sender: { id: number; fullName: string }
+  receiver: { id: number; fullName: string }
+  lastMessage?: APIMessage
+  otherUserId: number
   initial: string
   name: string
-  role: string
-  status: 'online' | 'offline'
   message: string
   time: string
   unread?: number
+  photoUrl?: string
 }
 
 const ChatBKPage: React.FC = () => {
-  const [counselors] = useState<Counselor[]>([
-    {
-      id: '1',
-      initial: 'S',
-      name: 'Bu Sarah',
-      role: 'Konselor BK',
-      status: 'online',
-      message: 'Terima kasih atas konsultasinya kemarin',
-      time: '10:03',
-      unread: 0,
-    },
-    {
-      id: '2',
-      initial: 'B',
-      name: 'Pak Budi',
-      role: 'Konselor Karir',
-      status: 'offline',
-      message: 'Sampai jumpa di sesi berikutnya',
-      time: 'Kemarin',
-      unread: 2,
-    },
-    {
-      id: '3',
-      initial: 'R',
-      name: 'Bu Rina',
-      role: 'Konselor Akademik',
-      status: 'online',
-      message: 'Terima kasih atas konsultasinya',
-      time: '2 hari lalu',
-      unread: 0,
-    },
-  ])
-
-  const [activeCounselorId, setActiveCounselorId] = useState('1')
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: '1',
-      sender: 'counselor',
-      content: 'Hai Andi, saya siap membantu kamu. Apa yang sedang kamu rasakan?',
-      timestamp: '10:03',
-    },
-    {
-      id: '2',
-      sender: 'user',
-      content: 'Terima kasih Bu Sarah. Saya merasa sedikit tertekan dengan ujian yang akan datang',
-      timestamp: '10:05',
-    },
-    {
-      id: '3',
-      sender: 'counselor',
-      content: 'Saya mengerti perasaanmu. Mari kita diskusikan strategi yang bisa membantu kamu menghadapi ujian dengan lebih tenang',
-      timestamp: '10:06',
-    },
-  ])
+  const { user, token, loading: authLoading } = useAuth()
+  const [conversations, setConversations] = useState<FormattedConversation[]>([])
+  const [activeCounselorId, setActiveCounselorId] = useState<number | null>(null)
+  const [messages, setMessages] = useState<Message[]>([])
   const [messageInput, setMessageInput] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [sendingMessage, setSendingMessage] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [callType, setCallType] = useState<'audio' | 'video' | null>(null)
+  const [showCallModal, setShowCallModal] = useState(false)
+  const [incomingCall, setIncomingCall] = useState<any>(null)
+  const [incomingCallModalOpen, setIncomingCallModalOpen] = useState(false)
+  const [activeCall, setActiveCall] = useState<any>(null)
+  const [callDuration, setCallDuration] = useState(0)
+  const [isConnected, setIsConnected] = useState(false)
+  const [hasRemoteStream, setHasRemoteStream] = useState(false)
+  const peerConnectionRef = useRef<RTCPeerConnection | null>(null)
+  const localVideoRef = useRef<HTMLVideoElement | null>(null)
+  const remoteVideoRef = useRef<HTMLVideoElement | null>(null)
+  const localStreamRef = useRef<MediaStream | null>(null)
+  const remoteStreamRef = useRef<MediaStream | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
-
-  const activeCounselor = counselors.find((c) => c.id === activeCounselorId)
+  const socketRef = useRef<Socket | null>(null)
 
   // Auto-scroll to bottom
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
-  const handleSendMessage = () => {
-    if (!messageInput.trim()) return
+  // Initialize WebSocket connection
+  useEffect(() => {
+    if (user && token && !authLoading) {
+      // Extract base URL from API_URL (remove /api suffix)
+      const baseUrl = API_URL.replace('/api', '')
+      const socket = io(`${baseUrl}/chat`, {
+        auth: {
+          token: token,
+        },
+        reconnection: true,
+        reconnectionDelay: 1000,
+        reconnectionDelayMax: 5000,
+        reconnectionAttempts: 5,
+      })
 
-    const userMessage: Message = {
-      id: Date.now().toString(),
-      sender: 'user',
-      content: messageInput,
-      timestamp: new Date().toLocaleTimeString('id-ID', {
-        hour: '2-digit',
-        minute: '2-digit',
-      }),
-    }
+      socket.on('connect', () => {
+        console.log('✅ [ChatBKPage] WebSocket connected')
+      })
 
-    setMessages((prev) => [...prev, userMessage])
-    setMessageInput('')
+      socket.on('disconnect', () => {
+        console.log('❌ [ChatBKPage] WebSocket disconnected')
+      })
 
-    // Simulate counselor response
-    setTimeout(() => {
-      const counselorMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        sender: 'counselor',
-        content: 'Terima kasih atas pertanyaanmu. Saya akan membantu kamu dengan masalah ini.',
-        timestamp: new Date().toLocaleTimeString('id-ID', {
-          hour: '2-digit',
-          minute: '2-digit',
-        }),
+      socket.on('message-received', (data: any) => {
+        console.log('📨 [ChatBKPage] Message received via WebSocket:', data)
+        
+        setMessages((prev: Message[]) => {
+          // Check if message already exists to prevent duplicates
+          const messageExists = prev.some((msg) => msg.id === data.message.id)
+          if (messageExists) {
+            console.log('⚠️ [ChatBKPage] Message already exists, skipping duplicate:', data.message.id)
+            return prev
+          }
+          
+          const newMessage: Message = {
+            id: data.message.id,
+            sender: data.message.sender.id === user?.id ? 'user' : 'counselor',
+            content: data.message.isDeleted ? '[Pesan dihapus]' : data.message.content,
+            timestamp: formatMessageTime(data.message.createdAt),
+            isEdited: data.message.isEdited,
+            isDeleted: data.message.isDeleted,
+          }
+          
+          return [...prev, newMessage]
+        })
+        
+        // Refresh conversation list to update last message (don't await)
+        fetchConversations()
+      })
+
+      socket.on('call-incoming', (data: any) => {
+        console.log('📞 [ChatBKPage] Incoming call received:', data)
+        setIncomingCall(data)
+        setIncomingCallModalOpen(true)
+      })
+
+      socket.on('call-answer', async (data: any) => {
+        console.log('📞 [ChatBKPage] Call answer received:', data)
+        try {
+          if (peerConnectionRef.current && data.answer) {
+            await handleRemoteAnswer(peerConnectionRef.current, data.answer)
+            if (Array.isArray(data.iceCandidates)) {
+              for (const c of data.iceCandidates) {
+                try {
+                  await addIceCandidate(peerConnectionRef.current, c)
+                } catch (e) {
+                  console.warn('Failed to add remote ICE candidate', e)
+                }
+              }
+            }
+            setActiveCall((prev: any) => ({ ...(prev || {}), callId: data.callId }))
+          }
+        } catch (error) {
+          console.error('Error handling remote answer:', error)
+        }
+      })
+
+      socket.on('ice-candidate', async (data: any) => {
+        console.log('📞 [ChatBKPage] ICE candidate received:', data)
+        try {
+          if (peerConnectionRef.current && data.candidate) {
+            await addIceCandidate(peerConnectionRef.current, data)
+          }
+        } catch (error) {
+          console.error('Error adding remote ICE candidate:', error)
+        }
+      })
+
+      socket.on('call-rejected', (data: any) => {
+        console.log('📞 [ChatBKPage] Call rejected:', data)
+        alert('Panggilan ditolak')
+        setIncomingCall(null)
+        setIncomingCallModalOpen(false)
+        setActiveCall(null)
+      })
+
+      socket.on('call-ended', (data: any) => {
+        console.log('📞 [ChatBKPage] Call ended:', data)
+        alert('Panggilan berakhir')
+        if (localStreamRef.current) stopMediaStream(localStreamRef.current)
+        if (peerConnectionRef.current) peerConnectionRef.current.close()
+        setActiveCall(null)
+        setCallDuration(0)
+      })
+
+      socketRef.current = socket
+
+      return () => {
+        socket.disconnect()
       }
-      setMessages((prev) => [...prev, counselorMessage])
-    }, 1000)
+    }
+  }, [user, token, authLoading])
+
+  // Fetch conversations on mount
+  useEffect(() => {
+    if (user && token && !authLoading) {
+      fetchConversations()
+    }
+  }, [user, token, authLoading])
+
+  // Fetch messages when active conversation changes
+  useEffect(() => {
+    if (activeCounselorId && token) {
+      fetchMessages(activeCounselorId)
+      markConversationAsRead(activeCounselorId)
+      
+      // Join conversation room in WebSocket
+      if (socketRef.current) {
+        socketRef.current.emit('join-conversation', { conversationId: activeCounselorId })
+        console.log('🚪 [ChatBKPage] Joined conversation:', activeCounselorId)
+      }
+    }
+  }, [activeCounselorId, token])
+
+  const fetchConversations = async () => {
+    try {
+      setLoading(true)
+      console.log('🔄 [ChatBK] Fetching conversations...')
+      console.log('🔑 [ChatBK] Token exists:', !!token)
+      console.log('👤 [ChatBK] User:', user)
+      
+      const response = await apiRequest('/chat/conversations', 'GET', undefined, token || undefined)
+      
+      console.log('✅ [ChatBK] Conversations response:', response)
+      
+      if (Array.isArray(response)) {
+        const formattedConversations = response.map((conv: APIConversation) => {
+          const otherUser = conv.sender.id === user?.id ? conv.receiver : conv.sender
+          const lastMsg = conv.lastMessage
+          const time = formatTime(conv.lastMessageAt)
+          
+          return {
+            ...conv,
+            otherUserId: otherUser.id,
+            initial: otherUser.fullName?.charAt(0).toUpperCase() || 'U',
+            name: otherUser.fullName || otherUser.username || 'Unknown',
+            message: lastMsg?.content || 'Mulai percakapan',
+            time,
+            unread: conv.unreadCount || 0,
+            photoUrl: otherUser.photoUrl,
+          }
+        })
+        
+        console.log('Formatted conversations:', formattedConversations)
+        setConversations(formattedConversations)
+        
+        // Set first conversation as active
+        if (formattedConversations.length > 0 && !activeCounselorId) {
+          setActiveCounselorId(formattedConversations[0].id)
+        }
+      } else {
+        console.warn('❌ [ChatBK] Response is not an array:', response)
+        setConversations([])
+      }
+    } catch (error: any) {
+      console.error('❌ [ChatBK] Error fetching conversations:', error)
+      console.error('❌ [ChatBK] Error details:', error?.message, error?.response?.data)
+      alert(`Error loading conversations: ${error?.message || 'Unknown error'}`)
+      setConversations([])
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const fetchMessages = async (conversationId: number) => {
+    try {
+      console.log('Fetching messages for conversation:', conversationId)
+      const response = await apiRequest(
+        `/chat/conversations/${conversationId}`,
+        'GET',
+        undefined,
+        token || undefined
+      )
+      
+      console.log('Messages response:', response)
+      
+      if (response && response.messages) {
+        const apiMessages = response.messages
+        
+        const formattedMessages = apiMessages.map((msg: APIMessage) => ({
+          id: msg.id,
+          sender: msg.sender.id === user?.id ? 'user' : 'counselor',
+          content: msg.isDeleted ? '[Pesan dihapus]' : msg.content,
+          timestamp: formatMessageTime(msg.createdAt),
+          isEdited: msg.isEdited,
+          isDeleted: msg.isDeleted,
+        }))
+        
+        console.log('Formatted messages:', formattedMessages)
+        setMessages(formattedMessages)
+      } else {
+        console.warn('No messages in response')
+        setMessages([])
+      }
+    } catch (error: any) {
+      console.error('Error fetching messages:', error)
+      console.error('Error details:', error?.message, error?.response?.data)
+      alert(`Error loading messages: ${error?.message || 'Unknown error'}`)
+      setMessages([])
+    }
+  }
+
+  const handleSendMessage = async () => {
+    if (!messageInput.trim() || !activeCounselorId) return
+
+    const activeCounselor = conversations.find((c: FormattedConversation) => c.id === activeCounselorId)
+    if (!activeCounselor) return
+
+    setSendingMessage(true)
+    const messageContent = messageInput
+    setMessageInput('')
+    
+    try {
+      const receiverId = activeCounselor.sender.id === user?.id ? 
+        activeCounselor.receiver.id : activeCounselor.sender.id
+      
+      const payload = {
+        conversationId: activeCounselorId,
+        receiverId: receiverId,
+        content: messageContent,
+        messageType: 'text',
+      }
+
+      console.log('Sending message with payload:', payload)
+      const response = await apiRequest('/chat/messages', 'POST', payload, token || undefined)
+      
+      console.log('Message sent response:', response)
+
+      // Add user message locally
+      const userMessage: Message = {
+        id: response.id,
+        sender: 'user',
+        content: messageContent,
+        timestamp: formatMessageTime(response.createdAt),
+        isEdited: false,
+        isDeleted: false,
+      }
+
+      setMessages((prev: Message[]) => {
+        // Only add if not already present
+        const exists = prev.some((msg) => msg.id === response.id)
+        return exists ? prev : [...prev, userMessage]
+      })
+    } catch (error: any) {
+      console.error('Error sending message:', error)
+      console.error('Error details:', error?.message, error?.response?.data)
+      alert(`Error sending message: ${error?.message || 'Unknown error'}`)
+      // Restore input on error
+      setMessageInput(messageContent)
+    } finally {
+      setSendingMessage(false)
+    }
+  }
+
+  const markConversationAsRead = async (conversationId: number) => {
+    try {
+      await apiRequest(
+        `/chat/conversations/${conversationId}/mark-read`,
+        'PUT',
+        undefined,
+        token || undefined
+      )
+    } catch (error) {
+      console.error('Error marking conversation as read:', error)
+    }
   }
 
   const getInitialBgColor = (initial: string): string => {
@@ -123,8 +391,399 @@ const ChatBKPage: React.FC = () => {
       B: 'bg-gradient-to-br from-purple-500 to-purple-600',
       R: 'bg-gradient-to-br from-green-500 to-green-600',
       A: 'bg-gradient-to-br from-indigo-500 to-indigo-600',
+      C: 'bg-gradient-to-br from-rose-500 to-rose-600',
+      D: 'bg-gradient-to-br from-amber-500 to-amber-600',
+      E: 'bg-gradient-to-br from-cyan-500 to-cyan-600',
+      F: 'bg-gradient-to-br from-lime-500 to-lime-600',
     }
     return colors[initial] || 'bg-gradient-to-br from-gray-500 to-gray-600'
+  }
+
+  const formatTime = (dateString: string): string => {
+    const date = new Date(dateString)
+    const now = new Date()
+    const diffInMs = now.getTime() - date.getTime()
+    const diffInMinutes = Math.floor(diffInMs / (1000 * 60))
+    const diffInHours = Math.floor(diffInMs / (1000 * 60 * 60))
+    const diffInDays = Math.floor(diffInMs / (1000 * 60 * 60 * 24))
+
+    if (diffInMinutes < 1) return 'Baru saja'
+    if (diffInMinutes < 60) return `${diffInMinutes}m`
+    if (diffInHours < 24) return `${diffInHours}h`
+    if (diffInDays === 1) return 'Kemarin'
+    if (diffInDays < 7) return `${diffInDays}d`
+    
+    return date.toLocaleDateString('id-ID', { month: 'short', day: 'numeric' })
+  }
+
+  const formatMessageTime = (dateString: string): string => {
+    const date = new Date(dateString)
+    return date.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
+  }
+
+  const filteredConversations = conversations.filter((conv: FormattedConversation) =>
+    conv.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    conv.message.toLowerCase().includes(searchQuery.toLowerCase())
+  )
+
+  const activeCounselor = conversations.find((c: FormattedConversation) => c.id === activeCounselorId) as FormattedConversation | undefined
+
+  const handleVoiceCall = () => {
+    if (!activeCounselor) return
+    setCallType('audio')
+    setShowCallModal(true)
+    console.log('🎙️ Initiating voice call with', activeCounselor.name)
+  }
+
+  const handleVideoCall = () => {
+    if (!activeCounselor) return
+    setCallType('video')
+    setShowCallModal(true)
+    console.log('📹 Initiating video call with', activeCounselor.name)
+  }
+
+  const handleConfirmCall = async () => {
+    if (!activeCounselor || !socketRef.current || !activeCounselorId) return
+
+    try {
+      console.log(`✅ Confirmed ${callType} call with ${activeCounselor.name}`)
+      
+      // Get active conversation to get receiver ID
+      const activeConversation = conversations.find(c => c.id === activeCounselorId)
+      if (!activeConversation) return
+
+      const receiverId = activeConversation.sender.id === user?.id 
+        ? activeConversation.receiver.id 
+        : activeConversation.sender.id
+
+      // Initialize peer connection
+      peerConnectionRef.current = createPeerConnection()
+
+      // Handle ICE candidates
+      onIceCandidate(peerConnectionRef.current, (candidate) => {
+        if (!candidate) {
+          console.log('ICE gathering complete for caller (BK)')
+          return
+        }
+        
+        const candidateObj = {
+          callId: activeCall?.callId || null,
+          candidate: candidate.candidate, // Send just the candidate string
+          sdpMLineIndex: candidate.sdpMLineIndex,
+          sdpMid: candidate.sdpMid,
+        }
+        
+        console.log('[ChatBKPage] Sending ICE candidate:', candidateObj)
+        socketRef.current?.emit('ice-candidate', candidateObj)
+      })
+
+      // Handle remote stream
+      onRemoteStream(peerConnectionRef.current, (stream) => {
+        console.log('Remote stream received:', stream)
+        remoteStreamRef.current = stream
+        setHasRemoteStream(true)
+        if (remoteVideoRef.current) remoteVideoRef.current.srcObject = stream
+      })
+
+      onConnectionStateChange(peerConnectionRef.current, (state) => {
+        console.log('Peer connection state:', state)
+        if (state === 'connected') {
+          console.log('✅ Peer connection established')
+          setIsConnected(true)
+        } else if (state === 'failed' || state === 'closed') {
+          console.error('❌ Peer connection failed/closed:', state)
+          setIsConnected(false)
+          setHasRemoteStream(false)
+          // hangup cleanup
+          if (localStreamRef.current) stopMediaStream(localStreamRef.current)
+          if (peerConnectionRef.current) peerConnectionRef.current.close()
+          setActiveCall(null)
+          setCallDuration(0)
+        } else if (state === 'disconnected') {
+          console.warn('⚠️ Peer connection disconnected, but not calling hangup (ICE may reconnect)')
+          setIsConnected(false)
+        }
+      })
+
+      // Also listen to ICE connection state as fallback
+      onIceConnectionStateChange(peerConnectionRef.current, (state) => {
+        console.log('ICE connection state:', state)
+        if (state === 'connected' || state === 'completed') {
+          console.log('✅ ICE connection established')
+          setIsConnected(true)
+        } else if (state === 'failed') {
+          console.error('❌ ICE connection failed')
+          setIsConnected(false)
+          setHasRemoteStream(false)
+          if (localStreamRef.current) stopMediaStream(localStreamRef.current)
+          if (peerConnectionRef.current) peerConnectionRef.current.close()
+          setActiveCall(null)
+          setCallDuration(0)
+        } else if (state === 'disconnected') {
+          console.warn('⚠️ ICE disconnected (may be temporary)')
+          setIsConnected(false)
+        }
+      })
+
+      // Get local media
+      try {
+        const stream = callType === 'audio' ? await getLocalAudioStream() : await getLocalVideoStream()
+        
+        console.log('📹 [ChatBKPage] Got local stream:', {
+          videoTracks: (stream as MediaStream).getVideoTracks().length,
+          audioTracks: (stream as MediaStream).getAudioTracks().length,
+        })
+        
+        localStreamRef.current = stream
+        console.log('📹 [ChatBKPage] Stream stored in localStreamRef.current:', localStreamRef.current)
+        // ✅ Don't attach here - CallUI not mounted yet. Will attach via useEffect after activeCall is set
+        addLocalStreamToPeerConnection(peerConnectionRef.current, stream)
+
+        // Create offer
+        const offerSDP = await createOffer(peerConnectionRef.current)
+
+        // Emit call-initiate WITH OFFER
+        socketRef.current.emit('call-initiate', {
+          callerId: user?.id,
+          receiverId: receiverId,
+          callType: callType,
+          conversationId: activeCounselorId,
+          offer: offerSDP, // ✅ Include offer immediately
+        }, (response: any) => {
+          if (response?.status === 'initiated') {
+            const callId = response.callId
+            setActiveCall({ callId, receiverId, callType, isInitiator: true, remoteUserName: activeConversation.receiver.fullName })
+          } else {
+            alert('Gagal memulai panggilan')
+          }
+        })
+
+        handleCloseCall()
+      } catch (error: any) {
+        console.error('Error getting media:', error)
+        const errorMessage = error?.message || 'Gagal mengakses kamera/mikrofon'
+        alert(errorMessage)
+      }
+    } catch (error) {
+      console.error('Error initiating call:', error)
+      alert('Gagal memulai panggilan')
+    }
+  }
+
+  const handleCloseCall = () => {
+    setShowCallModal(false)
+    setCallType(null)
+  }
+
+  const handleAcceptIncomingCall = async () => {
+    if (!socketRef.current || !incomingCall) return
+
+    try {
+      console.log('📞 Accepting incoming call:', incomingCall.callId)
+      
+      // Initialize peer connection
+      peerConnectionRef.current = createPeerConnection()
+
+      onIceCandidate(peerConnectionRef.current, (candidate) => {
+        if (!candidate) {
+          console.log('ICE gathering complete for receiver (BK)')
+          return
+        }
+        
+        const candidateObj = {
+          callId: incomingCall.callId,
+          candidate: candidate.candidate, // Send just the candidate string
+          sdpMLineIndex: candidate.sdpMLineIndex,
+          sdpMid: candidate.sdpMid,
+        }
+        
+        console.log('[ChatBKPage] Sending ICE candidate (receiver):', candidateObj)
+        socketRef.current?.emit('ice-candidate', candidateObj)
+      })
+
+      onRemoteStream(peerConnectionRef.current, (stream) => {
+        console.log('Remote stream received:', stream)
+        remoteStreamRef.current = stream
+        setHasRemoteStream(true)
+        if (remoteVideoRef.current) remoteVideoRef.current.srcObject = stream
+      })
+
+      onConnectionStateChange(peerConnectionRef.current, (state) => {
+        console.log('Peer connection state (receiver):', state)
+        if (state === 'connected') {
+          console.log('✅ Peer connection established')
+          setIsConnected(true)
+        } else if (state === 'failed' || state === 'closed') {
+          console.error('❌ Peer connection failed/closed:', state)
+          setIsConnected(false)
+          setHasRemoteStream(false)
+          if (localStreamRef.current) stopMediaStream(localStreamRef.current)
+          if (peerConnectionRef.current) peerConnectionRef.current.close()
+          setActiveCall(null)
+          setCallDuration(0)
+        } else if (state === 'disconnected') {
+          console.warn('⚠️ Peer connection disconnected, but not calling hangup (ICE may reconnect)')
+          setIsConnected(false)
+        }
+      })
+
+      // Also listen to ICE connection state as fallback
+      onIceConnectionStateChange(peerConnectionRef.current, (state) => {
+        console.log('ICE connection state (receiver):', state)
+        if (state === 'connected' || state === 'completed') {
+          console.log('✅ ICE connection established')
+          setIsConnected(true)
+        } else if (state === 'failed') {
+          console.error('❌ ICE connection failed')
+          setIsConnected(false)
+          setHasRemoteStream(false)
+          if (localStreamRef.current) stopMediaStream(localStreamRef.current)
+          if (peerConnectionRef.current) peerConnectionRef.current.close()
+          setActiveCall(null)
+          setCallDuration(0)
+        } else if (state === 'disconnected') {
+          console.warn('⚠️ ICE disconnected (may be temporary)')
+          setIsConnected(false)
+        }
+      })
+
+      try {
+        const stream = incomingCall.callType === 'audio' ? await getLocalAudioStream() : await getLocalVideoStream()
+        
+        console.log('📹 [ChatBKPage] Got local stream (accept):', {
+          videoTracks: (stream as MediaStream).getVideoTracks().length,
+          audioTracks: (stream as MediaStream).getAudioTracks().length,
+        })
+        
+        localStreamRef.current = stream
+        console.log('📹 [ChatBKPage] Stream stored in localStreamRef.current (accept):', localStreamRef.current)
+        // ✅ Don't attach here - CallUI not mounted yet. Will attach via useEffect after activeCall is set
+
+        addLocalStreamToPeerConnection(peerConnectionRef.current, stream)
+
+        // Pastikan offer valid sebelum createAnswer
+        if (!incomingCall?.offer) {
+          console.error('❌ Tidak ada SDP offer pada incomingCall:', incomingCall)
+          alert('Panggilan tidak valid: offer SDP tidak ditemukan.')
+          return
+        }
+
+        // Create answer from received offer
+        const answerSDP = await createAnswer(peerConnectionRef.current, incomingCall.offer)
+
+        // Send answer via WebSocket
+        socketRef.current.emit('call-accept', {
+          callId: incomingCall.callId,
+          answer: answerSDP,
+        }, (response: any) => {
+          if (response?.status === 'accepted') {
+            console.log('\u2705 Call accepted successfully')
+            setActiveCall({ callId: incomingCall.callId, callerId: incomingCall.callerId, callType: incomingCall.callType, isInitiator: false, remoteUserName: incomingCall.callerName })
+          } else {
+            alert('Gagal menerima panggilan')
+          }
+        })
+
+        setIncomingCallModalOpen(false)
+        setIncomingCall(null)
+      } catch (error: any) {
+        console.error('Error getting media:', error)
+        const errorMessage = error?.message || 'Gagal mengakses kamera/mikrofon'
+        alert(errorMessage)
+      }
+    } catch (error) {
+      console.error('Error accepting call:', error)
+      alert('Gagal menerima panggilan')
+    }
+  }
+
+  const handleRejectIncomingCall = async () => {
+    if (!socketRef.current || !incomingCall) return
+
+    try {
+      console.log('❌ Rejecting incoming call:', incomingCall.callId)
+      
+      socketRef.current.emit('call-reject', {
+        callId: incomingCall.callId,
+        reason: 'User declined',
+      }, (response: any) => {
+        if (response?.status === 'rejected') {
+          console.log('✅ Call rejected successfully')
+        } else {
+          alert('Gagal menolak panggilan')
+        }
+      })
+
+      setIncomingCallModalOpen(false)
+      setIncomingCall(null)
+    } catch (error) {
+      console.error('Error rejecting call:', error)
+      alert('Gagal menolak panggilan')
+    }
+  }
+
+  const handleHangup = async () => {
+    if (!activeCall) return
+
+    try {
+      socketRef.current?.emit('call-end', { callId: activeCall.callId, duration: callDuration })
+    } catch (error) {
+      console.error('Error ending call:', error)
+    } finally {
+      if (localStreamRef.current) stopMediaStream(localStreamRef.current)
+      if (peerConnectionRef.current) peerConnectionRef.current.close()
+      setActiveCall(null)
+      setCallDuration(0)
+    }
+  }
+
+  // Attach local stream to video element AFTER CallUI is mounted
+  useEffect(() => {
+    if (activeCall && localStreamRef.current && localVideoRef.current) {
+      console.log('✅ [ChatBKPage] Attaching local stream to video element')
+      console.log('Stream:', localStreamRef.current)
+      console.log('Video ref:', localVideoRef.current)
+      localVideoRef.current.srcObject = localStreamRef.current
+      console.log('✅ [ChatBKPage] Stream attached! srcObject:', localVideoRef.current.srcObject)
+    } else {
+      console.log('⚠️ [ChatBKPage] Cannot attach stream:', {
+        activeCall: !!activeCall,
+        localStreamRef: !!localStreamRef.current,
+        localVideoRef: !!localVideoRef.current,
+      })
+    }
+  }, [activeCall, localStreamRef.current])
+
+  useEffect(() => {
+    let timer: any = null
+    if (activeCall && isConnected) {
+      timer = setInterval(() => setCallDuration((d) => d + 1), 1000)
+    } else if (!activeCall) {
+      setCallDuration(0)
+    }
+
+    return () => { if (timer) clearInterval(timer) }
+  }, [activeCall, isConnected])
+
+  if (authLoading) {
+    return (
+      <div className="flex items-center justify-center h-[calc(100vh-120px)] bg-white rounded-lg shadow-sm">
+        <div className="text-center">
+          <Loader className="w-8 h-8 animate-spin mx-auto mb-4 text-blue-500" />
+          <p className="text-gray-600">Memuat data...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (!user || !token) {
+    return (
+      <div className="flex items-center justify-center h-[calc(100vh-120px)] bg-white rounded-lg shadow-sm">
+        <div className="text-center">
+          <p className="text-gray-600">Silahkan login terlebih dahulu</p>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -138,6 +797,8 @@ const ChatBKPage: React.FC = () => {
             <input
               type="text"
               placeholder="Cari percakapan..."
+              value={searchQuery}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchQuery(e.target.value)}
               className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -146,152 +807,311 @@ const ChatBKPage: React.FC = () => {
 
         {/* Counselor List */}
         <div className="flex-1 overflow-y-auto">
-          {counselors.map((counselor) => (
-            <button
-              key={counselor.id}
-              onClick={() => setActiveCounselorId(counselor.id)}
-              className={`w-full p-4 border-b border-gray-100 hover:bg-gray-50 transition text-left ${
-                activeCounselorId === counselor.id ? 'bg-blue-50' : ''
-              }`}
-            >
-              <div className="flex gap-3">
-                {/* Avatar */}
-                <div className="relative flex-shrink-0">
-                  <div className={`w-12 h-12 ${getInitialBgColor(counselor.initial)} rounded-full flex items-center justify-center text-white font-semibold`}>
-                    {counselor.initial}
+          {loading ? (
+            <div className="flex items-center justify-center h-full">
+              <Loader className="w-6 h-6 animate-spin text-blue-500" />
+            </div>
+          ) : filteredConversations.length > 0 ? (
+            filteredConversations.map((counselor: FormattedConversation) => (
+              <button
+                key={counselor.id}
+                onClick={() => setActiveCounselorId(counselor.id)}
+                className={`w-full p-4 border-b border-gray-100 hover:bg-gray-50 transition text-left ${
+                  activeCounselorId === counselor.id ? 'bg-blue-50' : ''
+                }`}
+              >
+                <div className="flex gap-3">
+                  {/* Avatar */}
+                  <div className="relative flex-shrink-0">
+                    {counselor.photoUrl ? (
+                      <img
+                        src={counselor.photoUrl}
+                        alt={counselor.name}
+                        className="w-12 h-12 rounded-full object-cover"
+                      />
+                    ) : (
+                      <div className={`w-12 h-12 ${getInitialBgColor(counselor.initial)} rounded-full flex items-center justify-center text-white font-semibold`}>
+                        {counselor.initial}
+                      </div>
+                    )}
                   </div>
-                  {counselor.status === 'online' && (
-                    <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-white" />
+
+                  {/* Chat Info */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between mb-1">
+                      <h4 className="font-semibold text-gray-900 text-sm">{counselor.name}</h4>
+                      <span className="text-xs text-gray-500">{counselor.time}</span>
+                    </div>
+                    <p className="text-sm text-gray-600 truncate">{counselor.message}</p>
+                  </div>
+
+                  {/* Unread Badge */}
+                  {counselor.unread && counselor.unread > 0 && (
+                    <div className="bg-blue-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-semibold flex-shrink-0">
+                      {counselor.unread > 99 ? '99+' : counselor.unread}
+                    </div>
                   )}
                 </div>
-
-                {/* Chat Info */}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between mb-1">
-                    <h4 className="font-semibold text-gray-900 text-sm">{counselor.name}</h4>
-                    <span className="text-xs text-gray-500">{counselor.time}</span>
-                  </div>
-                  <p className="text-xs text-gray-500 mb-1">{counselor.role}</p>
-                  <p className="text-sm text-gray-600 truncate">{counselor.message}</p>
-                </div>
-
-                {/* Unread Badge */}
-                {counselor.unread && counselor.unread > 0 && (
-                  <div className="bg-blue-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-semibold flex-shrink-0">
-                    {counselor.unread}
-                  </div>
-                )}
-              </div>
-            </button>
-          ))}
+              </button>
+            ))
+          ) : (
+            <div className="flex items-center justify-center h-full">
+              <p className="text-gray-500 text-center">
+                {searchQuery ? 'Tidak ada percakapan yang cocok' : 'Mulai percakapan baru'}
+              </p>
+            </div>
+          )}
         </div>
       </div>
 
       {/* Chat Window */}
       <div className="flex-1 flex flex-col bg-white">
         {/* Header */}
-        {activeCounselor && (
-          <div className="p-4 border-b border-gray-200 flex items-center justify-between bg-white">
-            <div className="flex items-center gap-3">
-              <div className={`w-10 h-10 ${getInitialBgColor(activeCounselor.initial)} rounded-full flex items-center justify-center text-white font-semibold text-sm`}>
-                {activeCounselor.initial}
-              </div>
-              <div>
-                <h3 className="font-semibold text-gray-900">{activeCounselor.name}</h3>
-                <p className={`text-xs ${activeCounselor.status === 'online' ? 'text-green-600' : 'text-gray-500'}`}>
-                  {activeCounselor.status === 'online' ? 'Online' : 'Offline'}
-                </p>
-              </div>
-            </div>
-
-            {/* Action Buttons */}
-            <div className="flex gap-3">
-              <button className="p-2 hover:bg-gray-100 rounded-lg transition text-gray-600">
-                <Phone className="w-5 h-5" />
-              </button>
-              <button className="p-2 hover:bg-gray-100 rounded-lg transition text-gray-600">
-                <Video className="w-5 h-5" />
-              </button>
-              <button className="p-2 hover:bg-gray-100 rounded-lg transition text-gray-600">
-                <MoreVertical className="w-5 h-5" />
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Messages Area */}
-        <div className="flex-1 p-4 overflow-y-auto bg-gray-50">
-          <div className="max-w-3xl mx-auto">
-            {/* Date Separator */}
-            <div className="text-center mb-6">
-              <span className="text-xs text-gray-500 bg-white px-3 py-1 rounded-full">Hari ini</span>
-            </div>
-
-            {/* Messages */}
-            {messages.map((message) => (
-              <div
-                key={message.id}
-                className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'} mb-4`}
-              >
-                <div
-                  className={`max-w-[70%] p-4 rounded-xl ${
-                    message.sender === 'user'
-                      ? 'bg-blue-500 text-white rounded-br-none'
-                      : 'bg-white border border-gray-200 rounded-bl-none'
-                  }`}
-                >
-                  <p className="text-sm leading-relaxed">{message.content}</p>
-                  <p
-                    className={`text-xs mt-2 ${
-                      message.sender === 'user' ? 'text-blue-100' : 'text-gray-500'
-                    }`}
-                  >
-                    {message.timestamp}
+        {activeCounselor ? (
+          <>
+            <div className="p-4 border-b border-gray-200 flex items-center justify-between bg-white">
+              <div className="flex items-center gap-3">
+                {activeCounselor.photoUrl ? (
+                  <img
+                    src={activeCounselor.photoUrl}
+                    alt={activeCounselor.name}
+                    className="w-10 h-10 rounded-full object-cover"
+                  />
+                ) : (
+                  <div className={`w-10 h-10 ${getInitialBgColor(activeCounselor.initial)} rounded-full flex items-center justify-center text-white font-semibold text-sm`}>
+                    {activeCounselor.initial}
+                  </div>
+                )}
+                <div>
+                  <h3 className="font-semibold text-gray-900">{activeCounselor.name}</h3>
+                  <p className="text-xs text-gray-500">
+                    Online
                   </p>
                 </div>
               </div>
-            ))}
 
-            <div ref={messagesEndRef} />
-          </div>
-        </div>
-
-        {/* Input Area */}
-        <div className="p-4 border-t border-gray-200 bg-white">
-          <div className="flex gap-3 items-end">
-            <button className="text-gray-400 hover:text-gray-600 transition p-2">
-              <Paperclip className="w-5 h-5" />
-            </button>
-
-            <div className="flex-1 flex gap-2 items-end bg-gray-50 rounded-lg px-4 py-2 border border-gray-200 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-200">
-              <input
-                type="text"
-                value={messageInput}
-                onChange={(e) => setMessageInput(e.target.value)}
-                onKeyPress={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault()
-                    handleSendMessage()
-                  }
-                }}
-                placeholder="Ketik pesan..."
-                className="flex-1 bg-transparent outline-none text-sm text-gray-900 placeholder-gray-400"
-              />
-              <button className="text-gray-400 hover:text-gray-600 transition p-1">
-                <Smile className="w-5 h-5" />
-              </button>
+              {/* Action Buttons */}
+              <div className="flex gap-3">
+                <button 
+                  onClick={handleVoiceCall}
+                  className="p-2 hover:bg-gray-100 rounded-lg transition text-gray-600 hover:text-blue-600"
+                  title="Mulai panggilan suara"
+                >
+                  <Phone className="w-5 h-5" />
+                </button>
+                <button 
+                  onClick={handleVideoCall}
+                  className="p-2 hover:bg-gray-100 rounded-lg transition text-gray-600 hover:text-blue-600"
+                  title="Mulai video call"
+                >
+                  <Video className="w-5 h-5" />
+                </button>
+                <button className="p-2 hover:bg-gray-100 rounded-lg transition text-gray-600">
+                  <MoreVertical className="w-5 h-5" />
+                </button>
+              </div>
             </div>
 
-            <button
-              onClick={handleSendMessage}
-              disabled={!messageInput.trim()}
-              className="px-4 py-2 bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 text-white rounded-lg transition flex items-center gap-2"
-            >
-              <Send className="w-4 h-4" />
-            </button>
+            {/* Messages Area */}
+            <div className="flex-1 p-4 overflow-y-auto bg-gray-50">
+              <div className="max-w-3xl mx-auto">
+                {messages.length > 0 && (
+                  <div className="text-center mb-6">
+                    <span className="text-xs text-gray-500 bg-white px-3 py-1 rounded-full">
+                      Hari ini
+                    </span>
+                  </div>
+                )}
+
+                {/* Messages */}
+                {messages.length > 0 ? (
+                  messages.map((message: Message) => (
+                    <div
+                      key={message.id}
+                      className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'} mb-4`}
+                    >
+                      <div
+                        className={`max-w-[70%] p-4 rounded-xl ${
+                          message.sender === 'user'
+                            ? 'bg-blue-500 text-white rounded-br-none'
+                            : 'bg-white border border-gray-200 rounded-bl-none'
+                        }`}
+                      >
+                        <p className={`text-sm leading-relaxed ${message.isDeleted ? 'italic text-gray-400' : ''}`}>
+                          {message.content}
+                        </p>
+                        <div className="flex items-center gap-2 mt-2">
+                          <p
+                            className={`text-xs ${
+                              message.sender === 'user' ? 'text-blue-100' : 'text-gray-500'
+                            }`}
+                          >
+                            {message.timestamp}
+                          </p>
+                          {message.isEdited && (
+                            <p className={`text-xs ${message.sender === 'user' ? 'text-blue-100' : 'text-gray-400'}`}>
+                              (disunting)
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="flex items-center justify-center h-full">
+                    <p className="text-gray-500">Mulai percakapan dengan {activeCounselor.name}</p>
+                  </div>
+                )}
+
+                <div ref={messagesEndRef} />
+              </div>
+            </div>
+
+            {/* Input Area */}
+            <div className="p-4 border-t border-gray-200 bg-white">
+              <div className="flex gap-3 items-end">
+                <button className="text-gray-400 hover:text-gray-600 transition p-2">
+                  <Paperclip className="w-5 h-5" />
+                </button>
+
+                <div className="flex-1 flex gap-2 items-end bg-gray-50 rounded-lg px-4 py-2 border border-gray-200 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-200">
+                  <input
+                    type="text"
+                    value={messageInput}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setMessageInput(e.target.value)}
+                    onKeyPress={(e: React.KeyboardEvent<HTMLInputElement>) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault()
+                        handleSendMessage()
+                      }
+                    }}
+                    placeholder="Ketik pesan..."
+                    disabled={sendingMessage}
+                    className="flex-1 bg-transparent outline-none text-sm text-gray-900 placeholder-gray-400 disabled:text-gray-400"
+                  />
+                  <button className="text-gray-400 hover:text-gray-600 transition p-1">
+                    <Smile className="w-5 h-5" />
+                  </button>
+                </div>
+
+                <button
+                  onClick={handleSendMessage}
+                  disabled={!messageInput.trim() || sendingMessage}
+                  className="px-4 py-2 bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 text-white rounded-lg transition flex items-center gap-2"
+                >
+                  {sendingMessage ? (
+                    <Loader className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Send className="w-4 h-4" />
+                  )}
+                </button>
+              </div>
+            </div>
+          </>
+        ) : (
+          <div className="flex items-center justify-center h-full">
+            <p className="text-gray-500">Pilih percakapan untuk memulai</p>
+          </div>
+        )}
+      </div>
+
+      {/* Simple Call Alert Modal */}
+      {showCallModal && activeCounselor && callType && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 text-center">
+            <div className="mb-6">
+              <div className={`w-20 h-20 ${callType === 'video' ? 'bg-red-100' : 'bg-blue-100'} rounded-full flex items-center justify-center mx-auto mb-4`}>
+                {callType === 'video' ? (
+                  <Video className="w-10 h-10 text-red-600" />
+                ) : (
+                  <Phone className="w-10 h-10 text-blue-600" />
+                )}
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                Konfirmasi {callType === 'video' ? 'Panggilan Video' : 'Panggilan Suara'}
+              </h3>
+              <p className="text-gray-600 mb-4">Anda akan memanggil {activeCounselor.name}</p>
+              <p className="text-sm text-gray-500 bg-blue-50 p-3 rounded-lg">
+                {callType === 'video' 
+                  ? 'Pastikan kamera dan mikrofon Anda aktif sebelum melanjutkan' 
+                  : 'Pastikan mikrofon Anda aktif sebelum melanjutkan'}
+              </p>
+            </div>
+
+            <div className="space-y-3">
+              <button
+                onClick={handleConfirmCall}
+                className={`w-full px-4 py-3 text-white rounded-lg font-semibold transition ${
+                  callType === 'video'
+                    ? 'bg-red-600 hover:bg-red-700'
+                    : 'bg-blue-600 hover:bg-blue-700'
+                }`}
+              >
+                {callType === 'video' ? '📹 Mulai Video Call' : '🎙️ Mulai Panggilan Suara'}
+              </button>
+              <button
+                onClick={handleCloseCall}
+                className="w-full px-4 py-3 bg-gray-200 hover:bg-gray-300 text-gray-900 rounded-lg font-semibold transition"
+              >
+                Batalkan
+              </button>
+            </div>
           </div>
         </div>
-      </div>
+      )}
+
+      {/* Incoming Call Modal */}
+      {incomingCallModalOpen && incomingCall && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 text-center">
+            <div className="mb-6">
+              <div className={`w-20 h-20 ${incomingCall.callType === 'video' ? 'bg-red-100' : 'bg-green-100'} rounded-full flex items-center justify-center mx-auto mb-4`}>
+                {incomingCall.callType === 'video' ? (
+                  <Video className="w-10 h-10 text-red-600" />
+                ) : (
+                  <Phone className="w-10 h-10 text-green-600" />
+                )}
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                {incomingCall.callType === 'video' ? 'Panggilan Video Masuk' : 'Panggilan Suara Masuk'}
+              </h3>
+              <p className="text-gray-600 mb-4">{incomingCall.callerName} menelepon Anda</p>
+              <div className="text-4xl mb-4 animate-pulse">
+                {incomingCall.callType === 'video' ? '📹' : '📞'}
+              </div>
+            </div>
+
+            <div className="space-y-3 flex gap-3 justify-center">
+              <button
+                onClick={handleAcceptIncomingCall}
+                className="flex-1 px-4 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg font-semibold transition"
+              >
+                ✓ Terima
+              </button>
+              <button
+                onClick={handleRejectIncomingCall}
+                className="flex-1 px-4 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg font-semibold transition"
+              >
+                ✕ Tolak
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Active Call UI */}
+      {activeCall && (
+        <CallUI
+          callId={activeCall.callId}
+          callType={activeCall.callType}
+          remoteUserName={activeCall.remoteUserName || incomingCall?.callerName || ''}
+          localVideoRef={localVideoRef}
+          remoteVideoRef={remoteVideoRef}
+          onHangup={handleHangup}
+          isConnected={isConnected}
+          callDuration={callDuration}
+          hasRemoteStream={hasRemoteStream}
+        />
+      )}
     </div>
   )
 }

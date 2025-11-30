@@ -13,8 +13,9 @@ import {
   BookOpen,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { apiRequest } from "@/lib/api";
+import { apiRequest, API_URL } from "@/lib/api";
 import { redirectIfLoggedInFromCookie } from "@/lib/authRedirect";
+import { authStorage } from "@/lib/authStorage";
 
 const LoginPage: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
@@ -28,21 +29,38 @@ const LoginPage: React.FC = () => {
     redirectIfLoggedInFromCookie();
   }, []);
 
-  const fetchProfileAndSetCookie = async () => {
+  const fetchProfileAndSetCookie = async (token: string) => {
     try {
-      const res = await fetch("/auth/me", {
+      console.log('📥 Fetching user profile...')
+      
+      // Gunakan token yang baru di-return dari login
+      const response = await fetch(`${API_URL}/auth/me`, {
         method: "GET",
-        credentials: "include",
-      });
-      if (!res.ok) throw new Error("Gagal ambil profile");
-      const profile = await res.json();
-      document.cookie = `auth_profile=${encodeURIComponent(JSON.stringify(profile))}; path=/`;
-      return profile;
+        headers: {
+          "Authorization": `Bearer ${token}`,
+          "Content-Type": "application/json"
+        },
+        credentials: 'include',
+      })
+      
+      if (!response.ok) {
+        console.error('❌ Failed to fetch profile, status:', response.status)
+        // Return user data dari login response jika profile endpoint gagal
+        return null
+      }
+      
+      const profile = await response.json()
+      console.log('✅ Profile fetched:', profile)
+      
+      // Simpan ke cookie
+      document.cookie = `auth_profile=${encodeURIComponent(JSON.stringify(profile))}; path=/; max-age=86400`
+      
+      return profile
     } catch (err) {
-      console.error("Gagal ambil profile:", err);
-      return null;
+      console.error('❌ Error fetching profile:', err)
+      return null
     }
-  };
+  }
 
   const handleLogin = async () => {
 
@@ -69,25 +87,37 @@ const LoginPage: React.FC = () => {
         return;
       }
 
+      localStorage.setItem("access_token", res.token);
       localStorage.setItem("token", res.token);
       localStorage.setItem("role", role);
 
-      const profile = await fetchProfileAndSetCookie();
+      const profile = await fetchProfileAndSetCookie(res.token);
+      
+      // Simpan profile ke localStorage juga (fallback jika profile dari /auth/me gagal)
+      if (profile) {
+        authStorage.setProfile(profile);
+      } else {
+        // Jika /auth/me gagal, gunakan user data dari login response
+        console.warn('⚠️ Using user data from login response as fallback')
+        const loginUser = res.user || {}
+        authStorage.setProfile(loginUser);
+      }
 
       try {
-        await apiRequest("/log/login", "POST", { username: profile?.username || username || "User", email: profile?.email, role: profile?.role });
+        const userToLog = profile || res.user || {}
+        await apiRequest("/log/login", "POST", { username: userToLog?.username || username || "User", email: userToLog?.email, role: userToLog?.role });
       } catch (err) {
         console.error("Gagal kirim log login ke backend", err);
       }
 
       if (role === "siswa") {
-        window.location.href = "/home";
+        window.location.href = "/home/siswa";
       } else if (role === "kesiswaan") {
-        window.location.href = "/dashboard-kesiswaan";
+        window.location.href = "/home/kesiswaan";
       } else if (role === "bk") {
-        window.location.href = "/dashboard-bk";
+        window.location.href = "/home/bk";
       } else if (role === "admin") {
-        window.location.href = "/dashboard-admin";
+        window.location.href = "/admin";
       } else {
         alert("Role tidak dikenali! Login dibatalkan.");
         localStorage.removeItem("token");

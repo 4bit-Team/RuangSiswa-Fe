@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { Eye, Heart, MessageCircle, X } from 'lucide-react';
-import { NewsItemProps } from '../types';
+import { NewsItemProps } from '@types';
 import NewsDetailModal from '../modals/NewsDetailModal';
 
 interface BeritaPageProps {

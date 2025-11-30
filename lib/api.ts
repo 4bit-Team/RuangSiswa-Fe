@@ -5,7 +5,7 @@ export async function apiRequest(
   endpoint: string,
   method: string = "GET",
   body?: any,
-  token?: string
+  token?: string | null
 ) {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",

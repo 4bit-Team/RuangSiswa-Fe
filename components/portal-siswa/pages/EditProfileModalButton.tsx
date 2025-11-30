@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react'
 import { Edit2 } from 'lucide-react'
-import { EditProfileModal } from '../modals'
+import EditProfileModal from '../modals/EditProfileModal'
 
 interface EditProfileModalButtonProps {
   user: any

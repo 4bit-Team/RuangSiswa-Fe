@@ -12,6 +12,7 @@ import {
   Shield,
   Zap,
   BookOpen,
+  Phone,
 } from "lucide-react";
 import { apiRequest } from "@/lib/api";
 import { fetchKelas, fetchJurusan } from "@/lib/masterData";
@@ -23,25 +24,54 @@ const RegisterPage: React.FC = () => {
   const [showConfirm, setShowConfirm] = useState(false);
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
+  const [phoneNumber, setPhoneNumber] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [kelas, setKelas] = useState("");
   const [jurusan, setJurusan] = useState("");
   const [kelasList, setKelasList] = useState<any[]>([]);
   const [jurusanList, setJurusanList] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [validationError, setValidationError] = useState("");
   useEffect(() => {
     fetchKelas().then(data => setKelasList(data)).catch(() => setKelasList([]));
     fetchJurusan().then(data => setJurusanList(data)).catch(() => setJurusanList([]));
   }, []);
-  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     redirectIfLoggedInFromCookie();
   }, []);
 
   const handleRegister = async () => {
+    // Validasi form
+    setValidationError("");
+    
+    if (!username.trim()) {
+      setValidationError("Username tidak boleh kosong");
+      return;
+    }
+    if (!email.trim()) {
+      setValidationError("Email tidak boleh kosong");
+      return;
+    }
+    if (!phoneNumber.trim()) {
+      setValidationError("Nomor telepon tidak boleh kosong");
+      return;
+    }
+    if (!kelas) {
+      setValidationError("Pilih kelas terlebih dahulu");
+      return;
+    }
+    if (!jurusan) {
+      setValidationError("Pilih jurusan terlebih dahulu");
+      return;
+    }
     if (password !== confirmPassword) {
-      console.warn("❌ Password dan konfirmasi password tidak cocok.");
+      setValidationError("Password dan konfirmasi password tidak cocok.");
+      return;
+    }
+    if (password.length < 6) {
+      setValidationError("Password minimal 6 karakter");
       return;
     }
 
@@ -52,6 +82,7 @@ const RegisterPage: React.FC = () => {
         username,
         email,
         password,
+        phone_number: phoneNumber,
         kelas_id: parseInt(kelas),
         jurusan_id: parseInt(jurusan),
         role: "siswa",
@@ -65,10 +96,10 @@ const RegisterPage: React.FC = () => {
       }
       
       localStorage.setItem("justRegistered", "true");
-      console.log("✅ Registrasi berhasil. Arahkan ke halaman verifikasi kartu pelajar...");
+      console.log("Registrasi berhasil. Arahkan ke halaman verifikasi kartu pelajar...");
       router.push("/register/verification");
     } catch (err: any) {  
-      console.error("❌ Gagal mendaftar:", err.message || err);
+      console.error("Gagal mendaftar:", err.message || err);
     } finally {
       setIsLoading(false);
     }
@@ -154,119 +185,155 @@ const RegisterPage: React.FC = () => {
             </div>
 
             <div className="space-y-5">
-              {/* Username */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Username</label>
-                <div className="relative">
-                  <Mail className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-                  <input
-                    type="text"
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    placeholder="Masukkan username"
-                    className="w-full pl-12 pr-4 py-3.5 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-none transition-all duration-300"
-                  />
+              {/* Row 1: Username dan Email */}
+              <div className="grid md:grid-cols-2 gap-4">
+                {/* Username */}
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Username</label>
+                  <div className="relative">
+                    <Mail className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                    <input
+                      type="text"
+                      value={username}
+                      onChange={(e) => setUsername(e.target.value)}
+                      placeholder="Masukkan username"
+                      className="w-full pl-12 pr-4 py-3.5 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-none transition-all duration-300"
+                    />
+                  </div>
+                </div>
+
+                {/* Email */}
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Email</label>
+                  <div className="relative">
+                    <Mail className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                    <input
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="Masukkan email aktif"
+                      className="w-full pl-12 pr-4 py-3.5 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-none transition-all duration-300"
+                    />
+                  </div>
                 </div>
               </div>
 
-              {/* Email */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Email</label>
-                <div className="relative">
-                  <Mail className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="Masukkan email aktif"
-                    className="w-full pl-12 pr-4 py-3.5 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-none transition-all duration-300"
-                  />
+              {/* Row 2: Nomor Telepon dan kosong */}
+              <div className="grid md:grid-cols-2 gap-4">
+                {/* Nomor Telepon */}
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Nomor Telepon</label>
+                  <div className="relative">
+                    <Phone className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                    <input
+                      type="tel"
+                      value={phoneNumber}
+                      onChange={(e) => setPhoneNumber(e.target.value)}
+                      placeholder="Masukkan nomor telepon"
+                      className="w-full pl-12 pr-4 py-3.5 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-none transition-all duration-300"
+                    />
+                  </div>
+                </div>
+                <div></div>
+              </div>
+
+              {/* Row 3: Kelas dan Jurusan */}
+              <div className="grid md:grid-cols-2 gap-4">
+                {/* Kelas */}
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Kelas</label>
+                  <div className="relative">
+                    <select
+                      value={kelas}
+                      onChange={(e) => setKelas(e.target.value)}
+                      className="w-full pl-4 pr-10 py-3.5 border-2 border-blue-300 rounded-xl focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 outline-none transition-all duration-300 appearance-none bg-white shadow-sm"
+                    >
+                      <option value="">Pilih Kelas</option>
+                      {kelasList.map((k: any) => (
+                        <option key={k.id} value={k.id}>{k.nama}</option>
+                      ))}
+                    </select>
+                    <span className="absolute right-4 top-1/2 transform -translate-y-1/2 pointer-events-none text-blue-500">
+                      <ArrowRight className="w-5 h-5" />
+                    </span>
+                  </div>
+                </div>
+
+                {/* Jurusan */}
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Jurusan</label>
+                  <div className="relative">
+                    <select
+                      value={jurusan}
+                      onChange={(e) => setJurusan(e.target.value)}
+                      className="w-full pl-4 pr-10 py-3.5 border-2 border-blue-300 rounded-xl focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 outline-none transition-all duration-300 appearance-none bg-white shadow-sm"
+                    >
+                      <option value="">Pilih Jurusan</option>
+                      {jurusanList.map((j: any) => (
+                        <option key={j.id} value={j.id}>{j.nama + ' - ' + j.kode}</option>
+                      ))}
+                    </select>
+                    <span className="absolute right-4 top-1/2 transform -translate-y-1/2 pointer-events-none text-blue-500">
+                      <ArrowRight className="w-5 h-5" />
+                    </span>
+                  </div>
                 </div>
               </div>
 
-              {/* Kelas */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Kelas</label>
-                <div className="relative">
-                  <select
-                    value={kelas}
-                    onChange={(e) => setKelas(e.target.value)}
-                    className="w-full pl-4 pr-10 py-3.5 border-2 border-blue-300 rounded-xl focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 outline-none transition-all duration-300 appearance-none bg-white shadow-sm"
-                  >
-                    <option value="">Pilih Kelas</option>
-                    {kelasList.map((k: any) => (
-                      <option key={k.id} value={k.id}>{k.nama}</option>
-                    ))}
-                  </select>
-                  <span className="absolute right-4 top-1/2 transform -translate-y-1/2 pointer-events-none text-blue-500">
-                    <ArrowRight className="w-5 h-5" />
-                  </span>
+              {/* Row 4: Password dan Konfirmasi */}
+              <div className="grid md:grid-cols-2 gap-4">
+                {/* Password */}
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Password</label>
+                  <div className="relative">
+                    <Lock className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                    <input
+                      type={showPassword ? "text" : "password"}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="Buat password"
+                      className="w-full pl-12 pr-12 py-3.5 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-none transition-all duration-300"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    >
+                      {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Confirm Password */}
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Konfirmasi Password</label>
+                  <div className="relative">
+                    <Lock className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                    <input
+                      type={showConfirm ? "text" : "password"}
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      placeholder="Ulangi password"
+                      className="w-full pl-12 pr-12 py-3.5 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-none transition-all duration-300"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirm(!showConfirm)}
+                      className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    >
+                      {showConfirm ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                    </button>
+                  </div>
                 </div>
               </div>
 
-              {/* Jurusan */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Jurusan</label>
-                <div className="relative">
-                  <select
-                    value={jurusan}
-                    onChange={(e) => setJurusan(e.target.value)}
-                    className="w-full pl-4 pr-10 py-3.5 border-2 border-blue-300 rounded-xl focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 outline-none transition-all duration-300 appearance-none bg-white shadow-sm"
-                  >
-                    <option value="">Pilih Jurusan</option>
-                    {jurusanList.map((j: any) => (
-                      <option key={j.id} value={j.id}>{j.nama + ' - ' + j.kode}</option>
-                    ))}
-                  </select>
-                  <span className="absolute right-4 top-1/2 transform -translate-y-1/2 pointer-events-none text-blue-500">
-                    <ArrowRight className="w-5 h-5" />
-                  </span>
+              {/* Validation Alert */}
+              {validationError && (
+                <div className="bg-red-50 border-2 border-red-200 rounded-xl p-4 flex items-start space-x-3">
+                  <Shield className="w-5 h-5 text-red-600 mt-0.5 flex-shrink-0" />
+                  <p className="text-red-700 font-medium">{validationError}</p>
                 </div>
-              </div>
-
-              {/* Password */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Password</label>
-                <div className="relative">
-                  <Lock className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-                  <input
-                    type={showPassword ? "text" : "password"}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Buat password"
-                    className="w-full pl-12 pr-12 py-3.5 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-none transition-all duration-300"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                  >
-                    {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                  </button>
-                </div>
-              </div>
-
-              {/* Confirm Password */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Konfirmasi Password</label>
-                <div className="relative">
-                  <Lock className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-                  <input
-                    type={showConfirm ? "text" : "password"}
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    placeholder="Ulangi password"
-                    className="w-full pl-12 pr-12 py-3.5 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-none transition-all duration-300"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowConfirm(!showConfirm)}
-                    className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                  >
-                    {showConfirm ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                  </button>
-                </div>
-              </div>
+              )}
 
               {/* Register Button */}
               <button
