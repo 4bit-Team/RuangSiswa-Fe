@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import {
   ChevronRight,
   Search,
@@ -41,6 +42,8 @@ const CategoryCard: React.FC<CategoryCardProps & { gradient?: string; onOpen?: (
 };
 
 const CategoryCardWithModal: React.FC<CategoryCardProps & { gradient?: string; setActivePage?: (page: string) => void }> = ({ icon: Icon, title, description, articles, gradient, color, setActivePage }) => {
+  const router = useRouter();
+
   const handleCardClick = () => {
     const topicMap: { [key: string]: string } = {
       'Masalah Pribadi': 'personal',
@@ -50,10 +53,15 @@ const CategoryCardWithModal: React.FC<CategoryCardProps & { gradient?: string; s
     };
     
     const topicSlug = topicMap[title] || title.toLowerCase().replace(/\s+/g, '-');
+
     if (setActivePage) {
-      // Use a special format that portal will recognize and parse
+      // Pertahankan komunikasi ke parent jika tersedia (portal internal)
       setActivePage(`berita-${topicSlug}`);
+      return;
     }
+
+    // Fallback: navigasi client-side ke halaman berita dengan query topic
+    router.push(`/berita?topic=${encodeURIComponent(topicSlug)}`);
   };
   
   return (

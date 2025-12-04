@@ -89,7 +89,7 @@ const DaftarSiswaPage: React.FC = () => {
           <p className="text-sm text-gray-600">Kelola data siswa dan riwayat konseling</p>
         </div>
         <button 
-          onClick={() => setOpenModal('add')}
+          onClick={() => setOpenModal('create')}
           className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-lg flex items-center space-x-2 font-medium transition-colors">
           <Plus size={20} />
           <span>Tambah Siswa</span>
@@ -147,7 +147,7 @@ const DaftarSiswaPage: React.FC = () => {
 
       {/* Modal: Tambah Siswa */}
       <div>
-        {openModal === 'add' && (
+        {openModal === 'create' && (
           <>
             <div
               className="fixed inset-0 bg-black bg-opacity-50 z-40 transition-opacity"

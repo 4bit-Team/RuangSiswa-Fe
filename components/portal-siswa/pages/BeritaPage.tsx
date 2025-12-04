@@ -1,9 +1,10 @@
 'use client'
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Eye, Heart, MessageCircle, X } from 'lucide-react';
 import { NewsItemProps } from '@types';
 import NewsDetailModal from '../modals/NewsDetailModal';
+import { useSearchParams } from 'next/navigation';
 
 interface BeritaPageProps {
   selectedTopic?: string | null;
@@ -13,7 +14,19 @@ interface BeritaPageProps {
 const BeritaPage: React.FC<BeritaPageProps> = ({ selectedTopic = null, setActivePage }) => {
   const [selectedNews, setSelectedNews] = useState<NewsItemProps | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(selectedTopic);
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const searchParams = useSearchParams();
+
+  // initialize selectedCategory from props or query param (support "berita-..." format)
+  useEffect(() => {
+    let initial: string | null = null;
+    if (selectedTopic) {
+      initial = selectedTopic.startsWith('berita-') ? selectedTopic.replace(/^berita-/, '') : selectedTopic;
+    }
+    const param = searchParams?.get?.('topic') ?? null;
+    if (!initial && param) initial = param;
+    setSelectedCategory(initial);
+  }, [selectedTopic, searchParams]);
 
   // Data berita lengkap dari BK
   const allNews: NewsItemProps[] = [

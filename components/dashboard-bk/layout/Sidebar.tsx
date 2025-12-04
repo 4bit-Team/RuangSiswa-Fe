@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useEffect } from 'react';
-import { Home, Users, MessageCircle, FileText, Newspaper, BarChart3, Settings, Menu, X, Calendar, CheckCircle } from 'lucide-react';
+import { Home, Users, MessageCircle, FileText, Newspaper, BarChart3, Settings, Menu, X, Calendar, CheckCircle, Clock, AlertTriangle, Trophy } from 'lucide-react';
 
 interface SidebarProps {
   activePage: string;
@@ -36,7 +36,14 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, setActivePage, sidebarOpe
     { id: 'siswa', icon: Users, label: 'Daftar Siswa' },
     { id: 'chat', icon: MessageCircle, label: 'Chat' },
     { id: 'persetujuan', icon: CheckCircle, label: 'Persetujuan Reservasi' },
-    // { id: 'reservasi', icon: Calendar, label: 'Manajemen Reservasi' },
+    // Divider for management section
+    { id: 'divider1', icon: null, label: 'MANAJEMEN DATA', isDivider: true },
+    { id: 'kehadiran', icon: CheckCircle, label: 'Kehadiran Kelas' },
+    { id: 'keterlambatan', icon: Clock, label: 'Keterlambatan' },
+    { id: 'siswaBermasalah', icon: AlertTriangle, label: 'Siswa Bermasalah' },
+    { id: 'siswaBerprestasi', icon: Trophy, label: 'Siswa Berprestasi' },
+    // Divider for reporting section
+    { id: 'divider2', icon: null, label: 'LAPORAN & KONTEN', isDivider: true },
     { id: 'laporan', icon: FileText, label: 'Laporan' },
     { id: 'berita', icon: Newspaper, label: 'Berita' },
     { id: 'statistik', icon: BarChart3, label: 'Statistik' },
@@ -83,20 +90,33 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, setActivePage, sidebarOpe
 
       {/* Navigation */}
       <nav className="flex-1 p-4 space-y-1">
-        {menuItems.map((item) => (
-          <button
-            key={item.id}
-            onClick={() => setActivePage(item.id)}
-            className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg transition-colors ${
-              activePage === item.id
-                ? 'bg-indigo-50 text-indigo-600'
-                : 'text-gray-700 hover:bg-gray-100'
-            }`}
-          >
-            <item.icon size={20} />
-            {sidebarOpen && <span className="text-sm font-medium">{item.label}</span>}
-          </button>
-        ))}
+        {menuItems.map((item) => {
+          // Render divider
+          if (item.isDivider) {
+            return (
+              <div key={item.id} className="pt-3 pb-2">
+                {sidebarOpen && (
+                  <p className="px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">{item.label}</p>
+                )}
+              </div>
+            )
+          }
+          // Render menu item
+          return (
+            <button
+              key={item.id}
+              onClick={() => setActivePage(item.id)}
+              className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg transition-colors ${
+                activePage === item.id
+                  ? 'bg-indigo-50 text-indigo-600'
+                  : 'text-gray-700 hover:bg-gray-100'
+              }`}
+            >
+              {item.icon && <item.icon size={20} />}
+              {sidebarOpen && <span className="text-sm font-medium">{item.label}</span>}
+            </button>
+          )
+        })}
       </nav>
 
       {/* Footer */}

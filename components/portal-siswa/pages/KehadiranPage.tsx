@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react'
 import { Calendar, Check, X, Clock, TrendingUp } from 'lucide-react'
+import AttendanceDetailModal from '../modals/AttendanceDetailModal'
 
 interface AttendanceRecord {
   id: number
@@ -56,6 +57,13 @@ const StatCard: React.FC<{ icon: React.ReactNode; label: string; value: number; 
 
 const KehadiranPage: React.FC = () => {
   const [selectedMonth, setSelectedMonth] = useState(new Date())
+  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [selectedAttendance, setSelectedAttendance] = useState<{
+    date: string
+    status: 'Hadir' | 'Sakit' | 'Izin' | 'Alpa'
+    time?: string
+    notes?: string
+  } | null>(null)
 
   // Sample data
   const stats: AttendanceStats = {
@@ -78,101 +86,138 @@ const KehadiranPage: React.FC = () => {
   ]
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-blue-500 to-cyan-500 rounded-2xl p-8 text-white">
-        <div className="flex items-center gap-4">
-          <div className="w-16 h-16 bg-white/20 rounded-xl flex items-center justify-center">
-            <Calendar className="w-8 h-8" />
-          </div>
-          <div>
-            <h2 className="text-3xl font-bold mb-2">Kehadiran Kelas</h2>
-            <p className="text-blue-50">Rekap kehadiran dan statistik kehadiran Anda</p>
-          </div>
-        </div>
-      </div>
-
-      {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-        <StatCard icon={<Check className="w-12 h-12" />} label="Hadir" value={stats.totalHadir} color="bg-gradient-to-br from-green-400 to-green-600" />
-        <StatCard icon={<Clock className="w-12 h-12" />} label="Sakit" value={stats.totalSakit} color="bg-gradient-to-br from-orange-400 to-orange-600" />
-        <StatCard icon={<Clock className="w-12 h-12" />} label="Izin" value={stats.totalIzin} color="bg-gradient-to-br from-blue-400 to-blue-600" />
-        <StatCard icon={<X className="w-12 h-12" />} label="Alpa" value={stats.totalAlpa} color="bg-gradient-to-br from-red-400 to-red-600" />
-        <StatCard
-          icon={<TrendingUp className="w-12 h-12" />}
-          label="Persentase"
-          value={stats.attendancePercentage}
-          color="bg-gradient-to-br from-purple-400 to-purple-600"
-        />
-      </div>
-
-      {/* Attendance Progress */}
+    <div className="pt-16 px-8 space-y-6">
       <div className="bg-white rounded-xl border border-gray-200 p-6">
-        <h3 className="font-bold text-gray-900 text-lg mb-4">Target Kehadiran Bulanan</h3>
-        <div className="space-y-4">
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-sm font-medium text-gray-700">Target: 95%</span>
-              <span className="text-sm font-bold text-green-600">Tercapai: 95%</span>
+        {/* Header */}
+        <div className="bg-gradient-to-r from-blue-500 to-cyan-500 rounded-2xl p-8 text-white">
+          <div className="flex items-center gap-4">
+            <div className="w-16 h-16 bg-white/20 rounded-xl flex items-center justify-center">
+              <Calendar className="w-8 h-8" />
             </div>
-            <div className="w-full bg-gray-200 rounded-full h-3">
-              <div className="bg-gradient-to-r from-green-400 to-green-600 h-3 rounded-full" style={{ width: '95%' }}></div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Attendance Records */}
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-        <div className="p-6 border-b border-gray-200">
-          <div className="flex items-center justify-between">
-            <h3 className="font-bold text-gray-900 text-lg">Riwayat Kehadiran</h3>
-            <div className="flex items-center gap-2">
-              <button className="px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 rounded-lg transition-colors">
-                {selectedMonth.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' })}
-              </button>
+            <div>
+              <h2 className="text-3xl font-bold mb-2">Kehadiran Kelas</h2>
+              <p className="text-blue-50">Rekap kehadiran dan statistik kehadiran Anda</p>
             </div>
           </div>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-gray-50 border-b border-gray-200">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Tanggal</th>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Status</th>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Waktu Masuk</th>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Keterangan</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200">
-              {attendanceRecords.map((record) => (
-                <tr key={record.id} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-6 py-4 text-sm text-gray-900 font-medium">
-                    {new Date(record.date).toLocaleDateString('id-ID', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' })}
-                  </td>
-                  <td className="px-6 py-4">
-                    <AttendanceStatusBadge status={record.status} />
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-600">{record.time || '-'}</td>
-                  <td className="px-6 py-4 text-sm text-gray-600">{record.notes || '-'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        {/* Stats */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mt-6">
+          <StatCard icon={<Check className="w-12 h-12" />} label="Hadir" value={stats.totalHadir} color="bg-gradient-to-br from-green-400 to-green-600" />
+          <StatCard icon={<Clock className="w-12 h-12" />} label="Sakit" value={stats.totalSakit} color="bg-gradient-to-br from-orange-400 to-orange-600" />
+          <StatCard icon={<Clock className="w-12 h-12" />} label="Izin" value={stats.totalIzin} color="bg-gradient-to-br from-blue-400 to-blue-600" />
+          <StatCard icon={<X className="w-12 h-12" />} label="Alpa" value={stats.totalAlpa} color="bg-gradient-to-br from-red-400 to-red-600" />
+          <StatCard
+            icon={<TrendingUp className="w-12 h-12" />}
+            label="Persentase"
+            value={stats.attendancePercentage}
+            color="bg-gradient-to-br from-purple-400 to-purple-600"
+          />
         </div>
+
+        {/* Attendance Progress - simplified */}
+        <section className="mt-6 bg-gray-50 rounded-xl p-6">
+          <h3 className="font-bold text-gray-900 text-lg mb-4">Target Kehadiran Bulanan</h3>
+          <div className="space-y-4">
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-medium text-gray-700">Target: 95%</span>
+                <span className="text-sm font-bold text-green-600">Tercapai: 95%</span>
+              </div>
+              <div className="w-full bg-gray-200 rounded-full h-3">
+                <div className="bg-gradient-to-r from-green-400 to-green-600 h-3 rounded-full" style={{ width: '95%' }}></div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Attendance Records */}
+        <section className="mt-6">
+          <div className="overflow-hidden">
+            <div className="p-6 border-b border-gray-200">
+              <div className="flex items-center justify-between">
+                <h3 className="font-bold text-gray-900 text-lg">Riwayat Kehadiran</h3>
+                <div className="flex items-center gap-2">
+                  <button className="px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 rounded-lg transition-colors">
+                    {selectedMonth.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' })}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50 border-b border-gray-200">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Tanggal</th>
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Status</th>
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Waktu Masuk</th>
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Keterangan</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {attendanceRecords.map((record) => (
+                    <tr 
+                      key={record.id}
+                      onClick={() => {
+                        setSelectedAttendance({
+                          date: record.date,
+                          status: record.status,
+                          time: record.time,
+                          notes: record.notes,
+                        })
+                        setIsModalOpen(true)
+                      }}
+                      className="hover:bg-blue-50 transition-colors cursor-pointer"
+                    >
+                      <td className="px-6 py-4 text-sm text-gray-900 font-medium">
+                        {new Date(record.date).toLocaleDateString('id-ID', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' })}
+                      </td>
+                      <td className="px-6 py-4">
+                        <AttendanceStatusBadge status={record.status} />
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-600">{record.time || '-'}</td>
+                      <td className="px-6 py-4 text-sm text-gray-600">{record.notes || '-'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        {/* Info Box */}
+        <section className="mt-6">
+          <div className="bg-blue-50 border border-blue-200 rounded-xl p-6">
+            <h4 className="font-semibold text-blue-900 mb-2">📋 Informasi Kehadiran</h4>
+            <ul className="text-sm text-blue-800 space-y-1">
+              <li>• Kehadiran setiap hari dicatat otomatis oleh sistem</li>
+              <li>• Jika Anda sakit atau izin, harap informasikan ke guru piket</li>
+              <li>• Target kehadiran minimum adalah 95% per semester</li>
+              <li>• Kehadiran berpengaruh pada nilai rapor akhir</li>
+            </ul>
+          </div>
+        </section>
       </div>
 
-      {/* Info Box */}
-      <div className="bg-blue-50 border border-blue-200 rounded-xl p-6">
-        <h4 className="font-semibold text-blue-900 mb-2">📋 Informasi Kehadiran</h4>
-        <ul className="text-sm text-blue-800 space-y-1">
-          <li>• Kehadiran setiap hari dicatat otomatis oleh sistem</li>
-          <li>• Jika Anda sakit atau izin, harap informasikan ke guru piket</li>
-          <li>• Target kehadiran minimum adalah 95% per semester</li>
-          <li>• Kehadiran berpengaruh pada nilai rapor akhir</li>
-        </ul>
-      </div>
+      {/* Attendance Detail Modal (grouped, render only when open) */}
+      {isModalOpen && (
+        <>
+          <div className="fixed inset-0 z-40 bg-black/20 backdrop-blur-sm" aria-hidden="true" />
+          {selectedAttendance && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+              <AttendanceDetailModal
+                isOpen={isModalOpen}
+                onClose={() => setIsModalOpen(false)}
+                attendanceDate={selectedAttendance.date}
+                status={selectedAttendance.status}
+                time={selectedAttendance.time}
+                notes={selectedAttendance.notes}
+              />
+            </div>
+          )}
+        </>
+      )}
     </div>
   )
 }

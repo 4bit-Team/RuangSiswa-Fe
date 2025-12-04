@@ -5,6 +5,7 @@ import { Heart, MessageCircle, Calendar, Users, ArrowRight, Eye } from 'lucide-r
 import { StatCardProps } from '@types';
 import NewsDetailModal from '../modals/NewsDetailModal';
 import { NewsItemProps } from '@types';
+import { useRouter } from 'next/navigation';
 
 
 const StatCard: React.FC<StatCardProps> = ({ icon: Icon, label, value, color }) => (
@@ -97,6 +98,7 @@ const NewsPreviewCard: React.FC<{
 const DashboardPage: React.FC<{ setActivePage?: (page: string) => void }> = ({ setActivePage }) => {
   const [selectedNews, setSelectedNews] = useState<NewsItemProps | null>(null);
   const [isNewsModalOpen, setIsNewsModalOpen] = useState(false);
+  const router = useRouter();
 
   // Sample news data
   const latestNews: NewsItemProps[] = [
@@ -134,9 +136,13 @@ const DashboardPage: React.FC<{ setActivePage?: (page: string) => void }> = ({ s
   };
 
   const handleViewAll = () => {
+    // Prioritize parent-controlled navigation if provided
     if (setActivePage) {
       setActivePage('berita');
+      return;
     }
+    // Fallback: client-side route push (sesuaikan path jika berbeda)
+    router.push('/berita');
   };
 
   return (

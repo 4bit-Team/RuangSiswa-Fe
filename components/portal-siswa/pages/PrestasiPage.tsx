@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react'
 import { Trophy, Award, Star, Target, Medal, Download } from 'lucide-react'
+import AchievementDetailModal from '../modals/AchievementDetailModal'
 
 interface Achievement {
   id: number
@@ -57,8 +58,20 @@ const CategoryBadge: React.FC<{ category: string }> = ({ category }) => {
   )
 }
 
-const AchievementCard: React.FC<Achievement> = ({ title, category, date, level, description, certificate }) => (
-  <div className="bg-white border border-gray-200 rounded-xl p-6 hover:shadow-lg transition-shadow">
+const AchievementCard: React.FC<Achievement & { onOpen: (achievement: Achievement) => void }> = ({ 
+  id,
+  title, 
+  category, 
+  date, 
+  level, 
+  description, 
+  certificate,
+  onOpen
+}) => (
+  <div 
+    onClick={() => onOpen({ id, title, category, date, level, description, certificate })}
+    className="bg-white border border-gray-200 rounded-xl p-6 hover:shadow-lg transition-shadow cursor-pointer hover:border-yellow-300"
+  >
     <div className="flex items-start justify-between mb-4">
       <div className="flex-1">
         <h4 className="font-bold text-gray-900 mb-2">{title}</h4>
@@ -102,6 +115,8 @@ const StatCard: React.FC<{ icon: React.ReactNode; label: string; value: number; 
 
 const PrestasiPage: React.FC = () => {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
+  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [selectedAchievement, setSelectedAchievement] = useState<Achievement | null>(null)
 
   // Sample data
   const stats: AchievementStats = {
@@ -120,7 +135,7 @@ const PrestasiPage: React.FC = () => {
       date: '2025-02-03',
       level: 'Tingkat Nasional',
       description:
-        'Memenangkan kompetisi robotik nasional bersama tim. Berhasil merancang dan memprogram robot yang dapat menyelesaikan semua challenge yang diberikan.',
+        'Memenangkan kompetisi robotik nasional bersama tim. Berhasil merancang dan memrogram robot yang dapat menyelesaikan semua challenge yang diberikan.',
       certificate: true,
     },
     {
@@ -193,125 +208,159 @@ const PrestasiPage: React.FC = () => {
   const categories = ['Akademik', 'Teknologi', 'Olahraga', 'Seni', 'Kepemimpinan']
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-yellow-500 to-orange-500 rounded-2xl p-8 text-white">
-        <div className="flex items-center gap-4">
-          <div className="w-16 h-16 bg-white/20 rounded-xl flex items-center justify-center">
-            <Trophy className="w-8 h-8" />
-          </div>
-          <div>
-            <h2 className="text-3xl font-bold mb-2">Prestasi Anda</h2>
-            <p className="text-orange-50">Kumpulan penghargaan dan prestasi yang telah Anda raih</p>
+    <div className="pt-16 px-8 space-y-6">
+      <div className="bg-white rounded-xl border border-gray-200 p-6">
+        {/* Header */}
+        <div className="bg-gradient-to-r from-yellow-500 to-orange-500 rounded-2xl p-8 text-white">
+          <div className="flex items-center gap-4">
+            <div className="w-16 h-16 bg-white/20 rounded-xl flex items-center justify-center">
+              <Trophy className="w-8 h-8" />
+            </div>
+            <div>
+              <h2 className="text-3xl font-bold mb-2">Prestasi Anda</h2>
+              <p className="text-orange-50">Kumpulan penghargaan dan prestasi yang telah Anda raih</p>
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-        <StatCard
-          icon={<Trophy className="w-12 h-12" />}
-          label="Total Prestasi"
-          value={stats.totalAchievements}
-          color="bg-gradient-to-br from-yellow-400 to-yellow-600"
-        />
-        <StatCard
-          icon={<Star className="w-12 h-12" />}
-          label="Nasional"
-          value={stats.nationalLevel}
-          color="bg-gradient-to-br from-orange-400 to-orange-600"
-        />
-        <StatCard
-          icon={<Award className="w-12 h-12" />}
-          label="Provinsi"
-          value={stats.provinceLevel}
-          color="bg-gradient-to-br from-purple-400 to-purple-600"
-        />
-        <StatCard
-          icon={<Medal className="w-12 h-12" />}
-          label="Kota"
-          value={stats.cityLevel}
-          color="bg-gradient-to-br from-blue-400 to-blue-600"
-        />
-        <StatCard
-          icon={<Target className="w-12 h-12" />}
-          label="Sekolah"
-          value={stats.schoolLevel}
-          color="bg-gradient-to-br from-green-400 to-green-600"
-        />
-      </div>
+        {/* Stats */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mt-6">
+          <StatCard
+            icon={<Trophy className="w-12 h-12" />}
+            label="Total Prestasi"
+            value={stats.totalAchievements}
+            color="bg-gradient-to-br from-yellow-400 to-yellow-600"
+          />
+          <StatCard
+            icon={<Star className="w-12 h-12" />}
+            label="Nasional"
+            value={stats.nationalLevel}
+            color="bg-gradient-to-br from-orange-400 to-orange-600"
+          />
+          <StatCard
+            icon={<Award className="w-12 h-12" />}
+            label="Provinsi"
+            value={stats.provinceLevel}
+            color="bg-gradient-to-br from-purple-400 to-purple-600"
+          />
+          <StatCard
+            icon={<Medal className="w-12 h-12" />}
+            label="Kota"
+            value={stats.cityLevel}
+            color="bg-gradient-to-br from-blue-400 to-blue-600"
+          />
+          <StatCard
+            icon={<Target className="w-12 h-12" />}
+            label="Sekolah"
+            value={stats.schoolLevel}
+            color="bg-gradient-to-br from-green-400 to-green-600"
+          />
+        </div>
 
-      {/* Filter by Category */}
-      <div className="bg-white rounded-xl border border-gray-200 p-6">
-        <h3 className="font-bold text-gray-900 mb-4">Filter berdasarkan Kategori</h3>
-        <div className="flex flex-wrap gap-2">
-          <button
-            onClick={() => setSelectedCategory(null)}
-            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-              selectedCategory === null ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
-          >
-            Semua
-          </button>
-          {categories.map((category) => (
+        {/* Filter by Category - simplified */}
+        <section className="mt-6 bg-gray-50 rounded-xl p-6">
+          <h3 className="font-bold text-gray-900 mb-4">Filter berdasarkan Kategori</h3>
+          <div className="flex flex-wrap gap-2">
             <button
-              key={category}
-              onClick={() => setSelectedCategory(category)}
+              onClick={() => setSelectedCategory(null)}
               className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                selectedCategory === category ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                selectedCategory === null ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
               }`}
             >
-              {category}
+              Semua
             </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Achievements Grid */}
-      <div className="space-y-4">
-        <h3 className="font-bold text-gray-900 text-lg">
-          {selectedCategory ? `Prestasi ${selectedCategory}` : 'Semua Prestasi'} ({filteredAchievements.length})
-        </h3>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {filteredAchievements.map((achievement) => (
-            <AchievementCard key={achievement.id} {...achievement} />
-          ))}
-        </div>
-
-        {filteredAchievements.length === 0 && (
-          <div className="bg-gray-50 rounded-xl border border-gray-200 p-12 text-center">
-            <Trophy className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-            <p className="text-gray-600">Tidak ada prestasi di kategori ini</p>
+            {categories.map((category) => (
+              <button
+                key={category}
+                onClick={() => setSelectedCategory(category)}
+                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                  selectedCategory === category ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                {category}
+              </button>
+            ))}
           </div>
-        )}
+        </section>
+
+        {/* Achievements Grid */}
+        <section className="mt-6 space-y-4">
+          <h3 className="font-bold text-gray-900 text-lg">
+            {selectedCategory ? `Prestasi ${selectedCategory}` : 'Semua Prestasi'} ({filteredAchievements.length})
+          </h3>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {filteredAchievements.map((achievement) => (
+              <AchievementCard 
+                key={achievement.id} 
+                {...achievement}
+                onOpen={(a) => {
+                  setSelectedAchievement(a)
+                  setIsModalOpen(true)
+                }}
+              />
+            ))}
+          </div>
+
+          {filteredAchievements.length === 0 && (
+            <div className="bg-gray-50 rounded-xl border border-gray-200 p-12 text-center">
+              <Trophy className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+              <p className="text-gray-600">Tidak ada prestasi di kategori ini</p>
+            </div>
+          )}
+        </section>
+
+        {/* Certificates Box */}
+        <section className="mt-6">
+          <div className="bg-blue-50 border border-blue-200 rounded-xl p-6">
+            <h4 className="font-semibold text-blue-900 mb-3">📜 Sertifikat Tersedia</h4>
+            <p className="text-sm text-blue-800 mb-4">
+              Anda memiliki 5 sertifikat dari prestasi yang telah dicapai. Anda dapat mengunduh sertifikat digital melalui tombol download di setiap
+              kartu prestasi.
+            </p>
+            <button className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors">
+              <Download className="w-4 h-4" />
+              Unduh Semua Sertifikat
+            </button>
+          </div>
+        </section>
+
+        {/* Motivation Box */}
+        <section className="mt-6">
+          <div className="bg-gradient-to-r from-green-50 to-blue-50 border border-green-200 rounded-xl p-6">
+            <h4 className="font-semibold text-green-900 mb-3">🌟 Terus Raih Prestasi Lebih Baik</h4>
+            <p className="text-sm text-green-800 mb-3">
+              Prestasi yang Anda raih menunjukkan komitmen dan kerja keras Anda. Jangan berhenti di sini! Teruslah berusaha dan tingkatkan
+              pencapaian Anda ke level yang lebih tinggi.
+            </p>
+            <ul className="text-sm text-green-800 space-y-1">
+              <li>✓ Target semester depan: raih prestasi tingkat nasional lainnya</li>
+              <li>✓ Tingkatkan partisipasi dalam kompetisi akademik dan non-akademik</li>
+              <li>✓ Manfaatkan waktu untuk mengembangkan bakat dan minat Anda</li>
+            </ul>
+          </div>
+        </section>
       </div>
 
-      {/* Certificates Box */}
-      <div className="bg-blue-50 border border-blue-200 rounded-xl p-6">
-        <h4 className="font-semibold text-blue-900 mb-3">📜 Sertifikat Tersedia</h4>
-        <p className="text-sm text-blue-800 mb-4">
-          Anda memiliki 5 sertifikat dari prestasi yang telah dicapai. Anda dapat mengunduh sertifikat digital melalui tombol download di setiap
-          kartu prestasi.
-        </p>
-        <button className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors">
-          <Download className="w-4 h-4" />
-          Unduh Semua Sertifikat
-        </button>
-      </div>
-
-      {/* Motivation Box */}
-      <div className="bg-gradient-to-r from-green-50 to-blue-50 border border-green-200 rounded-xl p-6">
-        <h4 className="font-semibold text-green-900 mb-3">🌟 Terus Raih Prestasi Lebih Baik</h4>
-        <p className="text-sm text-green-800 mb-3">
-          Prestasi yang Anda raih menunjukkan komitmen dan kerja keras Anda. Jangan berhenti di sini! Teruslah berusaha dan tingkatkan
-          pencapaian Anda ke level yang lebih tinggi.
-        </p>
-        <ul className="text-sm text-green-800 space-y-1">
-          <li>✓ Target semester depan: raih prestasi tingkat nasional lainnya</li>
-          <li>✓ Tingkatkan partisipasi dalam kompetisi akademik dan non-akademik</li>
-          <li>✓ Manfaatkan waktu untuk mengembangkan bakat dan minat Anda</li>
-        </ul>
-      </div>
+      {/* Achievement Detail Modal (grouped, render only when open) */}
+      {isModalOpen && (
+        <>
+          <div className="fixed inset-0 z-40 bg-black/20 backdrop-blur-sm" aria-hidden="true" />
+          {selectedAchievement && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+              <AchievementDetailModal
+                isOpen={isModalOpen}
+                onClose={() => setIsModalOpen(false)}
+                title={selectedAchievement.title}
+                category={selectedAchievement.category}
+                date={selectedAchievement.date}
+                level={selectedAchievement.level}
+                description={selectedAchievement.description}
+                certificate={selectedAchievement.certificate}
+              />
+            </div>
+          )}
+        </>
+      )}
     </div>
   )
 }

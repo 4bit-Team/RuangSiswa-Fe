@@ -7,9 +7,10 @@ interface StudentModalProps {
   isOpen: boolean
   onClose: () => void
   onSubmit: (data: any) => void
+  initialData?: any
 }
 
-const StudentModal: React.FC<StudentModalProps> = ({ isOpen, onClose, onSubmit }) => {
+const StudentModal: React.FC<StudentModalProps> = ({ isOpen, onClose, onSubmit, initialData }) => {
   const [formData, setFormData] = React.useState({
     studentName: '',
     nisn: '',
@@ -18,6 +19,30 @@ const StudentModal: React.FC<StudentModalProps> = ({ isOpen, onClose, onSubmit }
     phone: '',
     address: '',
   })
+
+  React.useEffect(() => {
+    if (isOpen && initialData) {
+      setFormData((prev) => ({
+        ...prev,
+        studentName: initialData.name ?? initialData.studentName ?? '',
+        nisn: initialData.nis ?? initialData.nisn ?? '',
+        className: initialData.class ?? initialData.className ?? '',
+        major: initialData.major ?? '',
+        phone: initialData.phone ?? '',
+        address: initialData.address ?? '',
+      }))
+    }
+    if (!isOpen) {
+      setFormData({
+        studentName: '',
+        nisn: '',
+        className: '',
+        major: '',
+        phone: '',
+        address: '',
+      })
+    }
+  }, [isOpen, initialData])
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target

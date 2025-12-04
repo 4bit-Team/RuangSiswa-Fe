@@ -48,12 +48,19 @@ const CounselingCard: React.FC<CounselingCardProps> = ({ icon: Icon, title, desc
         </button>
       </div>
 
-      <AppointmentScheduleModal
-        isOpen={modalOpen}
-        onClose={() => setModalOpen(false)}
-        counselingType={title}
-        counselorName="Bu Sarah Wijaya"
-      />
+      {modalOpen && (
+        <>
+          <div className="fixed inset-0 z-40 bg-black/20 backdrop-blur-sm" aria-hidden="true" />
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <AppointmentScheduleModal
+              isOpen={modalOpen}
+              onClose={() => setModalOpen(false)}
+              counselingType={title}
+              counselorName="Bu Sarah Wijaya"
+            />
+          </div>
+        </>
+      )}
     </>
   )
 }
