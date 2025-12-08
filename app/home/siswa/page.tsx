@@ -46,12 +46,12 @@ const BKPortal: React.FC<{ searchParams?: Promise<{ topic?: string }> }> = ({ se
   // title/subtitle shown in the Header component
   const titleMap: Record<string, { title: string; subtitle?: string }> = {
     dashboard: { title: 'Dashboard BK', subtitle: 'Ringkasan aktivitas dan pengumuman' },
+    berita: { title: 'Berita & Artikel BK', subtitle: 'Baca artikel dan tips dari konselor BK' },
     konseling: { title: 'Konseling', subtitle: 'Layanan konseling sekolah' },
     konsultasi: { title: 'Konsultasi', subtitle: 'Ajukan pertanyaan dan baca artikel' },
     reservasi: { title: 'Reservasi', subtitle: 'Jadwalkan sesi dengan konselor' },
     chat: { title: 'Chat BK', subtitle: 'Percakapan langsung dengan konselor' },
     profil: { title: 'Profil', subtitle: 'Kelola informasi akun Anda' },
-    berita: { title: 'Berita & Artikel BK', subtitle: 'Baca artikel dan tips dari konselor BK' },
   }
 
   const header = titleMap[activePage] ?? titleMap.dashboard

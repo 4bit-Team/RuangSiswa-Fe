@@ -115,14 +115,14 @@ const StudentCardView: React.FC<StudentCardViewProps> = ({ userId }) => {
         }}
       >
         {/* Header Section with Logo and Text */}
-        <div className="absolute top-0 left-0 right-0 bg-blue-600 px-6 pt-2 pb-4 flex gap-3 justify-center items-start z-20" style={{ backgroundColor: '#3F52DC' }}>
+        <div className="absolute top-3 left-0 right-0 bg-blue-600 px-6 pt-2 pb-4 flex gap-3 justify-center items-start z-20" style={{ backgroundColor: '#3F52DC' }}>
           {/* Logo */}
           <div className="flex-shrink-0 mt-1">
             <img src="/logo.svg" alt="SMKN 1 Cibinong" className="w-16 h-16" />
           </div>
 
           {/* Header Text */}
-          <div className="text-center text-white text-xs font-medium leading-tight max-w-2xl">
+          <div className="text-center text-white text-sm font-medium leading-tight max-w-2xl">
             <div>PEMERINTAH DAERAH PROVINSI JAWA BARAT</div>
             <div>DINAS PENDIDIKAN</div>
             <div>CABANG DINAS PENDIDIKAN WILAYAH 1</div>
@@ -137,9 +137,9 @@ const StudentCardView: React.FC<StudentCardViewProps> = ({ userId }) => {
         </div>
 
         {/* Title centered at top */}
-        <div className="absolute top-36 left-0 right-0 flex justify-center z-10">
+        <div className="absolute top-40 left-0 right-0 flex justify-center z-10">
           <h2 
-            className="font-bold text-5xl"
+            className="font-bold text-lg"
             style={{
               color: '#FDF05C',
               textShadow: '-1.5px -1.5px 0 #222222, 1.5px -1.5px 0 #222222, -1.5px 1.5px 0 #222222, 1.5px 1.5px 0 #222222, -1px 0 0 #222222, 1px 0 0 #222222, 0 -1px 0 #222222, 0 1px 0 #222222'
@@ -150,7 +150,7 @@ const StudentCardView: React.FC<StudentCardViewProps> = ({ userId }) => {
         </div>
 
         {/* Content layout */}
-        <div className="w-full h-full flex items-center p-8 pt-32">
+        <div className="w-full h-full flex items-center p-8 pt-48">
           {/* Left side - Data */}
           <div className="flex-grow">
             <div className="text-lg font-semibold text-black space-y-3">

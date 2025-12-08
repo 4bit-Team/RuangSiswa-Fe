@@ -1,10 +1,12 @@
 'use client'
 
-import React, { useState } from 'react';
-import { Heart, MessageCircle, Calendar, Users, ArrowRight, Eye } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Heart, MessageCircle, Calendar, Users, ArrowRight, Eye, Loader } from 'lucide-react';
 import { StatCardProps } from '@types';
 import NewsDetailModal from '../modals/NewsDetailModal';
 import { NewsItemProps } from '@types';
+import NewsAPI from '@lib/newsAPI';
+import { formatTimeRelative } from '@lib/timeFormat';
 
 
 const StatCard: React.FC<StatCardProps> = ({ icon: Icon, label, value, color }) => (
@@ -67,7 +69,7 @@ const NewsPreviewCard: React.FC<{
       <div className="flex items-center gap-2 text-xs text-gray-500 mb-3 border-t border-gray-100 pt-3">
         <span>{news.author}</span>
         <span>•</span>
-        <span>{news.date}</span>
+        <span>{formatTimeRelative(news.date || new Date())}</span>
       </div>
 
       {/* Stats & Button */}
@@ -97,36 +99,26 @@ const NewsPreviewCard: React.FC<{
 const DashboardPage: React.FC<{ setActivePage?: (page: string) => void }> = ({ setActivePage }) => {
   const [selectedNews, setSelectedNews] = useState<NewsItemProps | null>(null);
   const [isNewsModalOpen, setIsNewsModalOpen] = useState(false);
+  const [latestNews, setLatestNews] = useState<NewsItemProps[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  // Sample news data
-  const latestNews: NewsItemProps[] = [
-    {
-      id: 1,
-      title: 'Tips Menghadapi Ujian Akhir Semester',
-      description: 'Persiapan yang matang adalah kunci sukses menghadapi ujian. Berikut beberapa tips yang bisa membantu siswa-siswi...',
-      author: 'Bu Sarah Wijaya',
-      date: '15 Nov 2025',
-      category: 'Akademik',
-      status: 'Published',
-      image: 'https://images.unsplash.com/photo-1434582881033-aaf475b8e6ad?w=500&h=300&fit=crop',
-      likes: 42,
-      comments: 8,
-      views: 234,
-    },
-    {
-      id: 2,
-      title: 'Mengatasi Stress dan Kecemasan',
-      description: 'Stress adalah bagian normal dari kehidupan, namun penting untuk mengelolanya dengan baik...',
-      author: 'Pak Budi',
-      date: '12 Nov 2025',
-      category: 'Kesehatan Mental',
-      status: 'Published',
-      image: 'https://images.unsplash.com/photo-1506126613408-eca07ce68773?w=500&h=300&fit=crop',
-      likes: 28,
-      comments: 12,
-      views: 189,
-    },
-  ];
+  // Fetch latest news
+  useEffect(() => {
+    fetchLatestNews();
+  }, []);
+
+  const fetchLatestNews = async () => {
+    try {
+      setLoading(true);
+      const response = await NewsAPI.getPublishedNews({ limit: 2, page: 1 });
+      setLatestNews(response.data);
+    } catch (err) {
+      console.error('Failed to fetch latest news:', err);
+      setLatestNews([]);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleViewNewsDetail = (news: NewsItemProps) => {
     setSelectedNews(news);
@@ -165,15 +157,25 @@ const DashboardPage: React.FC<{ setActivePage?: (page: string) => void }> = ({ s
               <ArrowRight className="w-4 h-4" />
             </button>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {latestNews.map((news) => (
-              <NewsPreviewCard
-                key={news.id}
-                news={news}
-                onViewDetail={handleViewNewsDetail}
-              />
-            ))}
-          </div>
+          {loading ? (
+            <div className="flex justify-center py-8">
+              <Loader className="animate-spin text-blue-600" size={32} />
+            </div>
+          ) : latestNews.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {latestNews.map((news) => (
+                <NewsPreviewCard
+                  key={news.id}
+                  news={news}
+                  onViewDetail={handleViewNewsDetail}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center py-12 text-gray-500">
+              <p className="text-lg font-medium">Tidak ada berita saat ini</p>
+            </div>
+          )}
         </div>
       </div>
 

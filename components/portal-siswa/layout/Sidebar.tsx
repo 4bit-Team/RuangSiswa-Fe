@@ -57,6 +57,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, setActivePage }) => {
     <>
       <nav className="flex-1 p-4 space-y-1">
         <SidebarItem icon={Home} label="Dashboard" active={activePage === 'dashboard'} onClick={() => setActivePage('dashboard')} />
+        <SidebarItem icon={User} label="Berita" active={activePage === 'berita'} onClick={() => setActivePage('berita')} />
         <SidebarItem icon={Heart} label="Konseling" active={activePage === 'konseling'} onClick={() => setActivePage('konseling')} />
         <SidebarItem icon={MessageCircle} label="Konsultasi" active={activePage === 'konsultasi'} onClick={() => setActivePage('konsultasi')} />
         <SidebarItem icon={Calendar} label="Reservasi" active={activePage === 'reservasi'} onClick={() => setActivePage('reservasi')} />
