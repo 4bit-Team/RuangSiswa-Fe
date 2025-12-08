@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useEffect, useState } from 'react';
-import { Heart, MessageCircle, Calendar, MessageSquare, User, Home, CheckCircle, Clock, BookOpen, Trophy } from 'lucide-react';
+import { Heart, MessageCircle, Calendar, MessageSquare, User, Home } from 'lucide-react';
 import { SidebarItemProps, SidebarProps } from '@types';
 
 const SidebarItem: React.FC<SidebarItemProps> = ({ icon: Icon, label, active, onClick }) => (
@@ -57,23 +57,11 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, setActivePage }) => {
     <>
       <nav className="flex-1 p-4 space-y-1">
         <SidebarItem icon={Home} label="Dashboard" active={activePage === 'dashboard'} onClick={() => setActivePage('dashboard')} />
+        <SidebarItem icon={User} label="Berita" active={activePage === 'berita'} onClick={() => setActivePage('berita')} />
         <SidebarItem icon={Heart} label="Konseling" active={activePage === 'konseling'} onClick={() => setActivePage('konseling')} />
         <SidebarItem icon={MessageCircle} label="Konsultasi" active={activePage === 'konsultasi'} onClick={() => setActivePage('konsultasi')} />
         <SidebarItem icon={Calendar} label="Reservasi" active={activePage === 'reservasi'} onClick={() => setActivePage('reservasi')} />
         <SidebarItem icon={MessageSquare} label="Chat BK" active={activePage === 'chat'} onClick={() => setActivePage('chat')} />
-        
-        {/* Divider */}
-        <div className="my-2 border-t border-gray-200"></div>
-        
-        {/* New Navigation Items */}
-        <SidebarItem icon={CheckCircle} label="Kehadiran" active={activePage === 'kehadiran'} onClick={() => setActivePage('kehadiran')} />
-        <SidebarItem icon={Clock} label="Keterlambatan" active={activePage === 'keterlambatan'} onClick={() => setActivePage('keterlambatan')} />
-        <SidebarItem icon={BookOpen} label="Status Bimbingan" active={activePage === 'status-bimbingan'} onClick={() => setActivePage('status-bimbingan')} />
-        <SidebarItem icon={Trophy} label="Prestasi" active={activePage === 'prestasi'} onClick={() => setActivePage('prestasi')} />
-        
-        {/* Divider */}
-        <div className="my-2 border-t border-gray-200"></div>
-        
         <SidebarItem icon={User} label="Profil" active={activePage === 'profil'} onClick={() => setActivePage('profil')} />
       </nav>
 

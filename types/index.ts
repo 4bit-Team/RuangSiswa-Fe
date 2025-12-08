@@ -145,13 +145,60 @@ export interface NewsItemProps {
   title: string;
   description: string;
   author: string;
-  date: string;
+  date: string | Date; // Support both string and Date
   category: string;
+  categories?: string[]; // Full categories array
   status: string;
   image?: string;
   likes: number;
   comments: number;
   views: number;
+  createdAt?: Date | string;
+  updatedAt?: Date | string;
+}
+
+export interface NewsDetailProps {
+  id: number;
+  title: string;
+  summary: string;
+  content: string;
+  imageUrl?: string;
+  categories: string[];
+  status: 'draft' | 'published' | 'scheduled';
+  viewCount: number;
+  author: {
+    id: number;
+    fullName: string;
+    email: string;
+  };
+  authorId: number;
+  publishedDate?: Date;
+  scheduledDate?: Date;
+  createdAt: Date;
+  updatedAt: Date;
+  likes: NewsLike[];
+  comments: NewsCommentProps[];
+}
+
+export interface NewsLike {
+  id: number;
+  userId: number;
+  newsId: number;
+  createdAt: Date;
+}
+
+export interface NewsCommentProps {
+  id: number;
+  content: string;
+  author: {
+    id: number;
+    fullName: string;
+    email: string;
+  };
+  authorId: number;
+  newsId: number;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 export interface Student {

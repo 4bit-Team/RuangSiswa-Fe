@@ -1,10 +1,11 @@
 'use client'
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { Eye, Heart, MessageCircle, X } from 'lucide-react';
+import { Eye, Heart, MessageCircle, X, Loader } from 'lucide-react';
 import { NewsItemProps } from '@types';
 import NewsDetailModal from '../modals/NewsDetailModal';
-import { useSearchParams } from 'next/navigation';
+import NewsAPI from '@lib/newsAPI';
+import { formatTimeRelative } from '@lib/timeFormat';
 
 interface BeritaPageProps {
   selectedTopic?: string | null;
@@ -12,24 +13,33 @@ interface BeritaPageProps {
 }
 
 const BeritaPage: React.FC<BeritaPageProps> = ({ selectedTopic = null, setActivePage }) => {
+  const [allNews, setAllNews] = useState<NewsItemProps[]>([]);
   const [selectedNews, setSelectedNews] = useState<NewsItemProps | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
-  const searchParams = useSearchParams();
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(selectedTopic);
+  const [loading, setLoading] = useState(true);
 
-  // initialize selectedCategory from props or query param (support "berita-..." format)
+  // Fetch published news
   useEffect(() => {
-    let initial: string | null = null;
-    if (selectedTopic) {
-      initial = selectedTopic.startsWith('berita-') ? selectedTopic.replace(/^berita-/, '') : selectedTopic;
-    }
-    const param = searchParams?.get?.('topic') ?? null;
-    if (!initial && param) initial = param;
-    setSelectedCategory(initial);
-  }, [selectedTopic, searchParams]);
+    fetchNews();
+  }, []);
 
-  // Data berita lengkap dari BK
-  const allNews: NewsItemProps[] = [
+  const fetchNews = async () => {
+    try {
+      setLoading(true);
+      const response = await NewsAPI.getPublishedNews({ limit: 100 });
+      setAllNews(response.data);
+    } catch (err) {
+      console.error('Failed to fetch news:', err);
+      // Fallback to empty if API fails
+      setAllNews([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Fallback mock data in case API fails
+  const mockNews: NewsItemProps[] = [
     {
       id: 1,
       title: 'Tips Menghadapi Ujian Akhir Semester',
@@ -276,29 +286,21 @@ Waktu adalah aset terberharga. Gunakan dengan bijak!`,
     },
   ];
 
+  // Build categories from the news data
   const categories = [
-    { id: 'academic', label: 'Akademik', count: allNews.filter(n => n.category === 'Akademik').length },
-    { id: 'personal', label: 'Kesehatan Mental', count: allNews.filter(n => n.category === 'Kesehatan Mental').length },
-    { id: 'social', label: 'Sosial', count: allNews.filter(n => n.category === 'Sosial').length },
-    { id: 'development', label: 'Pengembangan Diri', count: allNews.filter(n => n.category === 'Pengembangan Diri').length },
-    { id: 'career', label: 'Karir', count: allNews.filter(n => n.category === 'Karir').length },
-  ];
+    { id: 'Akademik', label: 'Akademik', count: allNews.filter(n => n.category === 'Akademik').length },
+    { id: 'Kesehatan Mental', label: 'Kesehatan Mental', count: allNews.filter(n => n.category === 'Kesehatan Mental').length },
+    { id: 'Sosial', label: 'Sosial', count: allNews.filter(n => n.category === 'Sosial').length },
+    { id: 'Pengembangan Diri', label: 'Pengembangan Diri', count: allNews.filter(n => n.category === 'Pengembangan Diri').length },
+    { id: 'Karir', label: 'Karir', count: allNews.filter(n => n.category === 'Karir').length },
+    { id: 'Pengumuman', label: 'Pengumuman', count: allNews.filter(n => n.category === 'Pengumuman').length },
+  ].filter(cat => cat.count > 0); // Only show categories that have news
 
   // Filter berita berdasarkan kategori
   const filteredNews = useMemo(() => {
     if (!selectedCategory) return allNews;
-
-    const categoryMap: { [key: string]: string } = {
-      'academic': 'Akademik',
-      'personal': 'Kesehatan Mental',
-      'social': 'Sosial',
-      'development': 'Pengembangan Diri',
-      'career': 'Karir',
-    };
-
-    const categoryName = categoryMap[selectedCategory];
-    return allNews.filter(news => news.category === categoryName);
-  }, [selectedCategory]);
+    return allNews.filter(news => news.category === selectedCategory);
+  }, [selectedCategory, allNews]);
 
   const handleNewsClick = (news: NewsItemProps) => {
     setSelectedNews(news);
@@ -366,7 +368,12 @@ Waktu adalah aset terberharga. Gunakan dengan bijak!`,
         )}
 
         {/* News Grid */}
-        {filteredNews.length > 0 ? (
+        {/* News Grid */}
+        {loading ? (
+          <div className="flex justify-center py-12">
+            <Loader className="animate-spin text-blue-600" size={40} />
+          </div>
+        ) : filteredNews.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredNews.map((news) => (
               <NewsCard
@@ -448,7 +455,7 @@ const NewsCard: React.FC<{
         </div>
         <span>{news.author}</span>
         <span>•</span>
-        <span>{news.date}</span>
+        <span>{formatTimeRelative(news.date)}</span>
       </div>
 
       {/* Stats */}
