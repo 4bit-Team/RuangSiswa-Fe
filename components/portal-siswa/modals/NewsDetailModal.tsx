@@ -253,11 +253,11 @@ const NewsDetailModal: React.FC<NewsDetailModalProps> = ({ isOpen, onClose, news
                       <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-2">
                           <div className="w-8 h-8 bg-gradient-to-br from-blue-400 to-purple-500 rounded-full flex items-center justify-center text-white text-xs font-bold">
-                            {comment.author.fullName.charAt(0).toUpperCase()}
+                            {comment.author?.fullName?.charAt(0)?.toUpperCase() ?? '?'}
                           </div>
                           <div>
                             <p className="font-semibold text-sm text-gray-900">
-                              {comment.author.fullName}
+                              {comment.author?.fullName ?? 'Anonymous'}
                             </p>
                             <p className="text-xs text-gray-500">
                             {formatTimeRelative(comment.createdAt)}
