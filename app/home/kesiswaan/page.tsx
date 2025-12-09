@@ -7,6 +7,8 @@ import DashboardPage from '@/components/kesiswaan/pages/DashboardPage'
 import KehadiranPage from '@/components/kesiswaan/pages/KehadiranPage'
 import KeterlambatanPage from '@/components/kesiswaan/pages/KeterlambatanPage'
 import StatusBimbinganPage from '@/components/kesiswaan/pages/StatusBimbinganPage'
+import SiswaBermasalahPage from '@/components/kesiswaan/pages/SiswaBermasalahPage'
+import SiswaBerprestiPage from '@/components/kesiswaan/pages/SiswaBerprestiPage'
 import { verifyAuthOrRedirect } from "@/lib/authRedirect"
 
 const KesiswaaPage: React.FC = () => {
@@ -14,17 +16,19 @@ const KesiswaaPage: React.FC = () => {
   const [activePage, setActivePage] = useState<string>('dashboard')
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
-  React.useEffect(() => {
-    verifyAuthOrRedirect().then((user) => {
-      if (user) setUserProfile(user);
-    });
-  }, []);
+  // React.useEffect(() => {
+  //   verifyAuthOrRedirect().then((user) => {
+  //     if (user) setUserProfile(user);
+  //   });
+  // }, []);
 
   const titleMap: Record<string, { title: string; subtitle: string }> = {
     dashboard: { title: 'Dashboard Kesiswaan', subtitle: 'Selamat datang di portal kesiswaan' },
     kehadiran: { title: 'Kehadiran Kelas', subtitle: 'Lihat dan pantau riwayat kehadiran Anda di sekolah' },
     keterlambatan: { title: 'Keterlambatan Masuk', subtitle: 'Pantau dan kelola data keterlambatan Anda' },
     statusBimbingan: { title: 'Status Bimbingan', subtitle: 'Progres dan riwayat sesi bimbingan dengan konselor' },
+    siswaBermasalah: { title: 'Siswa Bermasalah', subtitle: 'Kelola data siswa dengan masalah perilaku atau akademik' },
+    siswaBerprestasi: { title: 'Siswa Berprestasi', subtitle: 'Kelola dan verifikasi data prestasi siswa' },
   }
 
   const header = titleMap[activePage] ?? titleMap.dashboard
@@ -39,6 +43,10 @@ const KesiswaaPage: React.FC = () => {
         return <KeterlambatanPage />
       case 'statusBimbingan':
         return <StatusBimbinganPage />
+      case 'siswaBermasalah':
+        return <SiswaBermasalahPage />
+      case 'siswaBerprestasi':
+        return <SiswaBerprestiPage />
       default:
         return <DashboardPage />
     }

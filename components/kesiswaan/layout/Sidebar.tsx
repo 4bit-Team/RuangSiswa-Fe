@@ -36,6 +36,8 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, setActivePage, sidebarOpe
     { id: 'kehadiran', icon: CheckCircle, label: 'Kehadiran Kelas' },
     { id: 'keterlambatan', icon: Clock, label: 'Keterlambatan Masuk' },
     { id: 'statusBimbingan', icon: Calendar, label: 'Status Bimbingan' },
+    { id: 'siswaBermasalah', icon: AlertTriangle, label: 'Siswa Bermasalah' },
+    { id: 'siswaBerprestasi', icon: Trophy, label: 'Siswa Berprestasi' },
   ];
 
   return (

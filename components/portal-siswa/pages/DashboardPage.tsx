@@ -7,7 +7,7 @@ import NewsDetailModal from '../modals/NewsDetailModal';
 import { NewsItemProps } from '@types';
 import NewsAPI from '@lib/newsAPI';
 import { formatTimeRelative } from '@lib/timeFormat';
-
+import { useRouter } from 'next/navigation'; // Import useRouter hook
 
 const StatCard: React.FC<StatCardProps> = ({ icon: Icon, label, value, color }) => (
   <div className="bg-white rounded-xl border border-gray-200 p-6">
@@ -97,6 +97,7 @@ const NewsPreviewCard: React.FC<{
 );
 
 const DashboardPage: React.FC<{ setActivePage?: (page: string) => void }> = ({ setActivePage }) => {
+  const router = useRouter(); // Initialize router hook
   const [selectedNews, setSelectedNews] = useState<NewsItemProps | null>(null);
   const [isNewsModalOpen, setIsNewsModalOpen] = useState(false);
   const [latestNews, setLatestNews] = useState<NewsItemProps[]>([]);
@@ -154,7 +155,7 @@ const DashboardPage: React.FC<{ setActivePage?: (page: string) => void }> = ({ s
           <h3 className="font-bold text-gray-900 text-lg mb-6">Status Progress Bimbingan</h3>
           
           <div className="space-y-6">
-            {/* Main Progress Bar */}
+            {/* <!-- Main Progress Bar --> */}
             <div>
               <div className="flex items-center justify-between mb-3">
                 <div>
@@ -171,7 +172,7 @@ const DashboardPage: React.FC<{ setActivePage?: (page: string) => void }> = ({ s
               </div>
             </div>
 
-            {/* Progress Details */}
+            {/* <!-- Progress Details --> */}
             <div className="grid grid-cols-3 gap-4 pt-4 border-t border-gray-200">
               <div className="text-center">
                 <p className="text-xs text-gray-600 mb-1">Selesai</p>
@@ -187,7 +188,7 @@ const DashboardPage: React.FC<{ setActivePage?: (page: string) => void }> = ({ s
               </div>
             </div>
 
-            {/* Current Focus */}
+            {/* <!-- Current Focus --> */}
             <div className="bg-gradient-to-r from-purple-50 to-blue-50 rounded-lg p-4 border border-purple-100">
               <p className="text-xs text-gray-600 uppercase tracking-wide mb-1">Fokus Utama Saat Ini</p>
               <p className="text-sm font-semibold text-gray-900">Manajemen Stress dan Waktu</p>
@@ -229,7 +230,7 @@ const DashboardPage: React.FC<{ setActivePage?: (page: string) => void }> = ({ s
         </div>
       </div>
 
-      {/* News Detail Modal */}
+      {/* <!-- News Detail Modal --> */}
       <NewsDetailModal
         isOpen={isNewsModalOpen}
         onClose={() => setIsNewsModalOpen(false)}
