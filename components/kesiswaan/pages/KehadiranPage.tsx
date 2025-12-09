@@ -1,10 +1,11 @@
 'use client'
 
-import React, { useState } from 'react'
-import { Calendar, Download, Plus, Eye, Edit, Trash2, Search, Filter, X } from 'lucide-react'
+import React, { useState, useRef, useEffect } from 'react'
+import { Calendar, Download, Plus, Eye, Edit, Trash2, Search, Filter, X, ChevronLeft, ChevronRight } from 'lucide-react'
 
 interface AttendanceMonth {
   id: number
+  kelas: string
   minggu: number
   totalSiswa: number
   hadir: number
@@ -13,6 +14,8 @@ interface AttendanceMonth {
   alpa: number
   persentase: number
   inputDate: string
+  siswaNotHadir?: Array<{ nama: string; status: 'sakit' | 'izin' | 'alpa' }>
+  keterangan?: string
 }
 
 const KehadiranPage: React.FC = () => {
@@ -20,11 +23,90 @@ const KehadiranPage: React.FC = () => {
   const [openModal, setOpenModal] = useState<string | null>(null)
   const [selectedAttendance, setSelectedAttendance] = useState<AttendanceMonth | null>(null)
   const [filterMonth, setFilterMonth] = useState('')
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date())
+  const [showCalendar, setShowCalendar] = useState(false)
+  const [currentMonth, setCurrentMonth] = useState<Date>(new Date())
+  const calendarRef = useRef<HTMLDivElement>(null)
+
+  // Close calendar when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (calendarRef.current && !calendarRef.current.contains(event.target as Node)) {
+        setShowCalendar(false)
+      }
+    }
+
+    if (showCalendar) {
+      document.addEventListener('mousedown', handleClickOutside)
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [showCalendar])
+
+  // Get week number from date
+  const getWeekNumber = (date: Date): number => {
+    const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()))
+    const dayNum = d.getUTCDay() || 7
+    d.setUTCDate(d.getUTCDate() + 4 - dayNum)
+    const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1))
+    return Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7)
+  }
+
+  // Get week range from week number
+  const getWeekRange = (date: Date): string => {
+    const curr = new Date(date)
+    const first = curr.getDate() - curr.getDay() + (curr.getDay() === 0 ? -6 : 1)
+    const firstDate = new Date(curr.setDate(first))
+    const lastDate = new Date(firstDate)
+    lastDate.setDate(lastDate.getDate() + 6)
+    
+    const options: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric', year: 'numeric' }
+    return `${firstDate.toLocaleDateString('id-ID', options)} - ${lastDate.toLocaleDateString('id-ID', options)}`
+  }
+
+  // Get days in month
+  const getDaysInMonth = (date: Date): number => {
+    return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate()
+  }
+
+  // Get first day of month
+  const getFirstDayOfMonth = (date: Date): number => {
+    return new Date(date.getFullYear(), date.getMonth(), 1).getDay()
+  }
+
+  // Handle month navigation
+  const previousMonth = () => {
+    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1))
+  }
+
+  const nextMonth = () => {
+    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1))
+  }
+
+  // Generate calendar days
+  const generateCalendarDays = () => {
+    const daysInMonth = getDaysInMonth(currentMonth)
+    const firstDay = getFirstDayOfMonth(currentMonth)
+    const days: (number | null)[] = []
+
+    for (let i = 0; i < firstDay; i++) {
+      days.push(null)
+    }
+
+    for (let i = 1; i <= daysInMonth; i++) {
+      days.push(i)
+    }
+
+    return days
+  }
 
   // Sample data
   const attendanceData: AttendanceMonth[] = [
     {
       id: 1,
+      kelas: 'X-SIJA-1',
       minggu: 1,
       totalSiswa: 32,
       hadir: 28,
@@ -33,9 +115,15 @@ const KehadiranPage: React.FC = () => {
       alpa: 1,
       persentase: 87.5,
       inputDate: '2024-11-04',
+      siswaNotHadir: [
+        { nama: 'Budi Santoso', status: 'sakit' },
+        { nama: 'Ahmad Rizki', status: 'sakit' }
+      ],
+      keterangan: 'Kehadiran normal, 2 siswa sakit (demam)',
     },
     {
       id: 2,
+      kelas: 'X-SIJA-2',
       minggu: 2,
       totalSiswa: 30,
       hadir: 29,
@@ -44,9 +132,14 @@ const KehadiranPage: React.FC = () => {
       alpa: 0,
       persentase: 96.7,
       inputDate: '2024-11-11',
+      siswaNotHadir: [
+        { nama: 'Siti Nurhaliza', status: 'izin' }
+      ],
+      keterangan: 'Sangat baik, hanya 1 siswa izin',
     },
     {
       id: 3,
+      kelas: 'XI-SIJA-1',
       minggu: 3,
       totalSiswa: 28,
       hadir: 26,
@@ -55,6 +148,11 @@ const KehadiranPage: React.FC = () => {
       alpa: 1,
       persentase: 92.9,
       inputDate: '2024-11-18',
+      siswaNotHadir: [
+        { nama: 'Rinto Harahap', status: 'sakit' },
+        { nama: 'Doni Hermawan', status: 'alpa' }
+      ],
+      keterangan: '1 siswa sakit, 1 siswa alpa',
     },
   ]
 
@@ -152,19 +250,111 @@ const KehadiranPage: React.FC = () => {
               className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
-          <select
-            value={filterMonth}
-            onChange={(e) => setFilterMonth(e.target.value)}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="">Filter Bulan</option>
-            <option value="november">November 2024</option>
-            <option value="december">December 2024</option>
-            <option value="januari">Januari 2025</option>
-          </select>
+
+          {/* Week Picker Calendar */}
+          <div className="relative" ref={calendarRef}>
+            <button
+              onClick={() => setShowCalendar(!showCalendar)}
+              className="flex items-center justify-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-blue-50 hover:border-blue-500 transition-all text-gray-700 hover:text-blue-600 font-medium"
+            >
+              <Calendar className="w-5 h-5" />
+              <span className="hidden sm:inline">
+                Minggu ke-{getWeekNumber(selectedDate)}
+              </span>
+            </button>
+
+            {/* Week Calendar Dropdown */}
+            {showCalendar && (
+              <div className="absolute top-full right-0 mt-2 bg-white border border-gray-300 rounded-lg shadow-xl z-50 p-4 w-80">
+                {/* Calendar Header */}
+                <div className="flex items-center justify-between mb-4">
+                  <button
+                    onClick={previousMonth}
+                    className="p-1 hover:bg-gray-100 rounded-lg transition-colors"
+                  >
+                    <ChevronLeft className="w-5 h-5 text-gray-600" />
+                  </button>
+                  <h3 className="text-center font-semibold text-gray-900 text-lg">
+                    {currentMonth.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' })}
+                  </h3>
+                  <button
+                    onClick={nextMonth}
+                    className="p-1 hover:bg-gray-100 rounded-lg transition-colors"
+                  >
+                    <ChevronRight className="w-5 h-5 text-gray-600" />
+                  </button>
+                </div>
+
+                {/* Day Labels */}
+                <div className="grid grid-cols-7 gap-2 mb-3">
+                  {['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'].map((day) => (
+                    <div key={day} className="text-center text-xs font-semibold text-gray-600 p-1">
+                      {day}
+                    </div>
+                  ))}
+                </div>
+
+                {/* Calendar Days with Week Selection */}
+                <div className="space-y-2 mb-4">
+                  {Array.from({ length: Math.ceil((generateCalendarDays().length) / 7) }).map((_, weekIndex) => {
+                    const weekDays = generateCalendarDays().slice(weekIndex * 7, (weekIndex + 1) * 7)
+                    const firstDayOfWeek = weekDays.find(day => day !== null)
+                    
+                    if (!firstDayOfWeek) return null
+
+                    const weekDate = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), firstDayOfWeek)
+                    const isCurrentMonth = weekDate.getMonth() === currentMonth.getMonth()
+                    
+                    // Only show weeks that belong to current month
+                    if (!isCurrentMonth) return null
+                    
+                    const isSelectedWeek = getWeekNumber(selectedDate) === getWeekNumber(weekDate)
+
+                    return (
+                      <button
+                        key={weekIndex}
+                        onClick={() => {
+                          setSelectedDate(weekDate)
+                          setShowCalendar(false)
+                        }}
+                        className={`
+                          w-full p-3 rounded-lg transition-all border-2 text-left
+                          ${isSelectedWeek
+                            ? 'bg-blue-500 text-white border-blue-600'
+                            : 'bg-gray-50 text-gray-900 border-gray-200 hover:bg-blue-50 hover:border-blue-300'
+                          }
+                        `}
+                      >
+                        <div className="text-sm font-semibold">
+                          Minggu ke-{getWeekNumber(weekDate)}
+                        </div>
+                        <div className={`text-xs mt-1 ${isSelectedWeek ? 'text-blue-100' : 'text-gray-600'}`}>
+                          {getWeekRange(weekDate)}
+                        </div>
+                      </button>
+                    )
+                  })}
+                </div>
+
+                {/* Selected Week Info */}
+                <div className="border-t border-gray-200 pt-3">
+                  <p className="text-xs text-gray-600 mb-1">
+                    <strong>Minggu Terpilih:</strong>
+                  </p>
+                  <p className="text-sm font-semibold text-blue-600">
+                    Minggu ke-{getWeekNumber(selectedDate)}
+                  </p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    {getWeekRange(selectedDate)}
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+
           <button className="flex items-center justify-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors">
             <Download className="w-5 h-5" />
-            Export
+            <span className="hidden sm:inline">Export</span>
           </button>
         </div>
       </div>
@@ -175,6 +365,7 @@ const KehadiranPage: React.FC = () => {
           <table className="w-full">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Kelas</th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Minggu</th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Total Siswa</th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Hadir</th>
@@ -189,6 +380,7 @@ const KehadiranPage: React.FC = () => {
             <tbody className="divide-y divide-gray-200">
               {filteredData.map((item) => (
                 <tr key={item.id} className="hover:bg-gray-50 transition-colors">
+                  <td className="px-6 py-4 text-sm font-medium text-gray-900">{item.kelas}</td>
                   <td className="px-6 py-4 text-sm font-medium text-gray-900">Minggu {item.minggu}</td>
                   <td className="px-6 py-4 text-sm text-gray-600">{item.totalSiswa}</td>
                   <td className="px-6 py-4 text-sm">
@@ -261,14 +453,47 @@ const KehadiranPage: React.FC = () => {
 
                 <div className="p-6">
                   <form onSubmit={(e) => { e.preventDefault(); handleCloseModal(); }} className="space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Minggu ke-</label>
-                      <input type="number" placeholder="Masukkan minggu" className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Kelas</label>
+                        <input type="text" placeholder="Masukkan kelas" className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Minggu ke-</label>
+                        <input type="number" placeholder="Masukkan minggu" className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                      </div>
                     </div>
 
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">Total Siswa</label>
                       <input type="number" placeholder="Masukkan total siswa" className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Hadir</label>
+                        <input type="number" placeholder="0" className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Sakit</label>
+                        <input type="number" placeholder="0" className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Izin</label>
+                        <input type="number" placeholder="0" className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Alpa</label>
+                        <input type="number" placeholder="0" className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Nama Siswa yang Tidak Hadir</label>
+                      <textarea placeholder="Masukkan nama siswa yang tidak hadir (dipisahkan dengan koma)" rows={3} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
                     </div>
 
                     <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
@@ -337,6 +562,10 @@ const KehadiranPage: React.FC = () => {
                         <h3 className="text-sm font-semibold text-gray-700 mb-4">Detail Data</h3>
                         <div className="bg-gray-50 rounded-lg p-4 space-y-3">
                           <div className="flex justify-between items-center pb-3 border-b border-gray-200">
+                            <span className="text-sm text-gray-600">Kelas</span>
+                            <span className="text-sm font-medium text-gray-900">{selectedAttendance.kelas}</span>
+                          </div>
+                          <div className="flex justify-between items-center pb-3 border-b border-gray-200">
                             <span className="text-sm text-gray-600">Minggu ke-</span>
                             <span className="text-sm font-medium text-gray-900">{selectedAttendance.minggu}</span>
                           </div>
@@ -346,6 +575,47 @@ const KehadiranPage: React.FC = () => {
                           </div>
                         </div>
                       </div>
+
+                      {/* Siswa Tidak Hadir Section */}
+                      {selectedAttendance.siswaNotHadir && selectedAttendance.siswaNotHadir.length > 0 && (
+                        <div>
+                          <h3 className="text-sm font-semibold text-gray-700 mb-4">Siswa Tidak Hadir</h3>
+                          <div className="space-y-2">
+                            {selectedAttendance.siswaNotHadir.map((siswa, index) => {
+                              const statusColor = {
+                                sakit: 'bg-orange-50 border-orange-200 text-orange-700',
+                                izin: 'bg-blue-50 border-blue-200 text-blue-700',
+                                alpa: 'bg-red-50 border-red-200 text-red-700'
+                              }[siswa.status]
+                              
+                              const statusLabel = {
+                                sakit: '🤒 Sakit',
+                                izin: '📋 Izin',
+                                alpa: '❌ Alpa'
+                              }[siswa.status]
+
+                              return (
+                                <div key={index} className={`border rounded-lg p-3 flex items-center justify-between ${statusColor}`}>
+                                  <span className="text-sm font-medium">{siswa.nama}</span>
+                                  <span className="text-xs font-semibold px-2 py-1 bg-white bg-opacity-70 rounded">
+                                    {statusLabel}
+                                  </span>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Keterangan Section */}
+                      {selectedAttendance.keterangan && (
+                        <div>
+                          <h3 className="text-sm font-semibold text-gray-700 mb-4">Keterangan</h3>
+                          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                            <p className="text-sm text-gray-900">{selectedAttendance.keterangan}</p>
+                          </div>
+                        </div>
+                      )}
 
                       {/* Action Buttons */}
                       <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
@@ -368,10 +638,49 @@ const KehadiranPage: React.FC = () => {
 
                     <div className="p-6">
                       <form onSubmit={(e) => { e.preventDefault(); handleCloseModal(); }} className="space-y-4">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">Minggu ke-</label>
-                          <input type="number" defaultValue={selectedAttendance.minggu} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">Kelas</label>
+                            <input type="text" placeholder="Masukkan kelas" className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">Minggu ke-</label>
+                            <input type="number" defaultValue={selectedAttendance.minggu} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                          </div>
                         </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">Total Siswa</label>
+                          <input type="number" defaultValue={selectedAttendance.totalSiswa} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">Hadir</label>
+                            <input type="number" defaultValue={selectedAttendance.hadir} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">Sakit</label>
+                            <input type="number" defaultValue={selectedAttendance.sakit} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">Izin</label>
+                            <input type="number" defaultValue={selectedAttendance.izin} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">Alpa</label>
+                            <input type="number" defaultValue={selectedAttendance.alpa} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">Nama Siswa yang Tidak Hadir</label>
+                          <textarea placeholder="Masukkan nama siswa yang tidak hadir (dipisahkan dengan koma)" rows={3} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                        </div>
+
                         <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
                           <button type="button" onClick={handleCloseModal} className="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 font-medium transition">Batal</button>
                           <button type="submit" className="px-6 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-medium transition">Update</button>

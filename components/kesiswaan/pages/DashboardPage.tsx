@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState } from 'react';
-import { Calendar, Users, FileText, Bell, BarChart3, Clock, MapPin, User, Plus, CheckCircle, X, Eye } from 'lucide-react';
+import { Calendar, Users, FileText, Bell, BarChart3, Clock, MapPin, User, Plus, CheckCircle, X, Eye, Trophy, AlertTriangle } from 'lucide-react';
 
 // Prop types
 interface StatCardProps {
@@ -137,71 +137,372 @@ const DashboardKesiswaaPage: React.FC = () => {
           icon={Users} 
           label="Total Siswa" 
           value="342" 
-          description="+12 dari bulan lalu"
-          color="bg-red-600"
+          description="+2.3%"
+          color="bg-purple-600"
         />
         <StatCard 
-          icon={Calendar} 
-          label="Acara Bulan Ini" 
-          value="8" 
-          description="5 sudah selesai"
+          icon={CheckCircle} 
+          label="Kehadiran Hari Ini" 
+          value="92%" 
+          description="+1.2%"
           color="bg-green-600"
+        />
+        <StatCard 
+          icon={Clock} 
+          label="Terlambat Hari Ini" 
+          value="23" 
+          description="+5"
+          color="bg-red-600"
         />
         <StatCard 
           icon={Bell} 
           label="Perlu Perhatian" 
           value="15" 
-          description="Siswa dengan masalah prioritas"
+          description="-2"
           color="bg-orange-600"
-        />
-        <StatCard 
-          icon={BarChart3} 
-          label="Progres Penanganan" 
-          value="89%" 
-          description="+5% dari bulan lalu"
-          color="bg-blue-600"
         />
       </div>
 
       {/* Quick Actions */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-4">
         <QuickActionButton 
-          icon={Plus} 
-          label="Buat Acara Baru" 
-          color="bg-blue-600"
-          onClick={() => setOpenModal('appointment')}
+          icon={AlertTriangle} 
+          label="Tambah Siswa Bermasalah" 
+          color="bg-red-600"
+          onClick={() => setOpenModal('problemstudent')}
         />
         <QuickActionButton 
-          icon={Users} 
-          label="Tambah Siswa" 
-          color="bg-purple-600"
-          onClick={() => setOpenModal('student')}
-        />
-        <QuickActionButton 
-          icon={FileText} 
-          label="Buat Laporan" 
-          color="bg-pink-600"
-          onClick={() => setOpenModal('report')}
-        />
-        <QuickActionButton 
-          icon={Calendar} 
-          label="Lihat Jadwal" 
-          color="bg-green-600"
-          onClick={() => setOpenModal('schedule')}
+          icon={Trophy} 
+          label="Input Prestasi Siswa" 
+          color="bg-yellow-500"
+          onClick={() => setOpenModal('achievement')}
         />
       </div>
 
+      {/* Modal: Input Prestasi Siswa */}
+      <div>
+        {openModal === 'achievement' && (
+          <>
+            <div
+              className="fixed inset-0 bg-black bg-opacity-50 z-40 transition-opacity"
+              onClick={() => setOpenModal(null)}
+            />
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+              <div
+                className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="bg-gradient-to-r from-yellow-500 to-orange-600 text-white p-6 flex items-center justify-between rounded-t-2xl">
+                  <div>
+                    <h2 className="text-2xl font-bold">Input Prestasi Siswa</h2>
+                    <p className="text-yellow-100 text-sm mt-1">Tambahkan prestasi siswa baru</p>
+                  </div>
+                  <button
+                    onClick={() => setOpenModal(null)}
+                    className="p-1 hover:bg-white hover:bg-opacity-20 rounded-lg transition-colors"
+                  >
+                    <X size={24} />
+                  </button>
+                </div>
+
+                <div className="p-6">
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      console.log('Achievement added');
+                      setOpenModal(null);
+                    }}
+                    className="space-y-4"
+                  >
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          NIS
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="Masukkan NIS"
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Nama Siswa
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="Masukkan nama siswa"
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Kelas
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="Masukkan kelas"
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Jurusan
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="Masukkan jurusan"
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Judul Prestasi
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="Masukkan judul prestasi"
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Tingkat Prestasi
+                      </label>
+                      <select className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500">
+                        <option value="">Pilih Tingkat</option>
+                        <option value="nasional">Nasional</option>
+                        <option value="provinsi">Provinsi</option>
+                        <option value="kabupaten">Kabupaten/Kota</option>
+                        <option value="sekolah">Sekolah</option>
+                      </select>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Tanggal Prestasi
+                        </label>
+                        <input
+                          type="date"
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Bulan Pengumuman
+                        </label>
+                        <input
+                          type="month"
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Upload Sertifikat
+                      </label>
+                      <input
+                        type="file"
+                        accept=".pdf,.jpg,.jpeg,.png"
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                      />
+                    </div>
+
+                    <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
+                      <button
+                        type="button"
+                        onClick={() => setOpenModal(null)}
+                        className="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 font-medium transition"
+                      >
+                        Batal
+                      </button>
+                      <button
+                        type="submit"
+                        className="px-6 py-2 bg-yellow-500 hover:bg-yellow-600 text-white rounded-lg font-medium transition"
+                      >
+                        Simpan Prestasi
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* Modal: Tambah Siswa Bermasalah */}
+      <div>
+        {openModal === 'problemstudent' && (
+          <>
+        <div
+          className="fixed inset-0 bg-black bg-opacity-50 z-40 transition-opacity"
+          onClick={() => setOpenModal(null)}
+        />
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="bg-gradient-to-r from-red-500 to-red-600 text-white p-6 flex items-center justify-between rounded-t-2xl">
+          <div>
+            <h2 className="text-2xl font-bold">Tambah Siswa Bermasalah</h2>
+            <p className="text-red-100 text-sm mt-1">Daftarkan siswa yang memerlukan pengawasan</p>
+          </div>
+          <button
+            onClick={() => setOpenModal(null)}
+            className="p-1 hover:bg-white hover:bg-opacity-20 rounded-lg transition-colors"
+          >
+            <X size={24} />
+          </button>
+            </div>
+
+            <div className="p-6">
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              console.log('Problem student added');
+              setOpenModal(null);
+            }}
+            className="space-y-4"
+          >
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              NIS
+            </label>
+            <input
+              type="text"
+              placeholder="Masukkan NIS"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
+            />
+              </div>
+              <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Nama Siswa
+            </label>
+            <input
+              type="text"
+              placeholder="Masukkan nama siswa"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
+            />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Kelas
+            </label>
+            <input
+              type="text"
+              placeholder="Masukkan kelas"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
+            />
+              </div>
+              <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Jurusan
+            </label>
+            <input
+              type="text"
+              placeholder="Masukkan jurusan"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
+            />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+            Kategori Masalah
+              </label>
+              <select className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500">
+            <option value="">Pilih Kategori</option>
+            <option value="akademik">Akademik</option>
+            <option value="perilaku">Perilaku</option>
+            <option value="kesehatan">Kesehatan</option>
+            <option value="sosial">Sosial</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+            Deskripsi Masalah
+              </label>
+              <textarea
+            placeholder="Jelaskan masalah yang dihadapi..."
+            rows={3}
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Status
+            </label>
+            <select className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500">
+              <option value="">Pilih Status</option>
+              <option value="dalam-pengawasan">Dalam Pengawasan</option>
+              <option value="butuh-bimbingan">Butuh Bimbingan</option>
+              <option value="mendapat-sp">Mendapat SP</option>
+            </select>
+              </div>
+              <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Jumlah SP
+            </label>
+            <input
+              type="number"
+              min="0"
+              placeholder="0"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
+            />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
+              <button
+            type="button"
+            onClick={() => setOpenModal(null)}
+            className="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 font-medium transition"
+              >
+            Batal
+              </button>
+              <button
+            type="submit"
+            className="px-6 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition"
+              >
+            Tambah Siswa
+              </button>
+            </div>
+          </form>
+            </div>
+          </div>
+        </div>
+          </>
+        )}
+      </div>
+
       {/* Charts and Lists */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Kegiatan Stats */}
+      <div className="grid grid-cols-1 lg:grid-cols-1 gap-6">
+        {/* Attendance Stats */}
         <div className="lg:col-span-2 bg-white rounded-xl p-6 border border-gray-200">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Statistik Kegiatan (6 Bulan Terakhir)</h3>
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">Statistik Konsultasi (6 Bulan Terakhir)</h3>
           <div className="space-y-4">
             {[
-              { label: 'Acara Umum', value: 42, color: 'bg-pink-500' },
-              { label: 'Kepramukaan', value: 32, color: 'bg-green-500' },
-              { label: 'Olahraga', value: 30, color: 'bg-orange-500' },
-              { label: 'Seni & Budaya', value: 22, color: 'bg-purple-500' },
+              { label: 'Absensi', value: 25, color: 'bg-purple-500' },
+              { label: 'Kehadiran', value: 60, color: 'bg-pink-500' },
+              { label: 'Pelanggaran', value: 35, color: 'bg-orange-500' },
+              { label: 'Terlambat', value: 30, color: 'bg-teal-500' },
             ].map((item, idx) => (
               <div key={idx}>
                 <div className="flex items-center justify-between text-sm mb-2">
@@ -216,13 +517,35 @@ const DashboardKesiswaaPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Priority Students */}
-        <div className="bg-white rounded-xl p-6 border border-gray-200">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Siswa Perlu Perhatian</h3>
-          <div className="space-y-4">
-            {priorityStudents.map((student, idx) => (
-              <PriorityStudentCard key={idx} {...student} />
-            ))}
+        {/* Priority Students & Achievements */}
+        <div className="space-y-6">
+          {/* Siswa Perlu Perhatian */}
+          <div className="bg-white rounded-xl p-6 border border-gray-200">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Siswa Perlu Perhatian</h3>
+            <div className="space-y-3">
+              {priorityStudents.slice(0, 2).map((student, idx) => (
+                <PriorityStudentCard key={idx} {...student} />
+              ))}
+            </div>
+          </div>
+
+          {/* Prestasi Terbaru */}
+          <div className="bg-white rounded-xl p-6 border border-gray-200">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Prestasi Terbaru</h3>
+            <div className="space-y-3">
+              <div className="p-3 bg-yellow-50 rounded-lg border border-yellow-200">
+                <p className="text-sm font-semibold text-gray-900">Fitri Rahmawati</p>
+                <p className="text-xs text-gray-600">XII IPA 1</p>
+                <p className="text-xs text-gray-500 mt-1">Juara 1 Olimpiade Matematika Nasional</p>
+                <p className="text-xs text-gray-400 mt-1">2 hari lalu</p>
+              </div>
+              <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
+                <p className="text-sm font-semibold text-gray-900">Dimas Pratama</p>
+                <p className="text-xs text-gray-600">XI IPS 2</p>
+                <p className="text-xs text-gray-500 mt-1">Juara 2 Lomba Debat Bahasa Inggris</p>
+                <p className="text-xs text-gray-400 mt-1">3 hari lalu</p>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -230,14 +553,63 @@ const DashboardKesiswaaPage: React.FC = () => {
       {/* Jadwal Kegiatan */}
       <div className="bg-white rounded-xl p-6 border border-gray-200">
         <div className="flex items-center justify-between mb-6">
-          <h3 className="text-lg font-semibold text-gray-900">Kegiatan Hari Ini</h3>
+          <h3 className="text-lg font-semibold text-gray-900">Ringkasan Kehadiran & Keterlambatan</h3>
           <button className="text-sm text-indigo-600 hover:text-indigo-700 font-medium">Lihat Semua</button>
         </div>
         
-        <div className="space-y-4">
-          {schedules.map((schedule, idx) => (
-            <ScheduleItem key={idx} {...schedule} />
-          ))}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Kehadiran Summary */}
+          <div>
+            <h4 className="font-semibold text-gray-900 mb-4">Ringkasan Kehadiran</h4>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between p-3 bg-green-50 rounded-lg border border-green-200">
+                <div>
+                  <p className="text-sm font-medium text-gray-900">Hadir</p>
+                  <p className="text-xs text-gray-600">315 siswa</p>
+                </div>
+                <p className="text-lg font-bold text-green-600">92.1%</p>
+              </div>
+              <div className="flex items-center justify-between p-3 bg-yellow-50 rounded-lg border border-yellow-200">
+                <div>
+                  <p className="text-sm font-medium text-gray-900">Sakit</p>
+                  <p className="text-xs text-gray-600">15 siswa</p>
+                </div>
+                <p className="text-lg font-bold text-yellow-600">4.4%</p>
+              </div>
+              <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg border border-blue-200">
+                <div>
+                  <p className="text-sm font-medium text-gray-900">Izin</p>
+                  <p className="text-xs text-gray-600">12 siswa</p>
+                </div>
+                <p className="text-lg font-bold text-blue-600">3.5%</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Keterlambatan Summary */}
+          <div>
+            <h4 className="font-semibold text-gray-900 mb-4">Ringkasan Keterlambatan</h4>
+            <div className="space-y-3">
+              <div className="p-3 bg-orange-50 rounded-lg border border-orange-200">
+                <p className="text-sm font-semibold text-gray-900">Mendekati Batas SP</p>
+                <div className="mt-2 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-gray-600">Ahmad Rizki</span>
+                    <span className="text-xs font-semibold text-red-600">4/5x</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-gray-600">Siti Nurhaliza</span>
+                    <span className="text-xs font-semibold text-red-600">4/5x</span>
+                  </div>
+                </div>
+              </div>
+              <div className="p-3 bg-red-50 rounded-lg border border-red-200">
+                <p className="text-sm font-semibold text-gray-900">Total Terlambat Hari Ini</p>
+                <p className="text-2xl font-bold text-red-600 mt-1">23 siswa</p>
+                <p className="text-xs text-red-600">+5 dari kemarin</p>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 

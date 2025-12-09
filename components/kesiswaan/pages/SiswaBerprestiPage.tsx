@@ -197,43 +197,53 @@ const SiswaBerprestiPage: React.FC = () => {
             <div className="fixed inset-0 bg-black bg-opacity-50 z-40 transition-opacity" onClick={handleCloseModal} />
             <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
               <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-                <div className="bg-gradient-to-r from-yellow-500 to-yellow-600 text-white p-6 flex items-center justify-between rounded-t-2xl">
+                <div className="bg-gradient-to-r from-yellow-500 to-orange-600 text-white p-6 flex items-center justify-between rounded-t-2xl">
                   <div>
-                    <h2 className="text-2xl font-bold">Tambah Prestasi Siswa</h2>
-                    <p className="text-yellow-100 text-sm mt-1">Catat prestasi siswa terbaru</p>
+                    <h2 className="text-2xl font-bold">Input Prestasi Siswa</h2>
+                    <p className="text-yellow-100 text-sm mt-1">Tambahkan prestasi siswa baru</p>
                   </div>
                   <button onClick={handleCloseModal} className="p-1 hover:bg-white hover:bg-opacity-20 rounded-lg transition-colors"><X size={24} /></button>
                 </div>
                 <div className="p-6">
                   <form onSubmit={(e) => { e.preventDefault(); handleCloseModal() }} className="space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Nama Siswa</label>
-                      <input type="text" placeholder="Masukkan nama siswa" className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500" />
-                    </div>
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">NIS</label>
                         <input type="text" placeholder="Masukkan NIS" className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500" />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Kelas</label>
-                        <input type="text" placeholder="XII IPA 1" className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500" />
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Nama Siswa</label>
+                        <input type="text" placeholder="Masukkan nama siswa" className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500" />
                       </div>
                     </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Kelas</label>
+                        <input type="text" placeholder="Masukkan kelas" className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500" />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Jurusan</label>
+                        <input type="text" placeholder="Masukkan jurusan" className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500" />
+                      </div>
+                    </div>
+
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">Judul Prestasi</label>
-                      <input type="text" placeholder="Juara 1 Olimpiade Matematika" className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500" />
+                      <input type="text" placeholder="Masukkan judul prestasi" className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500" />
                     </div>
+
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">Tingkat Prestasi</label>
                       <select className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500">
                         <option value="">Pilih Tingkat</option>
-                        <option value="Nasional">Nasional</option>
-                        <option value="Provinsi">Provinsi</option>
-                        <option value="Kabupaten/Kota">Kabupaten/Kota</option>
-                        <option value="Sekolah">Sekolah</option>
+                        <option value="nasional">Nasional</option>
+                        <option value="provinsi">Provinsi</option>
+                        <option value="kabupaten">Kabupaten/Kota</option>
+                        <option value="sekolah">Sekolah</option>
                       </select>
                     </div>
+
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">Tanggal Prestasi</label>
@@ -241,12 +251,18 @@ const SiswaBerprestiPage: React.FC = () => {
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">Bulan Pengumuman</label>
-                        <input type="text" placeholder="Desember 2024" className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500" />
+                        <input type="month" className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500" />
                       </div>
                     </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Upload Sertifikat</label>
+                      <input type="file" accept=".pdf,.jpg,.jpeg,.png" className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500" />
+                    </div>
+
                     <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
                       <button type="button" onClick={handleCloseModal} className="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 font-medium transition">Batal</button>
-                      <button type="submit" className="px-6 py-2 bg-yellow-500 hover:bg-yellow-600 text-white rounded-lg font-medium transition">Simpan</button>
+                      <button type="submit" className="px-6 py-2 bg-yellow-500 hover:bg-yellow-600 text-white rounded-lg font-medium transition">Simpan Prestasi</button>
                     </div>
                   </form>
                 </div>
@@ -265,7 +281,7 @@ const SiswaBerprestiPage: React.FC = () => {
               <div className={`bg-white rounded-2xl shadow-2xl w-full max-h-[90vh] overflow-y-auto ${openModal === 'detail' ? 'max-w-2xl' : 'max-w-lg'}`} onClick={(e) => e.stopPropagation()}>
                 {openModal === 'detail' && selectedAchievement && (
                   <>
-                    <div className="bg-gradient-to-r from-yellow-500 to-yellow-600 text-white p-6 flex items-center justify-between rounded-t-2xl">
+                    <div className="bg-gradient-to-r from-yellow-500 to-orange-600 text-white p-6 flex items-center justify-between rounded-t-2xl">
                       <div>
                         <h2 className="text-2xl font-bold">Detail Prestasi</h2>
                         <p className="text-yellow-100 text-sm mt-1">{selectedAchievement.name}</p>
@@ -332,8 +348,8 @@ const SiswaBerprestiPage: React.FC = () => {
                         </div>
                       </div>
                       <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
-                        <button onClick={handleCloseModal} className="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 font-medium transition">Tutup</button>
-                        <button className="px-6 py-2 bg-yellow-500 hover:bg-yellow-600 text-white rounded-lg font-medium transition">Download Bukti</button>
+                        <button onClick={() => { setSelectedAchievement(selectedAchievement); setOpenModal('edit'); }} className="px-6 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg font-medium transition">Edit</button>
+                        <button onClick={handleCloseModal} className="px-6 py-2 bg-yellow-500 hover:bg-yellow-600 text-white rounded-lg font-medium transition">Tutup</button>
                       </div>
                     </div>
                   </>
@@ -341,7 +357,7 @@ const SiswaBerprestiPage: React.FC = () => {
 
                 {openModal === 'edit' && selectedAchievement && (
                   <>
-                    <div className="bg-gradient-to-r from-yellow-500 to-yellow-600 text-white p-6 flex items-center justify-between rounded-t-2xl">
+                    <div className="bg-gradient-to-r from-yellow-500 to-orange-600 text-white p-6 flex items-center justify-between rounded-t-2xl">
                       <div>
                         <h2 className="text-2xl font-bold">Edit Data Prestasi</h2>
                         <p className="text-yellow-100 text-sm mt-1">Ubah data prestasi siswa</p>
@@ -350,24 +366,33 @@ const SiswaBerprestiPage: React.FC = () => {
                     </div>
                     <div className="p-6">
                       <form onSubmit={(e) => { e.preventDefault(); handleCloseModal() }} className="space-y-4">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">Nama Siswa</label>
-                          <input type="text" defaultValue={selectedAchievement.name} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500" />
-                        </div>
                         <div className="grid grid-cols-2 gap-4">
                           <div>
                             <label className="block text-sm font-medium text-gray-700 mb-2">NIS</label>
                             <input type="text" defaultValue={selectedAchievement.nis} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500" />
                           </div>
                           <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">Nama Siswa</label>
+                            <input type="text" defaultValue={selectedAchievement.name} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500" />
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
                             <label className="block text-sm font-medium text-gray-700 mb-2">Kelas</label>
                             <input type="text" defaultValue={selectedAchievement.class} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500" />
                           </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">Jurusan</label>
+                            <input type="text" defaultValue={selectedAchievement.major} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500" />
+                          </div>
                         </div>
+
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-2">Judul Prestasi</label>
                           <input type="text" defaultValue={selectedAchievement.achievementName} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500" />
                         </div>
+
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-2">Tingkat Prestasi</label>
                           <select defaultValue={selectedAchievement.level} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500">
@@ -377,6 +402,7 @@ const SiswaBerprestiPage: React.FC = () => {
                             <option value="Sekolah">Sekolah</option>
                           </select>
                         </div>
+
                         <div className="grid grid-cols-2 gap-4">
                           <div>
                             <label className="block text-sm font-medium text-gray-700 mb-2">Tanggal Prestasi</label>
@@ -384,9 +410,15 @@ const SiswaBerprestiPage: React.FC = () => {
                           </div>
                           <div>
                             <label className="block text-sm font-medium text-gray-700 mb-2">Bulan Pengumuman</label>
-                            <input type="text" defaultValue={selectedAchievement.announcementMonth} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500" />
+                            <input type="month" defaultValue={selectedAchievement.announcementMonth.slice(0, 7).replace(' ', '-').toLowerCase()} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500" />
                           </div>
                         </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">Upload Sertifikat</label>
+                          <input type="file" accept=".pdf,.jpg,.jpeg,.png" className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500" />
+                        </div>
+
                         <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
                           <button type="button" onClick={handleCloseModal} className="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 font-medium transition">Batal</button>
                           <button type="submit" className="px-6 py-2 bg-yellow-500 hover:bg-yellow-600 text-white rounded-lg font-medium transition">Update</button>

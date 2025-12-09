@@ -1,8 +1,22 @@
 'use client'
 
 import React, { useState } from 'react'
-import { BookOpen, CheckCircle, TrendingUp, Award, User, MessageSquare } from 'lucide-react'
+import { AlertTriangle, CheckCircle, TrendingUp, Award, User, MessageSquare, Search, Filter, X, Eye, Edit } from 'lucide-react'
 import SessionDetailModal from '../modals/SessionDetailModal'
+
+interface ProblemStudent {
+  id: number
+  nis: string
+  name: string
+  class: string
+  major: string
+  category: 'Akademik' | 'Perilaku' | 'Kesehatan' | 'Sosial'
+  problem: string
+  letterWarning: number
+  status: 'Dalam Pengawasan' | 'Butuh Bimbingan' | 'Mendapat SP'
+  lastUpdate: string
+  counselor: string
+}
 
 interface CounselingSession {
   id: number
@@ -13,24 +27,17 @@ interface CounselingSession {
   topic: string
   notes: string
   status: 'Selesai' | 'Terjadwal' | 'Dalam Proses'
+  studentId?: number
 }
 
-interface GuidanceProgress {
-  totalSessions: number
-  completedSessions: number
-  upcomingSessions: number
-  progressPercentage: number
-  currentFocus: string
-}
-
-const SessionStatusBadge: React.FC<{ status: string }> = ({ status }) => {
+const ProblemStatusBadge: React.FC<{ status: string }> = ({ status }) => {
   const statusConfig: Record<string, { bg: string; text: string; icon: React.ReactNode }> = {
-    'Selesai': { bg: 'bg-green-50', text: 'text-green-700', icon: <CheckCircle className="w-4 h-4" /> },
-    'Terjadwal': { bg: 'bg-blue-50', text: 'text-blue-700', icon: <BookOpen className="w-4 h-4" /> },
-    'Dalam Proses': { bg: 'bg-orange-50', text: 'text-orange-700', icon: <TrendingUp className="w-4 h-4" /> },
+    'Dalam Pengawasan': { bg: 'bg-yellow-50', text: 'text-yellow-700', icon: <Eye className="w-4 h-4" /> },
+    'Butuh Bimbingan': { bg: 'bg-orange-50', text: 'text-orange-700', icon: <AlertTriangle className="w-4 h-4" /> },
+    'Mendapat SP': { bg: 'bg-red-50', text: 'text-red-700', icon: <AlertTriangle className="w-4 h-4" /> },
   }
 
-  const config = statusConfig[status] || statusConfig['Selesai']
+  const config = statusConfig[status] || statusConfig['Dalam Pengawasan']
 
   return (
     <span className={`flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium ${config.bg} ${config.text}`}>
@@ -40,47 +47,77 @@ const SessionStatusBadge: React.FC<{ status: string }> = ({ status }) => {
   )
 }
 
-const SessionCard: React.FC<CounselingSession & { onOpen: (session: CounselingSession) => void }> = ({ 
+const CategoryBadge: React.FC<{ category: string }> = ({ category }) => {
+  const categoryConfig: Record<string, string> = {
+    'Akademik': 'bg-blue-100 text-blue-800',
+    'Perilaku': 'bg-red-100 text-red-800',
+    'Kesehatan': 'bg-green-100 text-green-800',
+    'Sosial': 'bg-purple-100 text-purple-800',
+  }
+
+  return (
+    <span className={`px-2 py-1 rounded text-xs font-semibold ${categoryConfig[category] || 'bg-gray-100 text-gray-800'}`}>
+      {category}
+    </span>
+  )
+}
+
+const StudentProblemCard: React.FC<ProblemStudent & { onOpenSession: () => void }> = ({ 
   id,
-  sessionNumber, 
-  counselor, 
-  date, 
-  title, 
-  topic, 
-  notes, 
+  nis,
+  name, 
+  class: className, 
+  major,
+  category,
+  problem, 
+  letterWarning, 
   status,
-  onOpen 
+  lastUpdate,
+  counselor,
+  onOpenSession 
 }) => (
-  <div 
-    onClick={() => onOpen({ id, sessionNumber, counselor, date, title, topic, notes, status })}
-    className="bg-white border border-gray-200 rounded-xl p-6 hover:shadow-lg transition-shadow cursor-pointer hover:border-purple-300"
-  >
+  <div className="bg-white border border-gray-200 rounded-xl p-6 hover:shadow-lg transition-shadow">
     <div className="flex items-start justify-between mb-4">
       <div>
-        <h4 className="font-bold text-gray-900">{sessionNumber}</h4>
-        <p className="text-sm text-gray-600">{date}</p>
+        <div className="flex items-center gap-2 mb-2">
+          <h4 className="font-bold text-lg text-gray-900">{name}</h4>
+          <CategoryBadge category={category} />
+        </div>
+        <p className="text-sm text-gray-600">NIS: {nis} | {className}</p>
       </div>
-      <SessionStatusBadge status={status} />
+      <ProblemStatusBadge status={status} />
     </div>
 
     <div className="space-y-3 mb-4 pb-4 border-b border-gray-200">
       <div>
-        <p className="text-xs text-gray-500 uppercase tracking-wide">Judul Sesi</p>
-        <p className="text-sm font-semibold text-gray-900">{title}</p>
+        <p className="text-xs text-gray-500 uppercase tracking-wide">Masalah</p>
+        <p className="text-sm font-semibold text-gray-900">{problem}</p>
       </div>
       <div>
-        <p className="text-xs text-gray-500 uppercase tracking-wide">Topik Utama</p>
-        <p className="text-sm text-gray-700">{topic}</p>
-      </div>
-      <div>
-        <p className="text-xs text-gray-500 uppercase tracking-wide">Konselor</p>
+        <p className="text-xs text-gray-500 uppercase tracking-wide">Konselor Pembimbing</p>
         <p className="text-sm text-gray-700">{counselor}</p>
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <p className="text-xs text-gray-500 uppercase tracking-wide">Surat Peringatan</p>
+          <p className="text-sm font-semibold text-gray-900">{letterWarning} SP</p>
+        </div>
+        <div>
+          <p className="text-xs text-gray-500 uppercase tracking-wide">Update Terakhir</p>
+          <p className="text-sm text-gray-700">{new Date(lastUpdate).toLocaleDateString('id-ID')}</p>
+        </div>
       </div>
     </div>
 
-    <div>
-      <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Catatan Sesi</p>
-      <p className="text-sm text-gray-700 line-clamp-3">{notes}</p>
+    <div className="flex gap-2">
+      <button onClick={onOpenSession} className="flex-1 flex items-center justify-center gap-2 bg-blue-50 hover:bg-blue-100 text-blue-600 py-2 rounded-lg font-medium text-sm transition-colors">
+        <Eye className="w-4 h-4" />
+        Lihat Detail
+      </button>
+      <button className="flex-1 flex items-center justify-center gap-2 bg-purple-50 hover:bg-purple-100 text-purple-600 py-2 rounded-lg font-medium text-sm transition-colors">
+        <MessageSquare className="w-4 h-4" />
+        Chat
+      </button>
     </div>
   </div>
 )
@@ -103,78 +140,153 @@ const StatCard: React.FC<{ icon: React.ReactNode; label: string; value: number |
 )
 
 const StatusBimbinganPage: React.FC = () => {
-  const [expandedSession, setExpandedSession] = useState<number | null>(null)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [filterStatus, setFilterStatus] = useState<'Semua' | 'Dalam Pengawasan' | 'Butuh Bimbingan' | 'Mendapat SP'>('Semua')
   const [isModalOpen, setIsModalOpen] = useState(false)
+  const [selectedStudent, setSelectedStudent] = useState<ProblemStudent | null>(null)
   const [selectedSession, setSelectedSession] = useState<CounselingSession | null>(null)
 
-  // Sample data
-  const progress: GuidanceProgress = {
-    totalSessions: 10,
-    completedSessions: 7,
-    upcomingSessions: 2,
-    progressPercentage: 70,
-    currentFocus: 'Manajemen Stress dan Waktu',
-  }
-
-  const sessions: CounselingSession[] = [
+  // Sample data - Problem Students
+  const problemStudents: ProblemStudent[] = [
     {
       id: 1,
-      sessionNumber: 'Sesi 7',
+      nis: '2023001',
+      name: 'Ahmad Fauzi',
+      class: 'XII IPA 1',
+      major: 'IPA',
+      category: 'Perilaku',
+      problem: 'Sering berkelahi dengan teman sejawat',
+      letterWarning: 2,
+      status: 'Mendapat SP',
+      lastUpdate: '2024-12-01',
       counselor: 'Bu Sarah Wijaya',
-      date: '28 Januari 2025',
-      title: 'Teknik Pomodoro untuk Fokus Belajar',
-      topic: 'Manajemen Waktu',
-      notes:
-        'Menunjukkan bahwa siswa sudah mulai menerapkan teknik Pomodoro dalam belajar. Terdapat peningkatan fokus belajar yang signifikan. Lanjutkan kebiasaan ini dan evaluasi hasilnya setelah 2 minggu.',
+    },
+    {
+      id: 2,
+      nis: '2023045',
+      name: 'Budi Santoso',
+      class: 'X MIPA 3',
+      major: 'MIPA',
+      category: 'Akademik',
+      problem: 'Nilai akademik menurun signifikan',
+      letterWarning: 0,
+      status: 'Butuh Bimbingan',
+      lastUpdate: '2024-11-28',
+      counselor: 'Bapak Hendra Saputra',
+    },
+    {
+      id: 3,
+      nis: '2023102',
+      name: 'Dewi Lestari',
+      class: 'XII IPS 1',
+      major: 'IPS',
+      category: 'Kesehatan',
+      problem: 'Gangguan kesehatan mental (depresi ringan)',
+      letterWarning: 0,
+      status: 'Dalam Pengawasan',
+      lastUpdate: '2024-11-25',
+      counselor: 'Bu Ratih Kusuma',
+    },
+    {
+      id: 4,
+      nis: '2023067',
+      name: 'Maya Putri',
+      class: 'X IPS 2',
+      major: 'IPS',
+      category: 'Sosial',
+      problem: 'Pergaulan dengan kelompok yang kurang sehat',
+      letterWarning: 1,
+      status: 'Dalam Pengawasan',
+      lastUpdate: '2024-11-30',
+      counselor: 'Bu Sarah Wijaya',
+    },
+    {
+      id: 5,
+      nis: '2023089',
+      name: 'Rian Wijaya',
+      class: 'XI MIPA 2',
+      major: 'MIPA',
+      category: 'Perilaku',
+      problem: 'Sering merokok di lingkungan sekolah',
+      letterWarning: 1,
+      status: 'Mendapat SP',
+      lastUpdate: '2024-12-01',
+      counselor: 'Bapak Hendra Saputra',
+    },
+  ]
+
+  // Sample counseling sessions for selected student
+  const counselingSessions: CounselingSession[] = [
+    {
+      id: 1,
+      sessionNumber: 'Sesi 1',
+      counselor: 'Bu Sarah Wijaya',
+      date: '15 Januari 2025',
+      title: 'Assessment Awal',
+      topic: 'Identifikasi Masalah Perilaku',
+      notes: 'Siswa mengakui seringnya berkelahi dikarenakan emosi yang tidak terkontrol. Perlu training manajemen emosi.',
       status: 'Selesai',
     },
     {
       id: 2,
-      sessionNumber: 'Sesi 6',
+      sessionNumber: 'Sesi 2',
       counselor: 'Bu Sarah Wijaya',
-      date: '21 Januari 2025',
-      title: 'Identifikasi Penyebab Prokrastinasi',
-      topic: 'Manajemen Waktu',
-      notes:
-        'Menemukan bahwa siswa sering terdestrasi oleh media sosial. Sudah mulai membuat jadwal harian dan mingguan. Target harian: mengurangi waktu media sosial hingga 30 menit.',
+      date: '22 Januari 2025',
+      title: 'Manajemen Emosi',
+      topic: 'Teknik Kontrol Kemarahan',
+      notes: 'Diajarkan teknik breathing dan self-talk positif. Siswa mulai menunjukkan pemahaman.',
       status: 'Selesai',
     },
     {
       id: 3,
-      sessionNumber: 'Sesi 5',
+      sessionNumber: 'Sesi 3',
       counselor: 'Bu Sarah Wijaya',
-      date: '15 Januari 2025',
-      title: 'Assessment Awal',
-      topic: 'Manajemen Stress',
-      notes:
-        'Siswa mengalami kecemasan menjelang ujian dan merasa stress dengan beban tugas yang banyak. Dibutuhkan strategi coping yang lebih efektif. Akan dilanjutkan dengan sesi tentang teknik relaksasi.',
+      date: '29 Januari 2025',
+      title: 'Follow-up & Monitoring',
+      topic: 'Evaluasi Penerapan Teknik',
+      notes: 'Ada progres, tapi masih perlu dipantau ketat. Orang tua sudah dilibatkan dalam pembinaan.',
       status: 'Selesai',
     },
     {
       id: 4,
-      sessionNumber: 'Sesi 8',
+      sessionNumber: 'Sesi 4',
       counselor: 'Bu Sarah Wijaya',
-      date: '04 Februari 2025',
-      title: 'Evaluasi Progress & Goal Setting',
-      topic: 'Manajemen Stress dan Waktu',
-      notes:
-        'Progress yang baik terlihat dalam 3 minggu terakhir. Siswa berhasil menerapkan teknik yang diajarkan dan merasa lebih tenang. Akan mengatur goal baru untuk semester depan.',
+      date: '05 Februari 2025',
+      title: 'Pembinaan Lanjutan',
+      topic: 'Resolusi Konflik',
+      notes: 'Masih dalam fase pembinaan. Akan dilakukan monitoring lebih ketat bulan depan.',
       status: 'Terjadwal',
     },
   ]
+
+  const filteredStudents = problemStudents.filter((student) => {
+    const matchesSearch =
+      student.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      student.nis.includes(searchQuery) ||
+      student.class.toLowerCase().includes(searchQuery.toLowerCase())
+    const matchesStatus = filterStatus === 'Semua' || student.status === filterStatus
+    return matchesSearch && matchesStatus
+  })
+
+  const stats = {
+    total: problemStudents.length,
+    dalam_pengawasan: problemStudents.filter(s => s.status === 'Dalam Pengawasan').length,
+    butuh_bimbingan: problemStudents.filter(s => s.status === 'Butuh Bimbingan').length,
+    mendapat_sp: problemStudents.filter(s => s.status === 'Mendapat SP').length,
+  }
 
   return (
     <div className="space-y-6">
       <div className="bg-white rounded-xl border border-gray-200 p-6">
         {/* Header */}
-        <div className="bg-gradient-to-r from-purple-500 to-pink-500 rounded-2xl p-8 text-white">
+        <div className="bg-gradient-to-r from-red-500 to-orange-500 rounded-2xl p-8 text-white">
           <div className="flex items-center gap-4">
             <div className="w-16 h-16 bg-white/20 rounded-xl flex items-center justify-center">
-              <BookOpen className="w-8 h-8" />
+              <AlertTriangle className="w-8 h-8" />
             </div>
             <div>
-              <h2 className="text-3xl font-bold mb-2">Status Bimbingan</h2>
-              <p className="text-pink-50">Progres dan riwayat sesi bimbingan Anda dengan konselor BK</p>
+              <h2 className="text-3xl font-bold mb-2">Status Bimbingan Siswa</h2>
+              <p className="text-orange-50">Pantau status bimbingan dan perkembangan siswa yang memerlukan perhatian khusus</p>
             </div>
           </div>
         </div>
@@ -182,141 +294,141 @@ const StatusBimbinganPage: React.FC = () => {
         {/* Stats */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mt-6">
           <StatCard
-            icon={<BookOpen className="w-12 h-12" />}
-            label="Total Sesi"
-            value={progress.totalSessions}
-            color="bg-gradient-to-br from-blue-400 to-blue-600"
+            icon={<AlertTriangle className="w-12 h-12" />}
+            label="Total Siswa Bermasalah"
+            value={stats.total}
+            color="bg-gradient-to-br from-red-400 to-red-600"
           />
           <StatCard
-            icon={<CheckCircle className="w-12 h-12" />}
-            label="Selesai"
-            value={progress.completedSessions}
-            color="bg-gradient-to-br from-green-400 to-green-600"
+            icon={<Eye className="w-12 h-12" />}
+            label="Dalam Pengawasan"
+            value={stats.dalam_pengawasan}
+            color="bg-gradient-to-br from-yellow-400 to-yellow-600"
           />
           <StatCard
             icon={<TrendingUp className="w-12 h-12" />}
-            label="Akan Datang"
-            value={progress.upcomingSessions}
+            label="Butuh Bimbingan"
+            value={stats.butuh_bimbingan}
             color="bg-gradient-to-br from-orange-400 to-orange-600"
           />
           <StatCard
             icon={<Award className="w-12 h-12" />}
-            label="Progress"
-            value={`${progress.progressPercentage}%`}
-            color="bg-gradient-to-br from-purple-400 to-purple-600"
+            label="Mendapat SP"
+            value={stats.mendapat_sp}
+            color="bg-gradient-to-br from-pink-400 to-pink-600"
           />
         </div>
 
-        {/* Progress Summary - simplified (no nested white card) */}
+        {/* Filters & Search */}
         <section className="mt-6 bg-gray-50 rounded-xl p-6">
-          <h3 className="font-bold text-gray-900 text-lg mb-4">Ringkasan Progress Bimbingan</h3>
-          <div className="space-y-6">
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <div>
-                  <p className="text-sm font-semibold text-gray-900">Penyelesaian Sesi Bimbingan</p>
-                  <p className="text-xs text-gray-600 mt-1">
-                    Anda telah menyelesaikan {progress.completedSessions} dari {progress.totalSessions} sesi yang direncanakan
-                  </p>
-                </div>
-                <span className="text-2xl font-bold text-purple-600">{progress.progressPercentage}%</span>
-              </div>
-              <div className="w-full bg-gray-200 rounded-full h-4">
-                <div
-                  className="bg-gradient-to-r from-purple-400 to-purple-600 h-4 rounded-full transition-all duration-500"
-                  style={{ width: `${progress.progressPercentage}%` }}
-                ></div>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4 pt-4 border-t border-gray-200">
-              <div>
-                <p className="text-xs text-gray-600 mb-1">Fokus Utama Saat Ini</p>
-                <p className="text-sm font-semibold text-gray-900">{progress.currentFocus}</p>
-              </div>
-              <div>
-                <p className="text-xs text-gray-600 mb-1">Konselor Pembimbing</p>
-                <p className="text-sm font-semibold text-gray-900">Bu Sarah Wijaya</p>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* Current Status Box */}
-        <section className="mt-6">
-          <div className="bg-blue-50 border border-blue-200 rounded-xl p-6">
-            <div className="flex items-start gap-4">
-              <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                <User className="w-6 h-6 text-blue-600" />
-              </div>
-              <div>
-                <h4 className="font-semibold text-blue-900 mb-2">Status Bimbingan Anda</h4>
-                <p className="text-sm text-blue-800 mb-3">
-                  Anda sedang dalam program bimbingan fokus yang dimulai pada 15 Januari 2025. Konselor Anda adalah Bu Sarah Wijaya dan progres
-                  yang Anda tunjukkan sangat memuaskan.
-                </p>
-                <button className="flex items-center gap-2 text-blue-600 hover:text-blue-700 font-semibold text-sm transition-colors">
-                  <MessageSquare className="w-4 h-4" />
-                  Chat dengan Konselor
-                </button>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* Sessions */}
-        <section className="mt-6">
+          <h3 className="font-bold text-gray-900 text-lg mb-4">Pencarian & Filter</h3>
           <div className="space-y-4">
-            <h3 className="font-bold text-gray-900 text-lg">Riwayat Sesi Bimbingan</h3>
+            {/* Search */}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+              <input
+                type="text"
+                placeholder="Cari berdasarkan nama, NIS, atau kelas..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
+              />
+            </div>
+
+            {/* Status Filter */}
+            <div>
+              <p className="text-sm font-semibold text-gray-900 mb-2 flex items-center gap-2">
+                <Filter className="w-4 h-4" />
+                Filter Status
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {(['Semua', 'Dalam Pengawasan', 'Butuh Bimbingan', 'Mendapat SP'] as const).map((status) => (
+                  <button
+                    key={status}
+                    onClick={() => setFilterStatus(status)}
+                    className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors ${
+                      filterStatus === status
+                        ? 'bg-red-500 text-white'
+                        : 'bg-white border border-gray-300 text-gray-700 hover:border-red-300'
+                    }`}
+                  >
+                    {status}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Info */}
+            <p className="text-sm text-gray-600 pt-2">
+              Menampilkan <span className="font-semibold">{filteredStudents.length}</span> siswa dari <span className="font-semibold">{stats.total}</span> total siswa
+            </p>
+          </div>
+        </section>
+
+        {/* Student Cards */}
+        <section className="mt-6">
+          <h3 className="font-bold text-gray-900 text-lg mb-4">Daftar Siswa Bermasalah</h3>
+          {filteredStudents.length > 0 ? (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              {sessions.map((session) => (
-                <SessionCard
-                  key={session.id}
-                  {...session}
-                  onOpen={(s) => {
-                    setSelectedSession(s)
+              {filteredStudents.map((student) => (
+                <StudentProblemCard
+                  key={student.id}
+                  {...student}
+                  onOpenSession={() => {
+                    setSelectedStudent(student)
+                    setSelectedSession(counselingSessions[0])
                     setIsModalOpen(true)
                   }}
                 />
               ))}
             </div>
-          </div>
+          ) : (
+            <div className="bg-gray-50 rounded-xl p-8 text-center">
+              <AlertTriangle className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+              <p className="text-gray-600">Tidak ada siswa yang sesuai dengan filter pencarian</p>
+            </div>
+          )}
         </section>
 
-        {/* Recommendations */}
+        {/* Info Box */}
         <section className="mt-6">
-          <div className="bg-green-50 border border-green-200 rounded-xl p-6">
-            <h4 className="font-semibold text-green-900 mb-3">✨ Rekomendasi Konselor</h4>
-            <ul className="text-sm text-green-800 space-y-2">
-              <li>✓ Terus terapkan teknik manajemen waktu yang sudah diajarkan</li>
-              <li>✓ Catat perkembangan harian dalam jurnal untuk evaluasi lebih baik</li>
-              <li>✓ Jangan ragu untuk menghubungi konselor jika ada kendala</li>
-              <li>✓ Diskusikan pencapaian Anda dengan orang tua</li>
-              <li>✓ Rencanakan tujuan jangka panjang pada sesi berikutnya</li>
-            </ul>
+          <div className="bg-red-50 border border-red-200 rounded-xl p-6">
+            <div className="flex items-start gap-4">
+              <div className="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                <AlertTriangle className="w-6 h-6 text-red-600" />
+              </div>
+              <div>
+                <h4 className="font-semibold text-red-900 mb-2">Catatan Penting</h4>
+                <p className="text-sm text-red-800 mb-3">
+                  Pantau perkembangan siswa secara berkala dan lakukan intervensi sesuai dengan status dan kategori masalah yang dihadapi. Komunikasi dengan konselor dan orang tua sangat penting untuk keberhasilan pembinaan.
+                </p>
+                <button className="flex items-center gap-2 text-red-600 hover:text-red-700 font-semibold text-sm transition-colors">
+                  <MessageSquare className="w-4 h-4" />
+                  Hubungi Konselor
+                </button>
+              </div>
+            </div>
           </div>
         </section>
       </div>
 
-      {/* Session Detail Modal (grouped, render only when open) */}
-      {isModalOpen && (
+      {/* Session Detail Modal */}
+      {isModalOpen && selectedSession && (
         <>
           <div className="fixed inset-0 z-40 bg-black/20 backdrop-blur-sm" aria-hidden="true" />
-          {selectedSession && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-              <SessionDetailModal
-                isOpen={isModalOpen}
-                onClose={() => setIsModalOpen(false)}
-                sessionNumber={selectedSession.sessionNumber}
-                counselor={selectedSession.counselor}
-                date={selectedSession.date}
-                title={selectedSession.title}
-                topic={selectedSession.topic}
-                notes={selectedSession.notes}
-                status={selectedSession.status}
-              />
-            </div>
-          )}
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <SessionDetailModal
+              isOpen={isModalOpen}
+              onClose={() => setIsModalOpen(false)}
+              sessionNumber={selectedSession.sessionNumber}
+              counselor={selectedSession.counselor}
+              date={selectedSession.date}
+              title={selectedSession.title}
+              topic={selectedSession.topic}
+              notes={selectedSession.notes}
+              status={selectedSession.status}
+            />
+          </div>
         </>
       )}
     </div>

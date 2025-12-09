@@ -322,52 +322,70 @@ const SiswaBermasalahPage: React.FC = () => {
                 <div className="bg-gradient-to-r from-red-500 to-red-600 text-white p-6 flex items-center justify-between rounded-t-2xl">
                   <div>
                     <h2 className="text-2xl font-bold">Tambah Siswa Bermasalah</h2>
-                    <p className="text-red-100 text-sm mt-1">Catat siswa bermasalah baru</p>
+                    <p className="text-red-100 text-sm mt-1">Daftarkan siswa yang memerlukan pengawasan</p>
                   </div>
                   <button onClick={handleCloseModal} className="p-1 hover:bg-white hover:bg-opacity-20 rounded-lg transition-colors"><X size={24} /></button>
                 </div>
 
                 <div className="p-6">
-                  <form onSubmit={(e) => { e.preventDefault(); console.log('create student'); handleCloseModal(); }} className="space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Nama Siswa</label>
-                      <input name="name" type="text" placeholder="Masukkan nama siswa" className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500" />
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">NIS</label>
-                      <input name="nis" type="text" placeholder="Masukkan NIS" className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500" />
+                  <form onSubmit={(e) => { e.preventDefault(); console.log('Problem student added'); handleCloseModal(); }} className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">NIS</label>
+                        <input type="text" placeholder="Masukkan NIS" className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500" />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Nama Siswa</label>
+                        <input type="text" placeholder="Masukkan nama siswa" className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500" />
+                      </div>
                     </div>
 
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">Kelas</label>
-                        <input name="class" type="text" placeholder="Masukkan kelas" className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500" />
+                        <input type="text" placeholder="Masukkan kelas" className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500" />
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">Jurusan</label>
-                        <input name="major" type="text" placeholder="Masukkan jurusan" className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500" />
+                        <input type="text" placeholder="Masukkan jurusan" className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500" />
                       </div>
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Kategori</label>
-                      <select name="category" className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500">
-                        <option>Akademik</option>
-                        <option>Perilaku</option>
-                        <option>Kesehatan</option>
-                        <option>Sosial</option>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Kategori Masalah</label>
+                      <select className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500">
+                        <option value="">Pilih Kategori</option>
+                        <option value="akademik">Akademik</option>
+                        <option value="perilaku">Perilaku</option>
+                        <option value="kesehatan">Kesehatan</option>
+                        <option value="sosial">Sosial</option>
                       </select>
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Masalah</label>
-                      <textarea name="problem" placeholder="Deskripsi masalah" className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500" />
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Deskripsi Masalah</label>
+                      <textarea placeholder="Jelaskan masalah yang dihadapi..." rows={3} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500" />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
+                        <select className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500">
+                          <option value="">Pilih Status</option>
+                          <option value="dalam-pengawasan">Dalam Pengawasan</option>
+                          <option value="butuh-bimbingan">Butuh Bimbingan</option>
+                          <option value="mendapat-sp">Mendapat SP</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Jumlah SP</label>
+                        <input type="number" min="0" placeholder="0" className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500" />
+                      </div>
                     </div>
 
                     <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
                       <button type="button" onClick={handleCloseModal} className="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 font-medium transition">Batal</button>
-                      <button type="submit" className="px-6 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg font-medium transition">Simpan</button>
+                      <button type="submit" className="px-6 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition">Tambah Siswa</button>
                     </div>
                   </form>
                 </div>
@@ -427,8 +445,8 @@ const SiswaBermasalahPage: React.FC = () => {
                     </div>
 
                     <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
-                      <button onClick={() => { setSelectedStudent(selectedStudent); setOpenModal('edit'); }} className="px-6 py-2 bg-gray-100 rounded-lg">Edit</button>
-                      <button onClick={handleCloseModal} className="px-6 py-2 bg-red-500 text-white rounded-lg">Tutup</button>
+                      <button onClick={() => { setSelectedStudent(selectedStudent); setOpenModal('edit'); }} className="px-6 py-2 bg-gray-100 rounded-lg hover:bg-gray-200 font-medium transition">Edit</button>
+                      <button onClick={handleCloseModal} className="px-6 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg font-medium transition">Tutup</button>
                     </div>
                   </div>
                 )}
@@ -436,46 +454,64 @@ const SiswaBermasalahPage: React.FC = () => {
                 {/* Edit form */}
                 {openModal === 'edit' && (
                   <div className="p-6">
-                    <form onSubmit={(e) => { e.preventDefault(); console.log('update student'); handleCloseModal(); }} className="space-y-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Nama Siswa</label>
-                        <input name="name" defaultValue={selectedStudent.name} type="text" className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500" />
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">NIS</label>
-                        <input name="nis" defaultValue={selectedStudent.nis} type="text" className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500" />
+                    <form onSubmit={(e) => { e.preventDefault(); console.log('Problem student updated'); handleCloseModal(); }} className="space-y-4">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">NIS</label>
+                          <input defaultValue={selectedStudent.nis} type="text" className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500" />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">Nama Siswa</label>
+                          <input defaultValue={selectedStudent.name} type="text" className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500" />
+                        </div>
                       </div>
 
                       <div className="grid grid-cols-2 gap-4">
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-2">Kelas</label>
-                          <input name="class" defaultValue={selectedStudent.class} type="text" className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500" />
+                          <input defaultValue={selectedStudent.class} type="text" className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500" />
                         </div>
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-2">Jurusan</label>
-                          <input name="major" defaultValue={selectedStudent.major} type="text" className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500" />
+                          <input defaultValue={selectedStudent.major} type="text" className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500" />
                         </div>
                       </div>
 
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Kategori</label>
-                        <select name="category" defaultValue={selectedStudent.category} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500">
-                          <option>Akademik</option>
-                          <option>Perilaku</option>
-                          <option>Kesehatan</option>
-                          <option>Sosial</option>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Kategori Masalah</label>
+                        <select defaultValue={selectedStudent.category} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500">
+                          <option value="">Pilih Kategori</option>
+                          <option value="akademik">Akademik</option>
+                          <option value="perilaku">Perilaku</option>
+                          <option value="kesehatan">Kesehatan</option>
+                          <option value="sosial">Sosial</option>
                         </select>
                       </div>
 
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Masalah</label>
-                        <textarea name="problem" defaultValue={selectedStudent.problem} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500" />
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Deskripsi Masalah</label>
+                        <textarea defaultValue={selectedStudent.problem} rows={3} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500" />
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
+                          <select defaultValue={selectedStudent.status} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500">
+                            <option value="">Pilih Status</option>
+                            <option value="dalam-pengawasan">Dalam Pengawasan</option>
+                            <option value="butuh-bimbingan">Butuh Bimbingan</option>
+                            <option value="mendapat-sp">Mendapat SP</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">Jumlah SP</label>
+                          <input defaultValue={selectedStudent.letterWarning} type="number" min="0" className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500" />
+                        </div>
                       </div>
 
                       <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
                         <button type="button" onClick={handleCloseModal} className="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 font-medium transition">Batal</button>
-                        <button type="submit" className="px-6 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg font-medium transition">Simpan</button>
+                        <button type="submit" className="px-6 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition">Simpan Perubahan</button>
                       </div>
                     </form>
                   </div>

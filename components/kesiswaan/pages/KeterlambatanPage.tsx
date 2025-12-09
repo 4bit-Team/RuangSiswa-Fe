@@ -294,14 +294,26 @@ const KeterlambatanPage: React.FC = () => {
 
                 <div className="p-6">
                   <form onSubmit={(e) => { e.preventDefault(); handleCloseModal(); }} className="space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Nama Siswa</label>
-                      <input type="text" placeholder="Masukkan nama siswa" className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500" />
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">NIS</label>
+                        <input type="text" placeholder="Masukkan NIS" className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500" />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Nama Siswa</label>
+                        <input type="text" placeholder="Masukkan nama siswa" className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500" />
+                      </div>
                     </div>
 
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">NIS</label>
-                      <input type="text" placeholder="Masukkan NIS" className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500" />
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Kelas</label>
+                        <input type="text" placeholder="Masukkan kelas" className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500" />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Jurusan</label>
+                        <input type="text" placeholder="Masukkan jurusan" className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500" />
+                      </div>
                     </div>
 
                     <div className="grid grid-cols-2 gap-4">
@@ -313,6 +325,20 @@ const KeterlambatanPage: React.FC = () => {
                         <label className="block text-sm font-medium text-gray-700 mb-2">Waktu</label>
                         <input type="time" className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500" />
                       </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Alasan</label>
+                      <input type="text" placeholder="Masukkan alasan keterlambatan" className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500" />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
+                      <select className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500">
+                        <option value="">Pilih Status</option>
+                        <option value="tercatat">Tercatat</option>
+                        <option value="termaafkan">Termaafkan</option>
+                      </select>
                     </div>
 
                     <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
@@ -430,14 +456,53 @@ const KeterlambatanPage: React.FC = () => {
 
                     <div className="p-6">
                       <form onSubmit={(e) => { e.preventDefault(); handleCloseModal(); }} className="space-y-4">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">Nama Siswa</label>
-                          <input type="text" defaultValue={selectedTardiness.name} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500" />
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">NIS</label>
+                            <input type="text" defaultValue={selectedTardiness.nis} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500" />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">Nama Siswa</label>
+                            <input type="text" defaultValue={selectedTardiness.name} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500" />
+                          </div>
                         </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">NIS</label>
-                          <input type="text" defaultValue={selectedTardiness.nis} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500" />
+
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">Kelas</label>
+                            <input type="text" defaultValue={selectedTardiness.class} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500" />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">Jurusan</label>
+                            <input type="text" defaultValue={selectedTardiness.major} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500" />
+                          </div>
                         </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">Tanggal</label>
+                            <input type="date" defaultValue={selectedTardiness.date} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500" />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">Waktu</label>
+                            <input type="time" defaultValue={selectedTardiness.time} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500" />
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">Alasan</label>
+                          <input type="text" defaultValue={selectedTardiness.reason} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500" />
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
+                          <select defaultValue={selectedTardiness.status === 'Tercatat' ? 'tercatat' : 'termaafkan'} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500">
+                            <option value="">Pilih Status</option>
+                            <option value="tercatat">Tercatat</option>
+                            <option value="termaafkan">Termaafkan</option>
+                          </select>
+                        </div>
+
                         <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
                           <button type="button" onClick={handleCloseModal} className="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 font-medium transition">Batal</button>
                           <button type="submit" className="px-6 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg font-medium transition">Update</button>
