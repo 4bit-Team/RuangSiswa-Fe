@@ -91,101 +91,123 @@ const StudentCardView: React.FC<StudentCardViewProps> = ({ userId }) => {
 
   return (
     <div className="flex flex-col items-center w-full py-8">
-      <div className="mb-4 w-full max-w-md">
-        <label className="block text-sm font-medium text-gray-700 mb-1">Pilih Kelas</label>
-        <select
-          className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400"
-          value={selectedKelas}
-          onChange={e => setSelectedKelas(e.target.value)}
-        >
-          {kelasOptions.map(kelas => (
-            <option key={kelas} value={kelas}>{kelasLabel(kelas)}</option>
-          ))}
-        </select>
+      <div className="mb-8 w-full max-w-md">
+        <label className="block text-sm font-medium text-gray-700 mb-2">Pilih Kelas</label>
+        <div className="relative">
+          <select
+            className="w-full border border-gray-200 rounded-lg px-4 py-3 bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition appearance-none"
+            value={selectedKelas}
+            onChange={e => setSelectedKelas(e.target.value)}
+          >
+            {kelasOptions.map(kelas => (
+              <option key={kelas} value={kelas}>{kelasLabel(kelas)}</option>
+            ))}
+          </select>
+          <svg className="pointer-events-none absolute right-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden>
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </div>
       </div>
       
-      {/* Student Card */}
-      <div 
-        className="w-full max-w-4xl rounded-lg overflow-hidden shadow-2xl relative"
-        style={{
-          backgroundImage: 'url(/frame.png)',
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
-          aspectRatio: '16 / 9',
-        }}
-      >
-        {/* Header Section with Logo and Text */}
-        <div className="absolute top-3 left-0 right-0 bg-blue-600 px-6 pt-2 pb-4 flex gap-3 justify-center items-start z-20" style={{ backgroundColor: '#3F52DC' }}>
-          {/* Logo */}
-          <div className="flex-shrink-0 mt-1">
-            <img src="/logo.svg" alt="SMKN 1 Cibinong" className="w-16 h-16" />
-          </div>
-
-          {/* Header Text */}
-          <div className="text-center text-white text-sm font-medium leading-tight max-w-2xl">
-            <div>PEMERINTAH DAERAH PROVINSI JAWA BARAT</div>
-            <div>DINAS PENDIDIKAN</div>
-            <div>CABANG DINAS PENDIDIKAN WILAYAH 1</div>
-            <div className="font-bold">SEKOLAH MENENGAH KEJURUAN NEGERI 1 CIBINONG</div>
-            <div className="text-xs font-normal mt-1">
-              Jl. Karadenan No.7 Cibinong Bogor 16193 • (0251) 866 3846 Fax. (0251) 866 5558
+      {/* Student Card - Responsive Container */}
+      <div className="w-full max-w-3xl px-4 sm:px-6">
+        <div 
+          className="w-full rounded-lg overflow-hidden shadow-2xl relative"
+          style={{
+            backgroundImage: 'url(/frame.png)',
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+            aspectRatio: '16 / 9',
+          }}
+        >
+          {/* Header Section with Logo and Text */}
+          <div className="absolute top-2 sm:top-3 md:top-4 left-0 right-0 px-1.5 sm:px-3 md:px-4 pt-0.5 sm:pt-1 pb-1 sm:pb-2 md:pb-3 flex gap-2 sm:gap-3 md:gap-4 justify-start items-start z-30">
+            {/* Logo */}
+            <div className="flex-shrink-0 mt-0.5">
+              <img src="/logo.svg" alt="SMKN 1 Cibinong" className="w-24 h-24 sm:w-28 sm:h-28 md:w-36 md:h-36" />
             </div>
-            <div className="text-xs font-normal">
-              Email: admin@smkn1cibinong.sch.id • Website: www.smkn1cibinong.sch.id
-            </div>
-          </div>
-        </div>
 
-        {/* Title centered at top */}
-        <div className="absolute top-40 left-0 right-0 flex justify-center z-10">
-          <h2 
-            className="font-bold text-lg"
-            style={{
-              color: '#FDF05C',
-              textShadow: '-1.5px -1.5px 0 #222222, 1.5px -1.5px 0 #222222, -1.5px 1.5px 0 #222222, 1.5px 1.5px 0 #222222, -1px 0 0 #222222, 1px 0 0 #222222, 0 -1px 0 #222222, 0 1px 0 #222222'
-            }}
-          >
-            KARTU PELAJAR
-          </h2>
-        </div>
-
-        {/* Content layout */}
-        <div className="w-full h-full flex items-center p-8 pt-48">
-          {/* Left side - Data */}
-          <div className="flex-grow">
-            <div className="text-lg font-semibold text-black space-y-3">
-              <div className="flex">
-                <span className="w-24">NAMA</span>
-                <span className="mx-2">:</span>
-                <span className="flex-grow">{card?.nama || '-'}</span>
+            {/* Header Text */}
+            <div className="text-left text-white leading-tight flex-1">
+              <div className="text-[27px] sm:text-[32px] md:text-[42px] font-medium">
+                PEMERINTAH DAERAH PROVINSI JAWA BARAT
               </div>
-              <div className="flex">
-                <span className="w-24">NIS/NISN</span>
-                <span className="mx-2">:</span>
-                <span className="flex-grow">{card?.nis || '-'} / {card?.nisn || '-'}</span>
+              <div className="text-[27px] sm:text-[32px] md:text-[42px] font-medium">
+                DINAS PENDIDIKAN
               </div>
-              <div className="flex">
-                <span className="w-24">T.T.L</span>
-                <span className="mx-2">:</span>
-                <span className="flex-grow">{card?.ttl || '-'}</span>
+              <div className="text-[24px] sm:text-[28px] md:text-[36px] font-medium">
+                CABANG DINAS PENDIDIKAN WILAYAH 1
               </div>
-              <div className="flex">
-                <span className="w-24">L / P</span>
-                <span className="mx-2">:</span>
-                <span className="flex-grow">{genderLabel(card?.gender || '')}</span>
+              <div className="text-[24px] sm:text-[28px] md:text-[36px] font-bold">
+                SEKOLAH MENENGAH KEJURUAN NEGERI 1 CIBINONG
               </div>
-              <div className="flex">
-                <span className="w-24">KELAS</span>
-                <span className="mx-2">:</span>
-                <span className="flex-grow">{card?.kelas || '-'}</span>
+              <div className="text-[21px] sm:text-[25px] md:text-[32px] font-normal mt-0">
+                Jl. Karadenan No.7 Cibinong Bogor 16193
+              </div>
+              <div className="text-[21px] sm:text-[25px] md:text-[32px] font-normal">
+                Email: admin@smkn1cibinong.sch.id • Website: www.smkn1cibinong.sch.id
               </div>
             </div>
           </div>
 
-          {/* Right side - Photo Frame */}
-          <div className="flex-shrink-0 ml-8">
-            <div className="w-48 h-56 border-4 border-black bg-gray-300 flex items-center justify-center">
-              <span className="text-gray-600 text-sm">Foto</span>
+          {/* Title centered at lower position */}
+          <div className="absolute top-[60%] left-0 right-0 flex justify-center z-10">
+            <h2 
+              className="font-bold"
+              style={{
+                fontSize: 'clamp(30px, 7.5vw, 54px)',
+                color: '#FDF05C',
+                textShadow: '-1px -1px 0 #222222, 1px -1px 0 #222222, -1px 1px 0 #222222, 1px 1px 0 #222222, -0.5px 0 0 #222222, 0.5px 0 0 #222222, 0 -0.5px 0 #222222, 0 0.5px 0 #222222'
+              }}
+            >
+              KARTU PELAJAR
+            </h2>
+          </div>
+
+          {/* Content layout */}
+          <div className="w-full h-full flex items-end px-1.5 sm:px-3 md:px-6 pb-6 sm:pb-8 md:pb-12">
+            {/* Left side - Data */}
+            <div className="flex-grow">
+              <div className="text-black space-y-1.5 sm:space-y-3 md:space-y-4">
+                <div className="flex flex-wrap gap-0.5 sm:gap-1" style={{ fontSize: 'clamp(24px, 5.4vw, 42px)' }}>
+                  <span className="font-semibold w-36 sm:w-60 flex-shrink-0">NAMA</span>
+                  <span className="hidden sm:inline mx-0.5 sm:mx-1">:</span>
+                  <span className="flex-grow break-words">{card?.nama || '-'}</span>
+                </div>
+                <div className="flex flex-wrap gap-0.5 sm:gap-1" style={{ fontSize: 'clamp(24px, 5.4vw, 42px)' }}>
+                  <span className="font-semibold w-36 sm:w-60 flex-shrink-0">NIS/NISN</span>
+                  <span className="hidden sm:inline mx-0.5 sm:mx-1">:</span>
+                  <span className="flex-grow break-words">{card?.nis || '-'} / {card?.nisn || '-'}</span>
+                </div>
+                <div className="flex flex-wrap gap-0.5 sm:gap-1" style={{ fontSize: 'clamp(24px, 5.4vw, 42px)' }}>
+                  <span className="font-semibold w-36 sm:w-60 flex-shrink-0">T.T.L</span>
+                  <span className="hidden sm:inline mx-0.5 sm:mx-1">:</span>
+                  <span className="flex-grow break-words">{card?.ttl || '-'}</span>
+                </div>
+                <div className="flex flex-wrap gap-0.5 sm:gap-1" style={{ fontSize: 'clamp(24px, 5.4vw, 42px)' }}>
+                  <span className="font-semibold w-36 sm:w-60 flex-shrink-0">L / P</span>
+                  <span className="hidden sm:inline mx-0.5 sm:mx-1">:</span>
+                  <span className="flex-grow">{genderLabel(card?.gender || '')}</span>
+                </div>
+                <div className="flex flex-wrap gap-0.5 sm:gap-1" style={{ fontSize: 'clamp(24px, 5.4vw, 42px)' }}>
+                  <span className="font-semibold w-36 sm:w-60 flex-shrink-0">KELAS</span>
+                  <span className="hidden sm:inline mx-0.5 sm:mx-1">:</span>
+                  <span className="flex-grow">{card?.kelas || '-'}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Right side - Photo Frame */}
+            <div className="flex-shrink-0 ml-3 sm:ml-4 md:ml-6">
+              <div 
+                className="border-1.5 sm:border-2 md:border-3 border-black bg-gray-300 flex items-center justify-center"
+                style={{
+                  width: 'clamp(135px, 36vw, 360px)',
+                  height: 'clamp(180px, 48vw, 480px)',
+                }}
+              >
+                <span className="text-gray-600" style={{ fontSize: 'clamp(24px, 5.4vw, 42px)' }}>Foto</span>
+              </div>
             </div>
           </div>
         </div>

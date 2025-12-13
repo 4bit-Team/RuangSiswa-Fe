@@ -23,9 +23,39 @@ export interface NewsQueryParams {
 }
 
 /**
+ * Utility: Strip HTML tags from string
+ */
+export const stripHtmlTags = (html: string): string => {
+  if (!html) return '';
+  return html
+    .replace(/<[^>]*>/g, '') // Remove all HTML tags
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&')
+    .trim();
+};
+
+/**
+ * Utility: Truncate text to max length
+ */
+export const truncateText = (text: string, maxLength: number = 150): string => {
+  if (!text) return '';
+  if (text.length <= maxLength) return text;
+  return text.substring(0, maxLength) + '...';
+};
+
+/**
+ * Utility: Get clean preview text (strip HTML and truncate)
+ */
+export const getCleanPreview = (text: string, maxLength: number = 150): string => {
+  return truncateText(stripHtmlTags(text), maxLength);
+};
+
+/**
  * Transform API response to NewsItemProps format
  */
-const transformNewsData = (data: any): NewsItemProps => {
+const transformNewsData = (data: any): NewsItemProps & { summary?: string } => {
   try {
     // Ensure likes and comments are arrays
     const likes = Array.isArray(data.likes) ? data.likes : [];
@@ -37,6 +67,7 @@ const transformNewsData = (data: any): NewsItemProps => {
       id: data.id,
       title: data.title,
       description: data.content,
+      summary: data.summary, // Optional summary field
       author: data.author?.fullName || data.author?.username || 'Anonymous',
       date: data.publishedDate || data.createdAt || new Date(),
       category: categories[0] || 'Umum', // For backward compatibility

@@ -1,10 +1,12 @@
 "use client"
 
 import React, { useState, useEffect } from 'react'
-import { Users, Video, Calendar, Clock, Check, Loader, AlertCircle, CheckCircle } from 'lucide-react'
-import { apiRequest } from '@/lib/api'
+import { Heart, X, Calendar, AlertCircle, Star, QrCode } from 'lucide-react'
+import { apiRequest, submitFeedback, confirmAttendance } from '@/lib/api'
 import { useAuth } from '@/hooks/useAuth'
-import CounselorCardWithModal from './CounselorCardWithModal'
+import AppointmentScheduleModal from '../modals/AppointmentScheduleModal'
+import { FeedbackModal } from '@/components/FeedbackModal'
+import { QRScannerModal } from '@/components/QRScannerModal'
 
 interface Reservasi {
   id: number
@@ -14,126 +16,37 @@ interface Reservasi {
   preferredTime: string
   type: 'chat' | 'tatap-muka'
   topic: string
-  status: 'pending' | 'approved' | 'rejected' | 'completed' | 'cancelled'
+  status: 'pending' | 'approved' | 'rejected' | 'in_counseling' | 'completed' | 'cancelled'
+  qrCode?: string
+  attendanceConfirmed?: boolean
+  completedAt?: string
+  room?: string
 }
 
-interface Counselor {
-  id: number
-  fullName: string
-  specialty: string
-  available: boolean
+interface CancelConfirmState {
+  show: boolean
+  reservasiId: number | null
+  reason: string
 }
 
 const ReservasiPage: React.FC = () => {
   const { user, token } = useAuth()
-  const [selectedTab, setSelectedTab] = useState<'tatap-muka' | 'sesi-chat'>('tatap-muka')
   const [reservasiList, setReservasiList] = useState<Reservasi[]>([])
-  const [counselors, setCounselors] = useState<Counselor[]>([])
-  const [availableCounselorIds, setAvailableCounselorIds] = useState<number[]>([])
-
-  // Form state
-  const [selectedCounselorId, setSelectedCounselorId] = useState<number | null>(null)
-  const [selectedDate, setSelectedDate] = useState<string>('')
-  const [selectedTime, setSelectedTime] = useState<string>('')
-  const [topic, setTopic] = useState<string>('')
-  const [notes, setNotes] = useState<string>('')
+  const [cancelConfirm, setCancelConfirm] = useState<CancelConfirmState>({ show: false, reservasiId: null, reason: '' })
+  const [rescheduleModal, setRescheduleModal] = useState<{ show: boolean; reservasiId: number | null }>({ show: false, reservasiId: null })
+  const [feedbackModal, setFeedbackModal] = useState<{ show: boolean; reservasiId: number | null; counselorName: string }>({ show: false, reservasiId: null, counselorName: '' })
   const [loading, setLoading] = useState(false)
-  const [loadingCounselors, setLoadingCounselors] = useState(true)
-  const [successMessage, setSuccessMessage] = useState<string>('')
-  const [errorMessage, setErrorMessage] = useState<string>('')
+  const [feedbackLoading, setFeedbackLoading] = useState(false)
+  const [errorMessage, setErrorMessage] = useState('')
+  const [successMessage, setSuccessMessage] = useState('')
+  const [qrScannerOpen, setQrScannerOpen] = useState(false)
+  const [scanningForReservasi, setScanningForReservasi] = useState<number | null>(null)
 
   useEffect(() => {
     if (user && token) {
       fetchMyReservasi()
-      fetchCounselors()
     }
   }, [user, token])
-
-  // Filter counselors when date/time changes
-  useEffect(() => {
-    if (selectedDate && selectedTime) {
-      filterAvailableCounselors()
-    } else {
-      setAvailableCounselorIds([])
-    }
-  }, [selectedDate, selectedTime])
-
-  // Re-filter counselors when session type changes
-  useEffect(() => {
-    if (selectedDate && selectedTime) {
-      filterAvailableCounselors()
-    }
-  }, [selectedTab])
-
-  const fetchCounselors = async () => {
-    try {
-      setLoadingCounselors(true)
-      console.log('📥 Fetching BK counselors...')
-      const response = await apiRequest('/users', 'GET', undefined, token)
-      console.log('✅ All users response:', response)
-      
-      // Filter untuk role=bk
-      const allUsers = Array.isArray(response) ? response : [];
-      const bkUsers = allUsers.filter((user: any) => user.role === 'bk');
-      
-      console.log('🔍 BK users found:', bkUsers)
-      
-      const bkList = bkUsers.map((bk: any) => ({
-        id: bk.id,
-        fullName: bk.fullName || bk.name || bk.username || `BK ${bk.id}`,
-        specialty: bk.specialty || 'Konseling Umum',
-        available: true,
-      }))
-      
-      console.log('📋 Processed BK list:', bkList)
-      setCounselors(bkList)
-    } catch (error: any) {
-      console.error('❌ Error fetching counselors:', error)
-      setCounselors([])
-    } finally {
-      setLoadingCounselors(false)
-    }
-  }
-
-  const filterAvailableCounselors = async () => {
-    if (!selectedDate || !selectedTime || !token) return
-
-    try {
-      console.log('🔍 Filtering available counselors for', selectedDate, selectedTime, 'Type:', selectedTab)
-      
-      // Format date to YYYY-MM-DD
-      const formattedDate = new Date(selectedDate).toISOString().split('T')[0]
-      // Map tab to session type
-      const sessionType = selectedTab === 'tatap-muka' ? 'tatap-muka' : 'chat'
-      
-      console.log('📅 Formatted date:', formattedDate, '⏰ Time:', selectedTime, '🎯 Session Type:', sessionType)
-      
-      const response = await apiRequest(
-        `/bk-schedule/available/${sessionType}/${formattedDate}/${selectedTime}`,
-        'GET',
-        undefined,
-        token
-      )
-      
-      console.log('✅ Available BKs response:', response)
-      
-      // Handle different response formats
-      let availableIds = []
-      if (Array.isArray(response)) {
-        availableIds = response
-      } else if (response && response.availableBKIds && Array.isArray(response.availableBKIds)) {
-        availableIds = response.availableBKIds
-      } else if (response && Array.isArray(response)) {
-        availableIds = response
-      }
-      
-      console.log('✅ Available BK IDs:', availableIds)
-      setAvailableCounselorIds(availableIds)
-    } catch (error: any) {
-      console.error('❌ Error filtering counselors:', error)
-      setAvailableCounselorIds([])
-    }
-  }
 
   const fetchMyReservasi = async () => {
     try {
@@ -143,66 +56,76 @@ const ReservasiPage: React.FC = () => {
       setReservasiList(response || [])
     } catch (error: any) {
       console.error('❌ Error fetching reservasi:', error)
+      setErrorMessage('Gagal mengambil data reservasi')
     }
   }
 
-  const handleSubmitReservasi = async () => {
-    // Validation
-    if (!selectedCounselorId) {
-      setErrorMessage('Pilih konselor terlebih dahulu')
-      return
-    }
-    if (!selectedDate) {
-      setErrorMessage('Pilih tanggal terlebih dahulu')
-      return
-    }
-    if (!selectedTime) {
-      setErrorMessage('Pilih waktu terlebih dahulu')
-      return
-    }
-    if (!topic) {
-      setErrorMessage('Masukkan topik konseling')
-      return
-    }
+  const handleCancelReservasi = async () => {
+    if (!cancelConfirm.reservasiId || !token) return
 
     setLoading(true)
-    setErrorMessage('')
-    setSuccessMessage('')
-
     try {
-      const payload = {
-        studentId: user?.id,
-        counselorId: selectedCounselorId,
-        preferredDate: new Date(selectedDate).toISOString(),
-        preferredTime: selectedTime,
-        type: selectedTab === 'tatap-muka' ? 'tatap-muka' : 'chat',
-        topic,
-        notes,
-      }
-
-      console.log('📤 Submitting reservasi:', payload)
-      const response = await apiRequest('/reservasi', 'POST', payload, token)
-      console.log('✅ Reservasi created:', response)
-
-      setSuccessMessage('Reservasi berhasil dibuat! Menunggu konfirmasi dari konselor.')
-      
-      // Reset form
-      setSelectedCounselorId(null)
-      setSelectedDate('')
-      setSelectedTime('')
-      setTopic('')
-      setNotes('')
-
-      // Refresh list
-      await fetchMyReservasi()
-
-      // Clear success message after 3 seconds
-      setTimeout(() => setSuccessMessage(''), 3000)
+      await apiRequest(
+        `/reservasi/${cancelConfirm.reservasiId}/cancel`,
+        'PATCH',
+        { reason: cancelConfirm.reason || 'Dibatalkan oleh siswa' },
+        token
+      )
+      setSuccessMessage('Reservasi berhasil dibatalkan')
+      setCancelConfirm({ show: false, reservasiId: null, reason: '' })
+      fetchMyReservasi()
     } catch (error: any) {
-      console.error('❌ Error creating reservasi:', error)
-      setErrorMessage(error?.message || 'Gagal membuat reservasi')
+      setErrorMessage(error.message || 'Gagal membatalkan reservasi')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleRescheduleSubmit = async (formData: any) => {
+    if (!rescheduleModal.reservasiId || !token) return
+
+    setLoading(true)
+    try {
+      const rescheduleData: any = {
+        preferredDate: formData.date ? new Date(formData.date).toISOString() : undefined,
+        preferredTime: formData.time,
+        counselorId: formData.counselorId,
+      }
+
+      // Remove undefined fields
+      Object.keys(rescheduleData).forEach((key: string) => {
+        if (rescheduleData[key] === undefined) delete rescheduleData[key]
+      })
+
+      await apiRequest(
+        `/reservasi/${rescheduleModal.reservasiId}/reschedule`,
+        'PATCH',
+        rescheduleData,
+        token
+      )
+      setSuccessMessage('Reservasi berhasil dijadwalkan ulang')
+      setRescheduleModal({ show: false, reservasiId: null })
+      fetchMyReservasi()
+    } catch (error: any) {
+      setErrorMessage(error.message || 'Gagal menjadwalkan ulang reservasi')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleFeedbackSubmit = async (rating: number, comment: string) => {
+    if (!feedbackModal.reservasiId || !token) return
+
+    setFeedbackLoading(true)
+    try {
+      await submitFeedback(feedbackModal.reservasiId, rating, comment, token)
+      setSuccessMessage('Terima kasih! Penilaian Anda telah dikirim')
+      setFeedbackModal({ show: false, reservasiId: null, counselorName: '' })
+      fetchMyReservasi()
+    } catch (error: any) {
+      setErrorMessage(error.message || 'Gagal mengirim penilaian')
+    } finally {
+      setFeedbackLoading(false)
     }
   }
 
@@ -211,8 +134,9 @@ const ReservasiPage: React.FC = () => {
       pending: 'bg-yellow-100 text-yellow-800',
       approved: 'bg-green-100 text-green-800',
       rejected: 'bg-red-100 text-red-800',
-      completed: 'bg-blue-100 text-blue-800',
+      in_counseling: 'bg-blue-100 text-blue-800',
       cancelled: 'bg-gray-100 text-gray-800',
+      selesai: 'bg-purple-100 text-purple-800',
     }
     return colors[status] || 'bg-gray-100 text-gray-800'
   }
@@ -222,18 +146,63 @@ const ReservasiPage: React.FC = () => {
       pending: 'Menunggu',
       approved: 'Diterima',
       rejected: 'Ditolak',
-      completed: 'Selesai',
+      in_counseling: 'Sedang Berlangsung',
       cancelled: 'Dibatalkan',
+      selesai: 'Sesi Selesai',
     }
     return labels[status] || status
   }
 
-  const getAvailableTimes = () => {
-    return ['08:00', '09:00', '10:00', '11:00', '13:00', '14:00', '15:00', '16:00']
+  const canCancelOrReschedule = (status: string) => {
+    return ['pending', 'approved'].includes(status)
+  }
+
+  const handleScanQR = (id: number) => {
+    setScanningForReservasi(id)
+    setQrScannerOpen(true)
+  }
+
+  const handleQRScanned = async (qrData: string) => {
+    if (!scanningForReservasi || !token) return
+
+    try {
+      setLoading(true)
+      console.log('✅ QR Scanned, confirming attendance...')
+      await confirmAttendance(scanningForReservasi, qrData, token)
+      await fetchMyReservasi()
+      setSuccessMessage('Absensi berhasil dikonfirmasi!')
+      setQrScannerOpen(false)
+      setScanningForReservasi(null)
+    } catch (error: any) {
+      console.error('❌ Error confirming attendance:', error)
+      setErrorMessage('Error: ' + (error?.message || 'Gagal mengkonfirmasi absensi'))
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
-    <div className="pt-6 px-6 space-y-6">
+    <div className="pt-16 px-8 space-y-6">
+      {/* Error/Success Messages */}
+      {errorMessage && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-center gap-3">
+          <AlertCircle className="w-5 h-5 text-red-600" />
+          <p className="text-red-800">{errorMessage}</p>
+          <button onClick={() => setErrorMessage('')} className="ml-auto text-red-600 hover:text-red-700">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+      )}
+
+      {successMessage && (
+        <div className="bg-green-50 border border-green-200 rounded-lg p-4 flex items-center gap-3">
+          <p className="text-green-800">{successMessage}</p>
+          <button onClick={() => setSuccessMessage('')} className="ml-auto text-green-600 hover:text-green-700">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+      )}
+
       {/* Reservasi Saya */}
       <div className="bg-white rounded-xl border border-gray-200 p-6">
         <h3 className="font-bold text-gray-900 mb-2">Reservasi Saya</h3>
@@ -245,250 +214,174 @@ const ReservasiPage: React.FC = () => {
           </div>
         ) : (
           <div className="space-y-3">
-            {reservasiList.map((res) => (
-              <div key={res.id} className="bg-white rounded-lg p-4 border border-gray-200 flex items-center justify-between">
-                <div className="flex items-center gap-4 flex-1">
-                  <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                    {res.type === 'chat' ? <Video className="w-5 h-5 text-blue-600" /> : <Users className="w-5 h-5 text-blue-600" />}
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
-                      <h5 className="font-semibold text-gray-900">{res.counselorName}</h5>
-                      <span className={`px-2 py-0.5 rounded text-xs font-medium ${res.type === 'chat' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>
-                        {res.type === 'chat' ? 'Chat' : 'Tatap Muka'}
-                      </span>
+            {reservasiList.map((res: Reservasi) => (
+              <div key={res.id} className="bg-white rounded-lg p-4 border border-gray-200">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-4 flex-1">
+                    <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                      <Heart className="w-5 h-5 text-blue-600" />
                     </div>
-                    <p className="text-sm text-gray-600">{res.topic} • {new Date(res.preferredDate).toLocaleDateString('id-ID')} • {res.preferredTime}</p>
+                    <div className="flex-1">
+                      <h5 className="font-semibold text-gray-900">{res.topic}</h5>
+                      <p className="text-sm text-gray-600">
+                        {res.counselorName} • {new Date(res.preferredDate).toLocaleDateString('id-ID')} • {res.preferredTime}
+                      </p>
+                    </div>
                   </div>
-                </div>
-                <div className="flex items-center gap-3">
                   <span className={`text-xs px-3 py-1 rounded-full font-medium ${getStatusBadgeColor(res.status)}`}>
                     {getStatusLabel(res.status)}
                   </span>
                 </div>
+
+                {/* Action Buttons - Only for pending/approved */}
+                {canCancelOrReschedule(res.status) && (
+                  <div className="flex gap-2 pt-4 border-t border-gray-200">
+                    <button
+                      onClick={() => setRescheduleModal({ show: true, reservasiId: res.id })}
+                      className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 transition-colors text-sm font-medium"
+                      disabled={loading}
+                    >
+                      <Calendar className="w-4 h-4" />
+                      Jadwal Ulang
+                    </button>
+                    <button
+                      onClick={() => setCancelConfirm({ show: true, reservasiId: res.id, reason: '' })}
+                      className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-red-50 text-red-700 rounded-lg hover:bg-red-100 transition-colors text-sm font-medium"
+                      disabled={loading}
+                    >
+                      <X className="w-4 h-4" />
+                      Batalkan
+                    </button>
+                  </div>
+                )}
+
+                {/* QR Code Actions untuk approved sessions */}
+                {res.status === 'approved' && (
+                  <div className="flex gap-2 pt-4 border-t border-gray-200">
+                    {/* QR Code Display */}
+                    {res.qrCode && (
+                      <>
+                        {!res.attendanceConfirmed && (
+                          <button
+                            onClick={() => handleScanQR(res.id)}
+                            className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-green-50 text-green-700 rounded-lg hover:bg-green-100 transition-colors text-sm font-medium"
+                            disabled={loading}
+                          >
+                            <QrCode className="w-4 h-4" />
+                            Scan QR
+                          </button>
+                        )}
+
+                        {res.attendanceConfirmed && !res.completedAt && (
+                          <div className="flex-1 flex items-center justify-center px-3 py-2 bg-blue-100 text-blue-700 rounded-lg text-sm font-medium">
+                            ⏳ Sesi Berlangsung
+                          </div>
+                        )}
+
+                        {res.completedAt && (
+                          <div className="flex-1 flex items-center justify-center px-3 py-2 bg-green-100 text-green-700 rounded-lg text-sm font-medium">
+                            ✅ Sesi Selesai
+                          </div>
+                        )}
+                      </>
+                    )}
+
+                    {!res.qrCode && (
+                      <div className="flex-1 flex items-center justify-center px-3 py-2 bg-yellow-100 text-yellow-700 rounded-lg text-xs font-medium">
+                        ⏳ QR Code akan tersedia saat disetujui
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Feedback Button - Only for completed status */}
+                {res.status === 'completed' && (
+                  <div className="flex gap-2 pt-4 border-t border-gray-200">
+                    <button
+                      onClick={() => setFeedbackModal({ show: true, reservasiId: res.id, counselorName: res.counselorName })}
+                      className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-purple-50 text-purple-700 rounded-lg hover:bg-purple-100 transition-colors text-sm font-medium"
+                      disabled={feedbackLoading}
+                    >
+                      <Star className="w-4 h-4" />
+                      Berikan Penilaian
+                    </button>
+                  </div>
+                )}
               </div>
             ))}
           </div>
         )}
       </div>
 
-      {/* Form Buat Reservasi */}
-      <div className="bg-white rounded-xl border border-gray-200 p-6">
-        <h3 className="font-bold text-gray-900 mb-2">Buat Reservasi Baru</h3>
-        <p className="text-gray-600 mb-6">Buat reservasi untuk chat atau bertemu langsung dengan konselor</p>
-
-        {/* Alert Messages */}
-        {successMessage && (
-          <div className="mb-6 bg-green-50 border border-green-200 rounded-lg p-4 flex items-center gap-3">
-            <CheckCircle className="w-5 h-5 text-green-600" />
-            <p className="text-green-800">{successMessage}</p>
-          </div>
-        )}
-
-        {errorMessage && (
-          <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4 flex items-center gap-3">
-            <AlertCircle className="w-5 h-5 text-red-600" />
-            <p className="text-red-800">{errorMessage}</p>
-          </div>
-        )}
-
-        {/* Tipe Sesi */}
-        <div className="mb-6">
-          <h4 className="font-semibold text-gray-900 mb-3">Pilih Tipe Sesi</h4>
-          <div className="flex gap-3">
-            <button
-              onClick={() => setSelectedTab('tatap-muka')}
-              className={`flex-1 py-3 rounded-lg font-medium transition-colors duration-200 ${
-                selectedTab === 'tatap-muka' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}
-            >
-              Tatap Muka
-            </button>
-            <button
-              onClick={() => setSelectedTab('sesi-chat')}
-              className={`flex-1 py-3 rounded-lg font-medium transition-colors duration-200 ${
-                selectedTab === 'sesi-chat' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}
-            >
-              Sesi Chat
-            </button>
-          </div>
-        </div>
-
-        {/* Pilih Konselor */}
-        <div className="mb-6">
-          <h4 className="font-semibold text-gray-900 mb-3">Pilih Konselor</h4>
-          
-          {loadingCounselors ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader className="w-5 h-5 animate-spin text-blue-600 mr-2" />
-              <span className="text-gray-600">Memuat daftar konselor...</span>
+      {/* Cancel Confirmation Modal */}
+      {cancelConfirm.show && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-sm mx-4">
+            <h3 className="font-bold text-gray-900 mb-4">Batalkan Reservasi?</h3>
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">Alasan (opsional)</label>
+              <textarea
+                value={cancelConfirm.reason}
+                onChange={(e) => setCancelConfirm({ ...cancelConfirm, reason: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                placeholder="Jelaskan alasan pembatalan..."
+                rows={3}
+              />
             </div>
-          ) : counselors.length === 0 ? (
-            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-              <p className="text-yellow-800">Belum ada konselor yang tersedia</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {counselors.map((counselor) => {
-                const isAvailable = availableCounselorIds.includes(counselor.id)
-                const isSelected = selectedCounselorId === counselor.id
-                
-                return (
-                  <button
-                    key={counselor.id}
-                    onClick={() => {
-                      if (isAvailable || !selectedDate || !selectedTime) {
-                        setSelectedCounselorId(counselor.id)
-                      }
-                    }}
-                    disabled={!!(selectedDate && selectedTime && !isAvailable)}
-                    className={`p-4 rounded-lg border-2 transition-all ${
-                      isSelected
-                        ? 'border-blue-500 bg-blue-50'
-                        : 'border-gray-200 hover:border-blue-300'
-                    } ${selectedDate && selectedTime && !isAvailable ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
-                  >
-                    <div className="flex items-center justify-center mb-2">
-                      <div className={`w-12 h-12 rounded-full flex items-center justify-center text-white font-bold ${isAvailable || !selectedDate || !selectedTime ? 'bg-blue-500' : 'bg-gray-400'}`}>
-                        {counselor.fullName.charAt(0)}
-                      </div>
-                    </div>
-                    <p className="font-semibold text-gray-900 text-sm">{counselor.fullName}</p>
-                    <p className="text-xs text-gray-600 mb-2">{counselor.specialty}</p>
-                    {selectedDate && selectedTime ? (
-                      <span className={`text-xs font-medium ${isAvailable ? 'text-green-600' : 'text-red-600'}`}>
-                        {isAvailable ? '✓ Tersedia' : '✗ Tidak Tersedia'}
-                      </span>
-                    ) : (
-                      <span className="text-xs text-gray-500">Pilih tanggal & waktu</span>
-                    )}
-                  </button>
-                )
-              })}
-            </div>
-          )}
-          
-          {selectedDate && selectedTime && availableCounselorIds.length === 0 && counselors.length > 0 && (
-            <div className="mt-4 bg-blue-50 border border-blue-200 rounded-lg p-3">
-              <p className="text-sm text-blue-800">
-                💡 <strong>Info:</strong> Tidak ada konselor yang tersedia pada tanggal dan waktu ini. Silakan pilih tanggal atau waktu lain.
-              </p>
-            </div>
-          )}
-        </div>
-
-        {/* Pilih Tanggal */}
-        <div className="mb-6">
-          <h4 className="font-semibold text-gray-900 mb-3">Pilih Tanggal</h4>
-          <input
-            type="date"
-            value={selectedDate}
-            onChange={(e) => setSelectedDate(e.target.value)}
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-        </div>
-
-        {/* Pilih Waktu */}
-        <div className="mb-6">
-          <h4 className="font-semibold text-gray-900 mb-3">Pilih Waktu</h4>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {getAvailableTimes().map((time) => (
+            <div className="flex gap-3">
               <button
-                key={time}
-                onClick={() => setSelectedTime(time)}
-                className={`py-2 rounded-lg border-2 transition-all font-medium ${
-                  selectedTime === time ? 'border-blue-500 bg-blue-50 text-blue-600' : 'border-gray-200 text-gray-700 hover:border-blue-300'
-                }`}
+                onClick={() => setCancelConfirm({ show: false, reservasiId: null, reason: '' })}
+                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 font-medium hover:bg-gray-50"
+                disabled={loading}
               >
-                {time}
+                Tidak
               </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Topik */}
-        <div className="mb-6">
-          <label className="block font-semibold text-gray-900 mb-2">Topik Konseling</label>
-          <select
-            value={topic}
-            onChange={(e) => setTopic(e.target.value)}
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="">-- Pilih Topik --</option>
-            <option value="akademik">Akademik</option>
-            <option value="karir">Karir</option>
-            <option value="sosial">Sosial & Pertemanan</option>
-            <option value="keluarga">Keluarga</option>
-            <option value="emosional">Emosional & Mental</option>
-            <option value="lainnya">Lainnya</option>
-          </select>
-        </div>
-
-        {/* Catatan */}
-        <div className="mb-6">
-          <label className="block font-semibold text-gray-900 mb-2">Catatan Tambahan (Opsional)</label>
-          <textarea
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            placeholder="Jelaskan hal yang ingin Anda konsultasikan..."
-            rows={4}
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-        </div>
-
-        {/* Summary */}
-        {(selectedCounselorId || selectedDate || selectedTime || topic) && (
-          <div className="bg-blue-50 rounded-xl p-4 mb-6">
-            <h4 className="font-semibold text-gray-900 mb-3">Ringkasan Reservasi</h4>
-            <div className="space-y-2 text-sm">
-              {selectedCounselorId && (
-                <div className="flex items-center gap-2">
-                  <Check className="w-4 h-4 text-blue-600" />
-                  <span className="text-gray-700">Konselor: {counselors.find(c => c.id === selectedCounselorId)?.fullName}</span>
-                </div>
-              )}
-              {selectedDate && (
-                <div className="flex items-center gap-2">
-                  <Check className="w-4 h-4 text-blue-600" />
-                  <span className="text-gray-700">Tanggal: {new Date(selectedDate).toLocaleDateString('id-ID')}</span>
-                </div>
-              )}
-              {selectedTime && (
-                <div className="flex items-center gap-2">
-                  <Check className="w-4 h-4 text-blue-600" />
-                  <span className="text-gray-700">Waktu: {selectedTime}</span>
-                </div>
-              )}
-              {topic && (
-                <div className="flex items-center gap-2">
-                  <Check className="w-4 h-4 text-blue-600" />
-                  <span className="text-gray-700">Topik: {topic}</span>
-                </div>
-              )}
+              <button
+                onClick={handleCancelReservasi}
+                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700"
+                disabled={loading}
+              >
+                {loading ? 'Membatalkan...' : 'Ya, Batalkan'}
+              </button>
             </div>
           </div>
-        )}
+        </div>
+      )}
 
-        {/* Submit Button */}
-        <button
-          onClick={handleSubmitReservasi}
-          disabled={loading || !selectedCounselorId || !selectedDate || !selectedTime || !topic}
-          className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white py-3 rounded-lg font-semibold transition-colors flex items-center justify-center gap-2"
-        >
-          {loading ? (
-            <>
-              <Loader className="w-5 h-5 animate-spin" />
-              Memproses...
-            </>
-          ) : (
-            <>
-              <Check className="w-5 h-5" />
-              Buat Reservasi
-            </>
-          )}
-        </button>
-      </div>
+      {/* Reschedule Modal */}
+      {rescheduleModal.show && rescheduleModal.reservasiId && (
+        <AppointmentScheduleModal
+          isOpen={rescheduleModal.show}
+          onClose={() => setRescheduleModal({ show: false, reservasiId: null })}
+          onConfirm={handleRescheduleSubmit}
+          isRescheduling={true}
+        />
+      )}
+
+      {/* Feedback Modal */}
+      {feedbackModal.show && feedbackModal.reservasiId && (
+        <FeedbackModal
+          isOpen={feedbackModal.show}
+          onClose={() => setFeedbackModal({ show: false, reservasiId: null, counselorName: '' })}
+          onSubmit={handleFeedbackSubmit}
+          isLoading={feedbackLoading}
+          counselorName={feedbackModal.counselorName}
+        />
+      )}
+
+      {/* QR Scanner Modal */}
+      <QRScannerModal
+        isOpen={qrScannerOpen}
+        onClose={() => {
+          setQrScannerOpen(false)
+          setScanningForReservasi(null)
+        }}
+        onSuccess={handleQRScanned}
+        onError={(error) => {
+          console.error('QR Scanner Error:', error)
+          setErrorMessage('Error scanning QR: ' + error)
+        }}
+      />
     </div>
   )
 }

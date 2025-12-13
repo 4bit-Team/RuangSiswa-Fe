@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Search, Plus, Eye, Edit, Trash2, User, Calendar, BookOpen, X, Loader, AlertCircle } from 'lucide-react';
-import NewsAPI from '@lib/newsAPI';
+import NewsAPI, { getCleanPreview } from '@lib/newsAPI';
 import { useAuth } from '@hooks/useAuth';
 import { formatTimeRelative } from '@lib/timeFormat';
 import NewsModal from '../modals/NewsModal';
@@ -49,7 +49,7 @@ const ArticleCard: React.FC<ArticleCardProps & { onEdit: () => void; onDelete: (
         </span>
       </div>
       <h4 className="font-semibold text-gray-900 mb-2">{title}</h4>
-      <p className="text-sm text-gray-600 mb-3 line-clamp-2">{summary}</p>
+      <p className="text-sm text-gray-600 mb-3 line-clamp-2">{getCleanPreview(summary, 150)}</p>
       <div className="flex items-center space-x-4 text-xs text-gray-500">
         <span className="flex items-center"><User size={12} className="mr-1" /> {author}</span>
         <span className="flex items-center"><Calendar size={12} className="mr-1" /> {formatTimeRelative(date)}</span>
@@ -112,13 +112,14 @@ const BeritaPage: React.FC = () => {
       const mapped = response.data.map((item: any) => ({
         id: item.id,
         title: item.title,
-        summary: item.description,
+        summary: item.summary,
         categories: item.categories || [],
         status: item.status,
         views: item.views,
         author: item.author,
         date: item.date,
         imageUrl: item.image,
+        content: item.description, // Keep description from transformNewsData
       }));
       
       setArticles(mapped);

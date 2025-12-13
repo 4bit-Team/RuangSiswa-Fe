@@ -19,10 +19,41 @@ const CKEditorComponent = dynamic(
           config={{
             toolbar: [
               'heading', '|',
-              'bold', 'italic', 'link', 'bulletedList', 'numberedList', 'blockQuote', '|',
+              'bold', 'italic', 'link', 'bulletList', 'numberedList', 'blockQuote', '|',
               'insertTable', '|',
               'undo', 'redo'
             ],
+            heading: {
+              options: [
+                { model: 'paragraph', title: 'Paragraph' },
+                { model: 'heading1', view: 'h1', title: 'Heading 1' },
+                { model: 'heading2', view: 'h2', title: 'Heading 2' },
+                { model: 'heading3', view: 'h3', title: 'Heading 3' },
+              ]
+            },
+            htmlSupport: {
+              allow: [
+                {
+                  name: 'iframe',
+                  attributes: {
+                    allow: true,
+                    allowfullscreen: true,
+                    frameborder: true,
+                    height: true,
+                    src: true,
+                    width: true,
+                    style: true,
+                  },
+                },
+              ],
+            },
+            htmlEmbed: {
+              showPreviews: true,
+            },
+            paste: {
+              preventDropFilesEditing: false,
+              allowPasteFromOtherSources: true,
+            },
           }}
         />
       )

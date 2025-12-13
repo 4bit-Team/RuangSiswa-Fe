@@ -1,11 +1,13 @@
 'use client'
 
 import React, { useState, useRef, useEffect } from 'react'
-import { Phone, Video, MoreVertical, Send, Search, Loader } from 'lucide-react'
+import { Send, Search, Phone, Video, MoreVertical, Smile, Paperclip, Loader, Mic, Square, Play } from 'lucide-react'
 import { ChatListItemProps, ChatBubbleProps } from '@types'
 import CallModal from '../modals/CallModal'
 import CallUI from '../../call/CallUI'
 import { apiRequest, API_URL } from '@lib/api'
+import { formatMessageTime, getMessageDateLabel, shouldShowDateSeparator } from '@lib/messageFormatting'
+import { handleEmojiClick, startRecording, stopRecording, sendVoiceMessage, cancelRecording, getInitialBgColor, formatRecordingTime, formatCallDuration } from '@lib/chatUtils'
 import { useAuth } from '@/hooks/useAuth'
 import { io, Socket } from 'socket.io-client'
 import {
@@ -23,7 +25,9 @@ import {
   onRemoteStream,
   onConnectionStateChange,
   onIceConnectionStateChange,
+  onNegotiationNeeded,
 } from '@lib/webrtc'
+import { startRTPMonitoring, stopRTPMonitoring } from '@lib/rtpDiagnostics'
 
 interface APIMessage {
   id: number
@@ -34,6 +38,10 @@ interface APIMessage {
   createdAt: string
   isEdited: boolean
   isDeleted: boolean
+  fileUrl?: string
+  fileName?: string
+  fileSize?: number
+  duration?: number
 }
 
 interface APIConversation {
@@ -44,15 +52,20 @@ interface APIConversation {
   messages?: APIMessage[]
   unreadCount?: number
   lastMessageAt: string
+  status?: 'active' | 'in_counseling' | 'completed'
 }
 
 interface Message {
   id: number
   sender: 'user' | 'counselor'
   content: string
-  timestamp: string
+  timestamp: string // Formatted time only (e.g., "16:24")
+  originalDate: string // ISO date string for date detection
   isEdited: boolean
   isDeleted: boolean
+  messageType?: 'text' | 'voice'
+  voiceUrl?: string
+  duration?: number
 }
 
 const ChatPage: React.FC = () => {
@@ -63,6 +76,12 @@ const ChatPage: React.FC = () => {
   const [messageInput, setMessageInput] = useState('')
   const [loading, setLoading] = useState(true)
   const [sendingMessage, setSendingMessage] = useState(false)
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false)
+  const [isRecording, setIsRecording] = useState(false)
+  const [recordingTime, setRecordingTime] = useState(0)
+  const [recordedChunks, setRecordedChunks] = useState<Blob[]>([])
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
+  const recordingIntervalRef = useRef<any>(null)
   const [callModalOpen, setCallModalOpen] = useState(false)
   const [callType, setCallType] = useState<'audio' | 'video' | null>(null)
   const [incomingCall, setIncomingCall] = useState<any>(null)
@@ -71,14 +90,20 @@ const ChatPage: React.FC = () => {
   const [callDuration, setCallDuration] = useState(0)
   const [isConnected, setIsConnected] = useState(false)
   const [hasRemoteStream, setHasRemoteStream] = useState(false)
+  const [localStream, setLocalStream] = useState<MediaStream | null>(null)
+  const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const socketRef = useRef<Socket | null>(null)
+  const callSocketRef = useRef<Socket | null>(null)
   const peerConnectionRef = useRef<RTCPeerConnection | null>(null)
   const localVideoRef = useRef<HTMLVideoElement>(null)
   const remoteVideoRef = useRef<HTMLVideoElement>(null)
+  const remoteAudioRef = useRef<HTMLAudioElement | null>(null)
   const localStreamRef = useRef<MediaStream | null>(null)
   const remoteStreamRef = useRef<MediaStream | null>(null)
   const callDurationIntervalRef = useRef<NodeJS.Timeout | null>(null)
+  const callIdRef = useRef<string | null>(null) // ✅ Track callId immediately when call starts (not from state which updates async)
+  const rtpMonitoringRef = useRef<boolean>(false) // ✅ Track if RTP monitoring is active
 
   // Auto-scroll to bottom
   useEffect(() => {
@@ -119,13 +144,25 @@ const ChatPage: React.FC = () => {
             return prev
           }
           
+          // Validate createdAt is a proper date string, not accidentally the duration value
+          let validCreatedAt = data.message.createdAt
+          // Accept both ISO format (with T) and backend format (with space)
+          if (!validCreatedAt || typeof validCreatedAt !== 'string' || (!validCreatedAt.includes('T') && !validCreatedAt.includes(' '))) {
+            console.warn('⚠️ Invalid createdAt from WebSocket:', validCreatedAt, 'for message:', data.message.id)
+            validCreatedAt = new Date().toISOString() // Fallback to current time
+          }
+          
           const newMessage: Message = {
             id: data.message.id,
             sender: data.message.sender.id === user?.id ? 'user' : 'counselor',
             content: data.message.isDeleted ? '[Pesan dihapus]' : data.message.content,
-            timestamp: formatMessageTime(data.message.createdAt),
+            timestamp: formatMessageTime(validCreatedAt),
+            originalDate: validCreatedAt,
             isEdited: data.message.isEdited,
             isDeleted: data.message.isDeleted,
+            messageType: (data.message.messageType as 'text' | 'voice') || 'text',
+            voiceUrl: data.message.fileUrl,
+            duration: data.message.duration,
           }
           
           return [...prev, newMessage]
@@ -135,42 +172,55 @@ const ChatPage: React.FC = () => {
         fetchConversations()
       })
 
-      socket.on('call-incoming', (data: any) => {
+      socketRef.current = socket
+
+      return () => {
+        socket.disconnect()
+      }
+    }
+  }, [user, token, authLoading])
+
+  // Initialize Call WebSocket connection (separate namespace)
+  useEffect(() => {
+    if (user && token && !authLoading) {
+      // Extract base URL from API_URL (remove /api suffix)
+      const baseUrl = API_URL.replace('/api', '')
+      const callSocket = io(`${baseUrl}/call`, {
+        auth: {
+          token: token,
+        },
+        reconnection: true,
+        reconnectionDelay: 1000,
+        reconnectionDelayMax: 5000,
+        reconnectionAttempts: 5,
+      })
+
+      callSocket.on('connect', () => {
+        console.log('✅ [ChatPage Call Socket] Connected to /call namespace')
+      })
+
+      callSocket.on('disconnect', () => {
+        console.log('❌ [ChatPage Call Socket] Disconnected from /call namespace')
+      })
+
+      // Receive incoming call notification
+      callSocket.on('call-incoming', (data: any) => {
         console.log('📞 [ChatPage] Incoming call received:', data)
         setIncomingCall(data)
         setIncomingCallModalOpen(true)
       })
 
       // Receive SDP offer from caller (receiver side)
-      socket.on('call-offer', async (data: any) => {
-        console.log('📞 [ChatPage] Call offer received:', data)
-        try {
-          if (peerConnectionRef.current && data.offer) {
-            // Set remote description (the offer from caller)
-            await handleRemoteOffer(peerConnectionRef.current, data.offer)
-            
-            // Apply any ICE candidates sent along
-            if (Array.isArray(data.iceCandidates)) {
-              for (const c of data.iceCandidates) {
-                try {
-                  await addIceCandidate(peerConnectionRef.current, c)
-                } catch (e) {
-                  console.warn('Failed to add remote ICE candidate', e)
-                }
-              }
-            }
-
-            // Merge offer into incomingCall so accept handler can access it
-            setIncomingCall((prev: any) => ({ ...(prev || {}), ...data }))
-            setIncomingCallModalOpen(true)
-          }
-        } catch (error) {
-          console.error('Error handling remote offer:', error)
-        }
+      callSocket.on('call-offer', async (data: any) => {
+        console.log('📞 [ChatPage] Call offer received (storing in incomingCall):', { callId: data.callId, hasOffer: !!data.offer })
+        // ✅ CRITICAL FIX: Don't try to set SDP here (peer connection not created yet)
+        // Just store the offer in incomingCall state
+        // The actual SDP handling happens in handleAcceptIncomingCall after peer connection is ready
+        setIncomingCall((prev: any) => ({ ...(prev || {}), ...data, offer: data.offer }))
       })
 
       // Receive SDP answer from receiver (caller side)
-      socket.on('call-answer', async (data: any) => {
+      callSocket.on('call-answer', async (data: any) => {
         console.log('📞 [ChatPage] Call answer received:', data)
         try {
           if (peerConnectionRef.current && data.answer) {
@@ -194,7 +244,7 @@ const ChatPage: React.FC = () => {
       })
 
       // Receive ICE candidate from other side
-      socket.on('ice-candidate', async (data: any) => {
+      callSocket.on('ice-candidate', async (data: any) => {
         console.log('📞 [ChatPage] ICE candidate received:', data)
         try {
           if (peerConnectionRef.current && data.candidate) {
@@ -205,7 +255,7 @@ const ChatPage: React.FC = () => {
         }
       })
 
-      socket.on('call-rejected', (data: any) => {
+      callSocket.on('call-rejected', (data: any) => {
         console.log('📞 [ChatPage] Call rejected:', data)
         alert('Panggilan ditolak')
         // cleanup UI
@@ -214,7 +264,7 @@ const ChatPage: React.FC = () => {
         setActiveCall(null)
       })
 
-      socket.on('call-ended', (data: any) => {
+      callSocket.on('call-ended', (data: any) => {
         console.log('📞 [ChatPage] Call ended:', data)
         alert('Panggilan berakhir')
         // cleanup
@@ -222,6 +272,76 @@ const ChatPage: React.FC = () => {
         if (peerConnectionRef.current) peerConnectionRef.current.close()
         setActiveCall(null)
         setCallDuration(0)
+      })
+
+      callSocketRef.current = callSocket
+
+      return () => {
+        callSocket.disconnect()
+      }
+    }
+  }, [user, token, authLoading])
+
+  // Initialize WebSocket connection (for messaging)
+  useEffect(() => {
+    if (user && token && !authLoading) {
+      // Extract base URL from API_URL (remove /api suffix)
+      const baseUrl = API_URL.replace('/api', '')
+      const socket = io(`${baseUrl}/chat`, {
+        auth: {
+          token: token,
+        },
+        reconnection: true,
+        reconnectionDelay: 1000,
+        reconnectionDelayMax: 5000,
+        reconnectionAttempts: 5,
+      })
+
+      socket.on('connect', () => {
+        console.log('✅ [ChatPage] WebSocket connected')
+      })
+
+      socket.on('disconnect', () => {
+        console.log('❌ [ChatPage] WebSocket disconnected')
+      })
+
+      socket.on('message-received', (data: any) => {
+        console.log('📨 [ChatPage] Message received via WebSocket:', data)
+        
+        setMessages((prev: Message[]) => {
+          // Check if message already exists to prevent duplicates
+          const messageExists = prev.some((msg) => msg.id === data.message.id)
+          if (messageExists) {
+            console.log('⚠️ [ChatPage] Message already exists, skipping duplicate:', data.message.id)
+            return prev
+          }
+          
+          // Validate createdAt is a proper date string, not accidentally the duration value
+          let validCreatedAt = data.message.createdAt
+          // Accept both ISO format (with T) and backend format (with space)
+          if (!validCreatedAt || typeof validCreatedAt !== 'string' || (!validCreatedAt.includes('T') && !validCreatedAt.includes(' '))) {
+            console.warn('⚠️ Invalid createdAt from WebSocket:', validCreatedAt, 'for message:', data.message.id)
+            validCreatedAt = new Date().toISOString() // Fallback to current time
+          }
+          
+          const newMessage: Message = {
+            id: data.message.id,
+            sender: data.message.sender.id === user?.id ? 'user' : 'counselor',
+            content: data.message.isDeleted ? '[Pesan dihapus]' : data.message.content,
+            timestamp: formatMessageTime(validCreatedAt),
+            originalDate: validCreatedAt,
+            isEdited: data.message.isEdited,
+            isDeleted: data.message.isDeleted,
+            messageType: (data.message.messageType as 'text' | 'voice') || 'text',
+            voiceUrl: data.message.fileUrl,
+            duration: data.message.duration,
+          }
+          
+          return [...prev, newMessage]
+        })
+        
+        // Refresh conversation list to update last message (don't await)
+        fetchConversations()
       })
 
       socketRef.current = socket
@@ -267,10 +387,8 @@ const ChatPage: React.FC = () => {
       if (Array.isArray(response)) {
         setConversations(response)
         
-        // Set first conversation as active
-        if (response.length > 0 && !activeCounselorId) {
-          setActiveCounselorId(response[0].id)
-        }
+        // Don't auto-select first conversation anymore
+        // User must manually click to open a conversation
       } else {
         console.warn('❌ [Chat] Response is not an array:', response)
         setConversations([])
@@ -300,14 +418,28 @@ const ChatPage: React.FC = () => {
       if (response && response.messages) {
         const apiMessages = response.messages
         
-        const formattedMessages = apiMessages.map((msg: APIMessage) => ({
-          id: msg.id,
-          sender: msg.sender.id === user?.id ? 'user' : 'counselor',
-          content: msg.isDeleted ? '[Pesan dihapus]' : msg.content,
-          timestamp: formatMessageTime(msg.createdAt),
-          isEdited: msg.isEdited,
-          isDeleted: msg.isDeleted,
-        }))
+        const formattedMessages = apiMessages.map((msg: APIMessage) => {
+          // Validate createdAt is a proper date string, not accidentally the duration value
+          let validCreatedAt = msg.createdAt
+          // Accept both ISO format (with T) and backend format (with space)
+          if (!validCreatedAt || typeof validCreatedAt !== 'string' || (!validCreatedAt.includes('T') && !validCreatedAt.includes(' '))) {
+            console.warn('⚠️ Invalid createdAt value:', validCreatedAt, 'for message:', msg.id)
+            validCreatedAt = new Date().toISOString() // Fallback to current time
+          }
+          
+          return {
+            id: msg.id,
+            sender: msg.sender.id === user?.id ? 'user' : 'counselor',
+            content: msg.isDeleted ? '[Pesan dihapus]' : msg.content,
+            timestamp: formatMessageTime(validCreatedAt),
+            originalDate: validCreatedAt,
+            isEdited: msg.isEdited,
+            isDeleted: msg.isDeleted,
+            messageType: (msg.messageType as 'text' | 'voice') || 'text',
+            voiceUrl: msg.fileUrl,
+            duration: msg.duration,
+          }
+        })
         
         console.log('Formatted messages:', formattedMessages)
         setMessages(formattedMessages)
@@ -328,6 +460,12 @@ const ChatPage: React.FC = () => {
 
     const activeConversation = conversations.find((c: APIConversation) => c.id === activeCounselorId)
     if (!activeConversation) return
+
+    // Check if session is completed
+    if (activeConversation.status === 'completed') {
+      alert('Sesi telah selesai. Anda tidak dapat mengirim pesan.')
+      return
+    }
 
     setSendingMessage(true)
     const messageContent = messageInput
@@ -350,11 +488,20 @@ const ChatPage: React.FC = () => {
       console.log('Message sent response:', response)
 
       // Add user message locally
+      // Validate createdAt is a proper date string
+      let validCreatedAt = response.createdAt
+      // Accept both ISO format (with T) and backend format (with space)
+      if (!validCreatedAt || typeof validCreatedAt !== 'string' || (!validCreatedAt.includes('T') && !validCreatedAt.includes(' '))) {
+        console.warn('⚠️ Invalid createdAt from send response:', validCreatedAt)
+        validCreatedAt = new Date().toISOString() // Fallback to current time
+      }
+      
       const userMessage: Message = {
         id: response.id,
         sender: 'user',
         content: messageContent,
-        timestamp: formatMessageTime(response.createdAt),
+        timestamp: formatMessageTime(validCreatedAt),
+        originalDate: validCreatedAt,
         isEdited: false,
         isDeleted: false,
       }
@@ -388,20 +535,44 @@ const ChatPage: React.FC = () => {
     }
   }
 
-  const formatMessageTime = (dateString: string): string => {
-    const date = new Date(dateString)
-    return date.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
+  const emojis = ['😀', '😂', '😍', '🥰', '😘', '😭', '😤', '😡', '🤔', '😎', '👍', '👏', '🎉', '❤️', '💯', '🔥', '✨', '🌟', '⭐', '💪']
+
+  const handleEmojiInsert = (emoji: string) => {
+    handleEmojiClick(emoji, messageInput, setMessageInput, setShowEmojiPicker)
   }
 
-  const getInitialBgColor = (initial: string): string => {
-    const colors: Record<string, string> = {
-      S: 'bg-gradient-to-br from-blue-500 to-purple-600',
-      B: 'bg-gradient-to-br from-purple-500 to-purple-600',
-      R: 'bg-gradient-to-br from-green-500 to-green-600',
-      A: 'bg-gradient-to-br from-indigo-500 to-indigo-600',
-      C: 'bg-gradient-to-br from-rose-500 to-rose-600',
-    }
-    return colors[initial] || 'bg-gradient-to-br from-gray-500 to-gray-600'
+  const handleStartRecording = async () => {
+    await startRecording(
+      mediaRecorderRef,
+      recordingIntervalRef,
+      setIsRecording,
+      setRecordingTime,
+      setRecordedChunks
+    )
+  }
+
+  const handleStopRecording = () => {
+    stopRecording(mediaRecorderRef, recordingIntervalRef, setIsRecording)
+  }
+
+  const handleSendVoiceMessage = async () => {
+    await sendVoiceMessage(
+      recordedChunks,
+      recordingTime,
+      activeCounselorId,
+      token || '',
+      setSendingMessage,
+      setRecordedChunks,
+      setRecordingTime
+    )
+  }
+
+  const handleCancelRecording = () => {
+    cancelRecording(mediaRecorderRef, recordingIntervalRef, setIsRecording, setRecordedChunks, setRecordingTime)
+  }
+
+  const getAvatarBgColor = (initial: string): string => {
+    return getInitialBgColor(initial)
   }
 
   const getCounselorInitial = (conversation: APIConversation): string => {
@@ -442,33 +613,65 @@ const ChatPage: React.FC = () => {
       // Initialize peer connection
       peerConnectionRef.current = createPeerConnection()
 
-      // Handle ICE candidates
+      // ✅ CRITICAL: Use call socket namespace for ICE candidates, not chat socket
+      // Handle ICE candidates with detailed logging
       onIceCandidate(peerConnectionRef.current, (candidate) => {
         if (!candidate) {
-          console.log('ICE gathering complete for caller')
+          console.log('✅ [ChatPage ICE] ICE gathering complete for caller')
           return
         }
         
-        // Send ICE candidate with proper callId when available
+        // Build candidate object with callIdRef (tracked when call-initiate was sent)
         const candidateObj = {
-          callId: activeCall?.callId || null,
+          callId: callIdRef.current, // ✅ USE CALLID REF (will be set when call-initiate emitted)
           candidate: candidate.candidate, // Send just the candidate string
           sdpMLineIndex: candidate.sdpMLineIndex,
           sdpMid: candidate.sdpMid,
         }
         
-        console.log('[ChatPage] Sending ICE candidate:', candidateObj)
-        socketRef.current?.emit('ice-candidate', candidateObj)
+        // Validate candidate object
+        if (!candidateObj.candidate || candidateObj.callId === null) {
+          console.warn('⚠️ [ChatPage ICE] ICE candidate incomplete - missing candidate or callId', candidateObj)
+          return
+        }
+        
+        console.log('📤 [ChatPage ICE] Sending ICE candidate via /call socket:', {
+          callId: candidateObj.callId,
+          candidateType: candidateObj.candidate.includes('typ host') ? 'HOST' : 
+                        candidateObj.candidate.includes('typ srflx') ? 'SRFLX' : 'RELAY',
+          sdpMLineIndex: candidateObj.sdpMLineIndex,
+          sdpMid: candidateObj.sdpMid,
+          socketConnected: callSocketRef.current?.connected,
+        })
+        
+        // ✅ CRITICAL: Use callSocketRef (call namespace) not socketRef (chat namespace)
+        if (!callSocketRef.current?.connected) {
+          console.error('❌ [ChatPage ICE] Call socket not connected! Cannot send candidate')
+          return
+        }
+        
+        // Send via call socket with confirmation
+        callSocketRef.current?.emit('ice-candidate', candidateObj, (response: any) => {
+          if (response?.status === 'ice-candidate-sent') {
+            console.log(`✅ [ChatPage ICE] Backend confirmed ICE candidate sent`)
+          } else if (response?.status === 'error') {
+            console.error(`❌ [ChatPage ICE] Backend rejected candidate: ${response?.message}`)
+          } else {
+            console.log(`ℹ️ [ChatPage ICE] Backend response:`, response)
+          }
+        })
       })
 
       // Handle remote stream
       onRemoteStream(peerConnectionRef.current, (stream) => {
-        console.log('Remote stream received:', stream)
+        console.log('✅ Remote stream received in ChatPage (initiator), updating state:', {
+          videoTracks: stream.getVideoTracks().length,
+          audioTracks: stream.getAudioTracks().length,
+          streamId: stream.id,
+        })
         remoteStreamRef.current = stream
+        setRemoteStream(stream)  // ✅ Set state - CallUI effect will handle attachment
         setHasRemoteStream(true)
-        if (remoteVideoRef.current) {
-          remoteVideoRef.current.srcObject = stream
-        }
       })
 
       // Handle connection state with improved detection
@@ -477,10 +680,22 @@ const ChatPage: React.FC = () => {
         if (state === 'connected') {
           console.log('✅ Peer connection established')
           setIsConnected(true)
+          
+          // ✅ NEW: Start RTP monitoring to diagnose media flow
+          if (!rtpMonitoringRef.current) {
+            console.log('🚀 Starting RTP monitoring...')
+            startRTPMonitoring(peerConnectionRef.current!, 2000)
+            rtpMonitoringRef.current = true
+          }
         } else if (state === 'failed' || state === 'closed') {
           console.error('❌ Peer connection failed/closed:', state)
           setIsConnected(false)
           setHasRemoteStream(false)
+          // ✅ Stop RTP monitoring on disconnect
+          if (rtpMonitoringRef.current) {
+            stopRTPMonitoring()
+            rtpMonitoringRef.current = false
+          }
           handleHangup()
         } else if (state === 'disconnected') {
           console.warn('⚠️ Peer connection disconnected, but not calling hangup (ICE may reconnect)')
@@ -514,43 +729,88 @@ const ChatPage: React.FC = () => {
         console.log('📹 [ChatPage] Got local stream:', {
           videoTracks: (stream as MediaStream).getVideoTracks().length,
           audioTracks: (stream as MediaStream).getAudioTracks().length,
+          streamId: (stream as MediaStream).id,
         })
         
+        // ✅ CRITICAL: Store the EXACT same stream reference
+        // Don't create copies - WebRTC needs the original MediaStream object
         localStreamRef.current = stream
-        console.log('📹 [ChatPage] Stream stored in localStreamRef.current:', localStreamRef.current)
-        // ✅ Don't attach here - CallUI not mounted yet. Will attach via useEffect after activeCall is set
+        setLocalStream(stream)
+        console.log('📹 [ChatPage] Stream references set:', {
+          localStreamRefId: localStreamRef.current?.id,
+          localStreamStateId: localStream?.id,
+          areSame: localStreamRef.current === stream,
+        })
+        
+        // ✅ CRITICAL: Add local stream to peer connection BEFORE negotiation
+        // Use localStreamRef.current to ensure we keep the reference
+        console.log('✅ [ChatPage] Adding local stream to peer connection NOW (before activeCall set)')
+        addLocalStreamToPeerConnection(peerConnectionRef.current, localStreamRef.current as MediaStream)
+        
+        // ✅ CRITICAL: Verify stream is still alive after PC operations
+        console.log('📹 [ChatPage] Stream health check AFTER adding to PC:', {
+          streamId: localStreamRef.current?.id,
+          streamActive: localStreamRef.current?.active,
+          videoTracks: localStreamRef.current?.getVideoTracks().length,
+          audioTracks: localStreamRef.current?.getAudioTracks().length,
+          videoTrackStates: localStreamRef.current?.getVideoTracks().map(t => ({id: t.id, state: t.readyState, enabled: t.enabled})),
+          audioTrackStates: localStreamRef.current?.getAudioTracks().map(t => ({id: t.id, state: t.readyState, enabled: t.enabled}))
+        })
+        console.log('✅ [ChatPage] Local stream added to peer connection BEFORE offer creation')
 
-        // Add local stream to peer connection
-        addLocalStreamToPeerConnection(peerConnectionRef.current, stream)
+        // ✅ NEW: Handle negotiation needed events for proper SDP renegotiation
+        let initialOfferSent = false
+        if (peerConnectionRef.current) {
+          onNegotiationNeeded(peerConnectionRef.current, async () => {
+            if (!initialOfferSent) {
+              console.log('📋 [ChatPage] Initial negotiation needed')
+              return
+            }
+            // For subsequent negotiations (if track changes)
+            if (peerConnectionRef.current) {
+              const offer = await createOffer(peerConnectionRef.current)
+              callSocketRef.current?.emit('call-renegotiate', {
+                callId: activeCall?.callId,
+                offer: offer,
+              })
+            }
+          })
+        }
 
         // Create offer
         const offerSDP = await createOffer(peerConnectionRef.current)
         console.log('Offer SDP created:', offerSDP)
+        initialOfferSent = true
 
         // Emit call-initiate event via WebSocket WITH OFFER
-        socketRef.current.emit('call-initiate', {
-          callerId: user?.id,
-          receiverId: receiverId,
-          callType: callType,
-          conversationId: activeCounselorId,
-          offer: offerSDP, // ✅ Include offer immediately
-        }, async (response: any) => {
-          if (response?.status === 'initiated') {
-            const callId = response.callId
-            console.log(`📞 ${callType} call initiated successfully, callId:`, callId)
-            
-            setActiveCall({
-              callId,
-              receiverId,
-              callType,
-              conversationId: activeCounselorId,
-              isInitiator: true,
-              remoteUserName: activeConversation.receiver.fullName,
-            })
-          } else {
-            alert('Gagal memulai panggilan')
-          }
-        })
+        if (callSocketRef.current) {
+          callSocketRef.current.emit('call-initiate', {
+            callerId: user?.id,
+            receiverId: receiverId,
+            callType: callType,
+            conversationId: activeCounselorId,
+            offer: offerSDP, // ✅ Include offer immediately
+          }, async (response: any) => {
+            if (response?.status === 'initiated') {
+              const callId = response.callId
+              console.log(`📞 ${callType} call initiated successfully, callId:`, callId)
+              
+              // ✅ CRITICAL: Set callIdRef IMMEDIATELY so ICE candidates use it
+              callIdRef.current = callId
+              
+              setActiveCall({
+                callId,
+                receiverId,
+                callType,
+                conversationId: activeCounselorId,
+                isInitiator: true,
+                remoteUserName: activeConversation.receiver.fullName,
+              })
+            } else {
+              alert('Gagal memulai panggilan')
+            }
+          })
+        }
 
         handleCloseCall()
       } catch (error: any) {
@@ -574,7 +834,7 @@ const ChatPage: React.FC = () => {
 
     try {
       // Emit call-end event
-      socketRef.current?.emit('call-end', {
+      callSocketRef.current?.emit('call-end', {
         callId: activeCall.callId,
         duration: callDuration,
       })
@@ -603,10 +863,11 @@ const ChatPage: React.FC = () => {
       // Initialize peer connection
       peerConnectionRef.current = createPeerConnection()
 
-      // Handle ICE candidates
+      // ✅ CRITICAL: Use call socket namespace for ICE candidates, not chat socket
+      // Handle ICE candidates with detailed logging
       onIceCandidate(peerConnectionRef.current, (candidate) => {
         if (!candidate) {
-          console.log('ICE gathering complete for receiver')
+          console.log('✅ [ChatPage ICE Receiver] ICE gathering complete for receiver')
           return
         }
         
@@ -617,18 +878,49 @@ const ChatPage: React.FC = () => {
           sdpMid: candidate.sdpMid,
         }
         
-        console.log('[ChatPage] Sending ICE candidate (receiver):', candidateObj)
-        socketRef.current?.emit('ice-candidate', candidateObj)
+        // Validate candidate object
+        if (!candidateObj.candidate || !candidateObj.callId) {
+          console.warn('⚠️ [ChatPage ICE Receiver] ICE candidate incomplete - missing candidate or callId', candidateObj)
+          return
+        }
+        
+        console.log('📤 [ChatPage ICE Receiver] Sending ICE candidate via /call socket:', {
+          callId: candidateObj.callId,
+          candidateType: candidateObj.candidate.includes('typ host') ? 'HOST' : 
+                        candidateObj.candidate.includes('typ srflx') ? 'SRFLX' : 'RELAY',
+          sdpMLineIndex: candidateObj.sdpMLineIndex,
+          sdpMid: candidateObj.sdpMid,
+          socketConnected: callSocketRef.current?.connected,
+        })
+        
+        // ✅ CRITICAL: Use callSocketRef (call namespace) not socketRef (chat namespace)
+        if (!callSocketRef.current?.connected) {
+          console.error('❌ [ChatPage ICE Receiver] Call socket not connected! Cannot send candidate')
+          return
+        }
+        
+        // Send via call socket with confirmation
+        callSocketRef.current?.emit('ice-candidate', candidateObj, (response: any) => {
+          if (response?.status === 'ice-candidate-sent') {
+            console.log(`✅ [ChatPage ICE Receiver] Backend confirmed ICE candidate sent`)
+          } else if (response?.status === 'error') {
+            console.error(`❌ [ChatPage ICE Receiver] Backend rejected candidate: ${response?.message}`)
+          } else {
+            console.log(`ℹ️ [ChatPage ICE Receiver] Backend response:`, response)
+          }
+        })
       })
 
       // Handle remote stream
       onRemoteStream(peerConnectionRef.current, (stream) => {
-        console.log('Remote stream received:', stream)
+        console.log('✅ Remote stream received in ChatPage (receiver), updating state:', {
+          videoTracks: stream.getVideoTracks().length,
+          audioTracks: stream.getAudioTracks().length,
+          streamId: stream.id,
+        })
         remoteStreamRef.current = stream
+        setRemoteStream(stream)  // ✅ Set state - CallUI effect will handle attachment
         setHasRemoteStream(true)
-        if (remoteVideoRef.current) {
-          remoteVideoRef.current.srcObject = stream
-        }
       })
 
       // Handle connection state
@@ -637,10 +929,22 @@ const ChatPage: React.FC = () => {
         if (state === 'connected') {
           console.log('✅ Peer connection established')
           setIsConnected(true)
+          
+          // ✅ NEW: Start RTP monitoring to diagnose media flow
+          if (!rtpMonitoringRef.current) {
+            console.log('🚀 Starting RTP monitoring...')
+            startRTPMonitoring(peerConnectionRef.current!, 2000)
+            rtpMonitoringRef.current = true
+          }
         } else if (state === 'failed' || state === 'closed') {
           console.error('❌ Peer connection failed/closed:', state)
           setIsConnected(false)
           setHasRemoteStream(false)
+          // ✅ Stop RTP monitoring on disconnect
+          if (rtpMonitoringRef.current) {
+            stopRTPMonitoring()
+            rtpMonitoringRef.current = false
+          }
           handleHangup()
         } else if (state === 'disconnected') {
           console.warn('⚠️ Peer connection disconnected, but not calling hangup (ICE may reconnect)')
@@ -667,6 +971,19 @@ const ChatPage: React.FC = () => {
 
       // Get local media stream
       try {
+        // ✅ CRITICAL FIX: Handle remote offer FIRST before adding local tracks
+        // This is the correct WebRTC negotiation order
+        if (!incomingCall?.offer) {
+          console.error('❌ Tidak ada SDP offer pada incomingCall:', incomingCall)
+          alert('Panggilan tidak valid: offer SDP tidak ditemukan.')
+          return
+        }
+
+        console.log('📋 [ChatPage] Setting remote offer FIRST (before local tracks)')
+        await handleRemoteOffer(peerConnectionRef.current, incomingCall.offer)
+        console.log('✅ [ChatPage] Remote offer set')
+
+        // NOW get local stream
         const stream = incomingCall.callType === 'audio'
           ? await getLocalAudioStream()
           : await getLocalVideoStream()
@@ -677,41 +994,46 @@ const ChatPage: React.FC = () => {
         })
         
         localStreamRef.current = stream
-        console.log('📹 [ChatPage] Stream stored in localStreamRef.current (accept):', localStreamRef.current)
-        // ✅ Don't attach here - CallUI not mounted yet. Will attach via useEffect after activeCall is set
-
-        // Add local stream to peer connection
+        setLocalStream(stream)  // ✅ Set state so CallUI gets the stream
+        console.log('📹 [ChatPage] Local stream stored in state & ref')
+        
+        // ✅ Add local stream to peer connection AFTER remote offer is set
         addLocalStreamToPeerConnection(peerConnectionRef.current, stream)
+        console.log('✅ [ChatPage] Local stream added to peer connection')
+
+        // ✅ NEW: Handle negotiation needed events
+        onNegotiationNeeded(peerConnectionRef.current, async () => {
+          console.log('📋 [ChatPage] Negotiation needed on receiver side')
+          // Receiver side renegotiation - usually not needed for initial setup
+        })
 
         // Create answer from received offer
-
-        // Pastikan offer valid sebelum createAnswer
-        if (!incomingCall?.offer) {
-          console.error('❌ Tidak ada SDP offer pada incomingCall:', incomingCall)
-          alert('Panggilan tidak valid: offer SDP tidak ditemukan.')
-          return
-        }
         const answerSDP = await createAnswer(peerConnectionRef.current, incomingCall.offer)
         console.log('Answer SDP created:', answerSDP)
 
+        // ✅ CRITICAL: Set callIdRef IMMEDIATELY for ICE candidates
+        callIdRef.current = incomingCall.callId
+
         // Send answer via WebSocket
-        socketRef.current.emit('call-accept', {
-          callId: incomingCall.callId,
-          answer: answerSDP,
-        }, (response: any) => {
-          if (response?.status === 'accepted') {
-            console.log('✅ Call accepted successfully')
-            setActiveCall({
-              callId: incomingCall.callId,
-              callerId: incomingCall.callerId,
-              callType: incomingCall.callType,
-              isInitiator: false,
-              remoteUserName: incomingCall.callerName,
-            })
-          } else {
-            alert('Gagal menerima panggilan')
-          }
-        })
+        if (callSocketRef.current) {
+          callSocketRef.current.emit('call-accept', {
+            callId: incomingCall.callId,
+            answer: answerSDP,
+          }, (response: any) => {
+            if (response?.status === 'accepted') {
+              console.log('✅ Call accepted successfully')
+              setActiveCall({
+                callId: incomingCall.callId,
+                callerId: incomingCall.callerId,
+                callType: incomingCall.callType,
+                isInitiator: false,
+                remoteUserName: incomingCall.callerName,
+              })
+            } else {
+              alert('Gagal menerima panggilan')
+            }
+          })
+        }
 
         setIncomingCallModalOpen(false)
         setIncomingCall(null)
@@ -732,16 +1054,35 @@ const ChatPage: React.FC = () => {
     try {
       console.log('❌ Rejecting incoming call:', incomingCall.callId)
       
-      socketRef.current.emit('call-reject', {
-        callId: incomingCall.callId,
-        reason: 'User declined',
-      }, (response: any) => {
-        if (response?.status === 'rejected') {
-          console.log('✅ Call rejected successfully')
-        } else {
-          alert('Gagal menolak panggilan')
-        }
-      })
+      // ✅ CRITICAL: Stop camera/microphone BEFORE rejecting
+      if (localStreamRef.current) {
+        console.log('🛑 Stopping local media stream...')
+        stopMediaStream(localStreamRef.current)
+        localStreamRef.current = null
+        setLocalStream(null)
+        console.log('✅ Local media stream stopped')
+      }
+      
+      // Close peer connection if opened
+      if (peerConnectionRef.current) {
+        console.log('🔌 Closing peer connection...')
+        peerConnectionRef.current.close()
+        peerConnectionRef.current = null
+        console.log('✅ Peer connection closed')
+      }
+      
+      if (callSocketRef.current) {
+        callSocketRef.current.emit('call-reject', {
+          callId: incomingCall.callId,
+          reason: 'User declined',
+        }, (response: any) => {
+          if (response?.status === 'rejected') {
+            console.log('✅ Call rejected successfully')
+          } else {
+            alert('Gagal menolak panggilan')
+          }
+        })
+      }
 
       setIncomingCallModalOpen(false)
       setIncomingCall(null)
@@ -751,22 +1092,8 @@ const ChatPage: React.FC = () => {
     }
   }
 
-  // Attach local stream to video element AFTER CallUI is mounted
-  useEffect(() => {
-    if (activeCall && localStreamRef.current && localVideoRef.current) {
-      console.log('✅ [ChatPage] Attaching local stream to video element')
-      console.log('Stream:', localStreamRef.current)
-      console.log('Video ref:', localVideoRef.current)
-      localVideoRef.current.srcObject = localStreamRef.current
-      console.log('✅ [ChatPage] Stream attached! srcObject:', localVideoRef.current.srcObject)
-    } else {
-      console.log('⚠️ [ChatPage] Cannot attach stream:', {
-        activeCall: !!activeCall,
-        localStreamRef: !!localStreamRef.current,
-        localVideoRef: !!localVideoRef.current,
-      })
-    }
-  }, [activeCall, localStreamRef.current])
+  // Call UI handles all stream attachment now - no need to attach here
+  // Just ensure refs are passed correctly to CallUI
 
   // Manage call duration timer - only increment when connected
   useEffect(() => {
@@ -807,8 +1134,8 @@ const ChatPage: React.FC = () => {
   return (
     <div className="flex h-[calc(100vh-72px)]">
       {/* Chat List */}
-      <div className="w-96 border-r border-gray-200 bg-white">
-        <div className="p-4 border-b border-gray-200">
+      <div className="w-96 border-r border-gray-200 bg-white flex flex-col flex-shrink-0">
+        <div className="p-4 border-b border-gray-200 flex-shrink-0">
           <div className="relative">
             <input
               type="text"
@@ -818,7 +1145,7 @@ const ChatPage: React.FC = () => {
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
           </div>
         </div>
-        <div className="overflow-y-auto h-full">
+        <div className="overflow-y-auto flex-1 scrollbar-hide">
           {loading ? (
             <div className="flex items-center justify-center h-full">
               <Loader className="w-6 h-6 animate-spin text-blue-500" />
@@ -840,7 +1167,7 @@ const ChatPage: React.FC = () => {
                 >
                   <div className="flex gap-3">
                     <div className="relative">
-                      <div className={`w-12 h-12 ${getInitialBgColor(initial)} rounded-full flex items-center justify-center`}>
+                      <div className={`w-12 h-12 ${getAvatarBgColor(initial)} rounded-full flex items-center justify-center`}>
                         <span className="text-white font-semibold">{initial}</span>
                       </div>
                       <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-white" />
@@ -857,9 +1184,12 @@ const ChatPage: React.FC = () => {
                           <p className="text-sm text-gray-600 truncate">{message}</p>
                         </div>
                         {conversation.unreadCount && conversation.unreadCount > 0 && (
-                          <span className="bg-blue-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
-                            {conversation.unreadCount > 99 ? '99+' : conversation.unreadCount}
-                          </span>
+                          <div className="flex items-center gap-1">
+                            <span className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0"></span>
+                            <span className="bg-blue-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center flex-shrink-0">
+                              {conversation.unreadCount > 99 ? '99+' : conversation.unreadCount}
+                            </span>
+                          </div>
                         )}
                       </div>
                     </div>
@@ -879,75 +1209,99 @@ const ChatPage: React.FC = () => {
       <div className="flex-1 flex flex-col bg-white">
         {activeConversation ? (
           <>
-            <div className="p-4 border-b border-gray-200 flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <div className={`w-10 h-10 ${getInitialBgColor(activeCounselorInitial)} rounded-full flex items-center justify-center`}>
-                  <span className="text-white font-semibold">{activeCounselorInitial}</span>
+            <div className="p-3 border-b border-gray-200 flex items-center justify-between flex-shrink-0">
+              <div className="flex items-center gap-3">
+                <div className={`w-9 h-9 ${getAvatarBgColor(activeCounselorInitial)} rounded-full flex items-center justify-center`}>
+                  <span className="text-white font-semibold text-sm">{activeCounselorInitial}</span>
                 </div>
                 <div>
-                  <h4 className="font-medium text-gray-900">{activeCounselorName}</h4>
+                  <h4 className="font-medium text-gray-900 text-sm">{activeCounselorName}</h4>
                   <p className="text-xs text-green-500">Online</p>
                 </div>
               </div>
-              <div className="flex gap-4">
+              <div className="flex gap-2">
                 <button
                   onClick={handleVoiceCall}
                   className="text-gray-600 hover:text-gray-700 hover:bg-gray-100 transition-colors duration-200 p-2 rounded-lg"
                   title="Mulai panggilan suara"
                 >
-                  <Phone className="w-5 h-5" />
+                  <Phone className="w-4 h-4" />
                 </button>
                 <button
                   onClick={handleVideoCall}
                   className="text-gray-600 hover:text-gray-700 hover:bg-gray-100 transition-colors duration-200 p-2 rounded-lg"
                   title="Mulai video call"
                 >
-                  <Video className="w-5 h-5" />
+                  <Video className="w-4 h-4" />
                 </button>
                 <button className="text-gray-500 hover:text-gray-700 transition-colors duration-200 hover:bg-gray-100 p-2 rounded-lg">
-                  <MoreVertical className="w-5 h-5" />
+                  <MoreVertical className="w-4 h-4" />
                 </button>
               </div>
             </div>
 
-            <div className="flex-1 p-4 overflow-y-auto bg-gray-50">
-              <div className="max-w-3xl mx-auto">
-                {messages.length > 0 && (
-                  <div className="text-center mb-6">
-                    <span className="text-xs text-gray-500 bg-white px-3 py-1 rounded-full">
-                      Hari ini
-                    </span>
-                  </div>
-                )}
-
-                {messages.map((message: Message) => (
-                  <div key={message.id} className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
-                    <div
-                      className={`
-                        max-w-[70%] p-4 rounded-xl mb-4
-                        ${
-                          message.sender === 'user'
-                            ? 'bg-blue-500 text-white'
-                            : 'bg-gray-50 border border-gray-200'
-                        }
-                      `}
-                    >
-                      <p className="text-sm">{message.content}</p>
-                      <span
-                        className={`text-xs ${
-                          message.sender === 'user' ? 'text-blue-100' : 'text-gray-500'
-                        }`}
-                      >
-                        {message.timestamp}
-                      </span>
-                      {message.isEdited && (
-                        <span className={`text-xs ml-2 ${message.sender === 'user' ? 'text-blue-100' : 'text-gray-400'}`}>
-                          (disunting)
-                        </span>
+            <div className="flex-1 p-4 overflow-y-auto bg-gray-50 flex flex-col">
+              <div className="flex flex-col gap-2">
+                {messages.map((message: Message, index: number) => {
+                  const showDateSeparator = shouldShowDateSeparator(message, messages[index - 1])
+                  
+                  return (
+                    <div key={message.id} className="flex flex-col w-full">
+                      {showDateSeparator && (
+                        <div className="text-center mb-4 mt-2">
+                          <span className="text-xs text-gray-500 bg-white px-3 py-1 rounded-full">
+                            {getMessageDateLabel(message.originalDate)}
+                          </span>
+                        </div>
                       )}
+                      <div className={`flex w-full ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
+                        <div
+                          className={`
+                            px-4 py-3 rounded-xl mb-2
+                            ${
+                              message.sender === 'user'
+                                ? 'bg-blue-500 text-white'
+                                : 'bg-gray-200 text-gray-900'
+                            }
+                            break-words max-w-xs sm:max-w-md
+                          `}
+                        >
+                          {message.messageType === 'voice' ? (
+                            <div className="flex items-center gap-2">
+                              <audio
+                                src={message.voiceUrl}
+                                controls
+                                className="h-8 flex-1"
+                                onContextMenu={(e) => e.preventDefault()}
+                              />
+                              {message.duration && (
+                                <span className="text-xs whitespace-nowrap">
+                                  {Math.floor(message.duration / 60)}:{String(message.duration % 60).padStart(2, '0')}
+                                </span>
+                              )}
+                            </div>
+                          ) : (
+                            <>
+                              <p className="text-sm">{message.content}</p>
+                              {message.isEdited && (
+                                <span className={`text-xs ${message.sender === 'user' ? 'text-blue-100' : 'text-gray-500'}`}>
+                                  (disunting)
+                                </span>
+                              )}
+                            </>
+                          )}
+                          <span
+                            className={`text-xs block mt-1 ${
+                              message.sender === 'user' ? 'text-blue-100' : 'text-gray-600'
+                            }`}
+                          >
+                            {message.timestamp}
+                          </span>
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  )
+                })}
 
                 {messages.length === 0 && (
                   <div className="flex items-center justify-center h-full">
@@ -959,34 +1313,138 @@ const ChatPage: React.FC = () => {
               </div>
             </div>
 
-            <div className="p-4 border-t border-gray-200">
-              <div className="flex gap-4">
-                <input
-                  type="text"
-                  placeholder="Ketik pesan..."
-                  value={messageInput}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setMessageInput(e.target.value)}
-                  onKeyPress={(e: React.KeyboardEvent<HTMLInputElement>) => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                      e.preventDefault()
-                      handleSendMessage()
-                    }
-                  }}
-                  disabled={sendingMessage}
-                  className="flex-1 px-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
-                />
-                <button
-                  onClick={handleSendMessage}
-                  disabled={!messageInput.trim() || sendingMessage}
-                  className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:bg-gray-300 transition-colors"
-                >
-                  {sendingMessage ? (
-                    <Loader className="w-5 h-5 animate-spin" />
+            <div className="p-4 border-t border-gray-200 flex-shrink-0">
+              {activeConversation!.status === 'completed' ? (
+                <div className="p-3 bg-gray-100 text-gray-700 rounded-lg text-center text-sm font-medium">
+                  ✓ Sesi telah selesai. Riwayat pesan tersedia untuk dilihat.
+                </div>
+              ) : (
+                <div className="flex flex-col gap-2">
+                  {isRecording ? (
+                    <div className="flex gap-2 items-center justify-between bg-red-50 p-3 rounded-lg border border-red-200">
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>
+                        <span className="text-sm font-medium text-red-600">
+                          Merekam... {Math.floor(recordingTime / 60)}:{String(recordingTime % 60).padStart(2, '0')}
+                        </span>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={handleCancelRecording}
+                          className="px-3 py-1 text-sm bg-gray-300 hover:bg-gray-400 text-gray-700 rounded transition"
+                        >
+                          Batal
+                        </button>
+                        <button
+                          onClick={handleStopRecording}
+                          className="px-3 py-1 text-sm bg-red-500 hover:bg-red-600 text-white rounded transition flex items-center gap-1"
+                        >
+                          <Square className="w-3 h-3" />
+                          Selesai
+                        </button>
+                      </div>
+                    </div>
+                  ) : recordedChunks.length > 0 ? (
+                    <div className="flex flex-col gap-2 bg-blue-50 p-3 rounded-lg border border-blue-200">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium text-blue-600">
+                          Pesan suara siap dikirim ({Math.floor(recordingTime / 60)}:{String(recordingTime % 60).padStart(2, '0')})
+                        </span>
+                      </div>
+                      <div className="bg-white rounded p-2 border border-blue-200">
+                        <audio
+                          src={URL.createObjectURL(recordedChunks[0])}
+                          controls
+                          className="w-full h-8"
+                          onContextMenu={(e) => e.preventDefault()}
+                        />
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={handleCancelRecording}
+                          className="flex-1 px-3 py-2 text-sm bg-gray-300 hover:bg-gray-400 text-gray-700 rounded transition"
+                        >
+                          Hapus
+                        </button>
+                        <button
+                          onClick={handleSendVoiceMessage}
+                          disabled={sendingMessage}
+                          className="flex-1 px-3 py-2 text-sm bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 text-white rounded transition flex items-center justify-center gap-1"
+                        >
+                          {sendingMessage ? (
+                            <Loader className="w-3 h-3 animate-spin" />
+                          ) : (
+                            <Send className="w-3 h-3" />
+                          )}
+                          Kirim
+                        </button>
+                      </div>
+                    </div>
                   ) : (
-                    <Send className="w-5 h-5" />
+                    <div className="flex gap-2 items-end">
+                      <button
+                        onClick={handleStartRecording}
+                        disabled={sendingMessage}
+                        className="px-4 py-3 bg-red-500 hover:bg-red-600 disabled:bg-gray-300 text-white rounded-lg transition flex items-center gap-2"
+                      >
+                        <Mic className="w-4 h-4" />
+                      </button>
+
+                      <div className="flex-1 flex gap-2 items-end bg-gray-50 rounded-lg px-4 py-3 border border-gray-200 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-200">
+                        <input
+                          type="text"
+                          placeholder="Ketik pesan..."
+                          value={messageInput}
+                          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setMessageInput(e.target.value)}
+                          onKeyPress={(e: React.KeyboardEvent<HTMLInputElement>) => {
+                            if (e.key === 'Enter' && !e.shiftKey) {
+                              e.preventDefault()
+                              handleSendMessage()
+                            }
+                          }}
+                          disabled={sendingMessage || (activeConversation as APIConversation).status === 'completed'}
+                          className="flex-1 bg-transparent outline-none text-sm text-gray-900 placeholder-gray-400 disabled:text-gray-400"
+                        />
+                        <div className="relative group">
+                          <button
+                            onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                            className="text-gray-400 hover:text-gray-600 transition p-1"
+                          >
+                            <Smile className="w-5 h-5" />
+                          </button>
+                          {showEmojiPicker && (
+                            <div className="absolute bottom-12 right-0 bg-white border border-gray-200 rounded-lg shadow-xl p-3 z-50 w-56">
+                              <div className="grid grid-cols-5 gap-3 justify-items-center">
+                                {emojis.map((emoji, idx) => (
+                                  <button
+                                    key={idx}
+                                    onClick={() => handleEmojiInsert(emoji)}
+                                    className="text-2xl hover:bg-gray-100 p-2 rounded transition hover:scale-110 duration-200"
+                                  >
+                                    {emoji}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      <button
+                        onClick={handleSendMessage}
+                        disabled={!messageInput.trim() || sendingMessage || (activeConversation as APIConversation).status === 'completed'}
+                        className="px-4 py-3 bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 text-white rounded-lg transition flex items-center gap-2"
+                      >
+                        {sendingMessage ? (
+                          <Loader className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Send className="w-4 h-4" />
+                        )}
+                      </button>
+                    </div>
                   )}
-                </button>
-              </div>
+                </div>
+              )}
             </div>
           </>
         ) : (
@@ -1087,6 +1545,9 @@ const ChatPage: React.FC = () => {
           remoteUserName={activeCall.remoteUserName || incomingCall?.callerName || ''}
           localVideoRef={localVideoRef}
           remoteVideoRef={remoteVideoRef}
+          remoteAudioRef={remoteAudioRef}
+          localStream={localStream}
+          remoteStream={remoteStream}
           onHangup={handleHangup}
           isConnected={isConnected}
           callDuration={callDuration}

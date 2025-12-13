@@ -17,6 +17,9 @@ interface Reservasi {
   status: 'pending' | 'approved' | 'rejected' | 'completed' | 'cancelled'
   conversationId?: number
   room?: string
+  qrCode?: string
+  attendanceConfirmed?: boolean
+  completedAt?: string
   student?: { fullName: string; email: string }
   counselor?: { fullName: string }
   createdAt: string
@@ -41,6 +44,7 @@ const DetailReservasiModal: React.FC<DetailReservasiModalProps> = ({
 }) => {
   const [rejectReason, setRejectReason] = useState('')
   const [showRejectForm, setShowRejectForm] = useState(false)
+  const [showQRCode, setShowQRCode] = useState(false)
 
   if (!isOpen || !reservasi) return null
 
@@ -193,17 +197,6 @@ const DetailReservasiModal: React.FC<DetailReservasiModalProps> = ({
               </>
             )}
           </div>
-        )}
-
-        {/* Lanjut ke Chat untuk approved reservasi */}
-        {reservasi.status === 'approved' && reservasi.conversationId && (
-          <button
-            onClick={onClose}
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg font-medium flex items-center justify-center gap-2"
-          >
-            <MessageCircle className="w-4 h-4" />
-            Lanjut ke Chat
-          </button>
         )}
 
         <button

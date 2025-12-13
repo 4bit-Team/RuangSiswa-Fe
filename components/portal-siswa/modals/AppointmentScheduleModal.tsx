@@ -1,67 +1,178 @@
 'use client'
 
-import React, { useState } from 'react'
-import { Calendar, Clock, User, FileText, X } from 'lucide-react'
+import React, { useState, useEffect } from 'react'
+import { Calendar, Clock, User, FileText, X, Loader } from 'lucide-react'
+import { useAuth } from '@hooks/useAuth'
+import { apiRequest } from '@lib/api'
+
+  interface Counselor {
+    id: number
+    fullName: string
+    username?: string
+    specialty: string
+    available: boolean
+    booked?: boolean 
+  }
+
+interface TimeSlot {
+  time: string
+  availableCounselors: Counselor[]
+  isBooked: boolean
+}
 
 interface AppointmentScheduleModalProps {
   isOpen: boolean
   onClose: () => void
   counselingType?: string
-  counselorName?: string
   onConfirm?: (data: any) => void
+  isRescheduling?: boolean
 }
 
 const AppointmentScheduleModal: React.FC<AppointmentScheduleModalProps> = ({
   isOpen,
   onClose,
   counselingType = 'Konseling Pribadi',
-  counselorName = 'Bu Sarah Wijaya',
   onConfirm,
+  isRescheduling = false,
 }) => {
-  const [step, setStep] = useState<1 | 2 | 3>(1)
+  const { user, token } = useAuth()
+  const [step, setStep] = useState<1 | 2 | 3 | 4>(1)
+  const [loadingCounselors, setLoadingCounselors] = useState(false)
+  const [availableCounselors, setAvailableCounselors] = useState<Counselor[]>([])
+  const [selectedTopic, setSelectedTopic] = useState<string>('')
   const [formData, setFormData] = useState({
+    sessionType: '',
+    counselorId: null as number | null,
     date: '',
     time: '',
     notes: '',
   })
 
-  const availableTimes = ['08:00', '09:00', '10:00', '11:00', '13:00', '14:00', '15:00', '16:00']
-  const bookedTimes = ['10:00', '15:00']
+  // Note Bugar: Hardcode Topics untuk "Konseling Lainnya"
+  const otherCounselingTopics = [
+    { id: 'sosial', label: 'Masalah Sosial', description: 'Kesulitan berteman, hubungan sosial, dll' },
+    { id: 'keluarga', label: 'Masalah Keluarga', description: 'Konflik keluarga, masalah di rumah' },
+    { id: 'bullying', label: 'Penanganan Bullying', description: 'Bullying atau intimidasi dari teman' },
+    { id: 'kesehatan-mental', label: 'Kesehatan Mental', description: 'Stres, cemas, atau masalah kesehatan mental' },
+    { id: 'motivasi', label: 'Motivasi & Rencana', description: 'Motivasi diri, rencana masa depan' },
+  ]
+
+  // Note Bugar: Hardcoded time slots (8 Pagi Sampai 3 Siang)
+  const timeSlots = [
+    '08:00',
+    '09:00',
+    '10:00',
+    '11:00',
+    '12:00',
+    '13:00',
+    '14:00',
+    '15:00',
+  ]
+
+  useEffect(() => {
+    if (!isOpen) {
+      setStep(1)
+      setSelectedTopic('')
+      setFormData({ sessionType: '', counselorId: null, date: '', time: '', notes: '' })
+      setAvailableCounselors([])
+    }
+  }, [isOpen])
+
+  const fetchAvailableCounselors = async (date: string, time: string, sessionType: string) => {
+    if (!date || !time || !sessionType || !token) return
+
+    setLoadingCounselors(true)
+    try {
+      const formattedDate = new Date(date).toISOString().split('T')[0]
+      const type = sessionType === 'tatap-muka' ? 'tatap-muka' : 'chat'
+
+      console.log(`📞 Fetching available counselors for ${formattedDate} at ${time}`)
+      const response = await apiRequest(
+        `/bk-schedule/available/${type}/${formattedDate}/${time}`,
+        'GET',
+        undefined,
+        token
+      )
+
+      console.log('✅ Available counselors response:', response)
+
+      let counselors: Counselor[] = []
+      if (response?.bookingStatus && Array.isArray(response.bookingStatus)) {
+        // Response format: { bookingStatus: [{ bkId, fullName, username, specialty, available, booked }, ...], ... }
+        counselors = response.bookingStatus.map((item: any) => ({
+          id: item.bkId,
+          fullName: item.fullName || item.username || `Konselor ${item.bkId}`,
+          username: item.username,
+          specialty: item.specialty || 'Konseling',
+          available: item.available,
+          booked: item.booked, 
+        }))
+      }
+
+      setAvailableCounselors(counselors)
+    } catch (error: any) {
+      console.error('❌ Error fetching counselors:', error)
+      setAvailableCounselors([])
+    } finally {
+      setLoadingCounselors(false)
+    }
+  }
+
+  const handleSessionTypeSelect = (type: string) => {
+    setFormData({ ...formData, sessionType: type })
+  }
 
   const handleDateChange = (value: string) => {
-    setFormData({ ...formData, date: value })
+    setFormData({ ...formData, date: value, time: '', counselorId: null })
+    setAvailableCounselors([])
   }
 
   const handleTimeSelect = (time: string) => {
-    setFormData({ ...formData, time })
+    setFormData({ ...formData, time, counselorId: null })
+    setAvailableCounselors([])
+    if (formData.date && formData.sessionType) {
+      fetchAvailableCounselors(formData.date, time, formData.sessionType)
+    }
   }
 
-  const handleNotesChange = (value: string) => {
-    setFormData({ ...formData, notes: value })
+  const handleCounselorSelect = (counselorId: number) => {
+    setFormData({ ...formData, counselorId })
   }
 
   const handleNext = () => {
-    if (step < 3) {
-      setStep((step + 1) as 1 | 2 | 3)
+    if (step < 4) {
+      setStep((step + 1) as 1 | 2 | 3 | 4)
     }
   }
 
   const handleBack = () => {
     if (step > 1) {
-      setStep((step - 1) as 1 | 2 | 3)
+      setStep((step - 1) as 1 | 2 | 3 | 4)
     }
   }
 
   const handleConfirm = () => {
-    onConfirm?.(formData)
+    const selectedCounselor = availableCounselors.find((c) => c.id === formData.counselorId)
+    const topicToSend = counselingType === 'Konseling Lainnya' ? selectedTopic : counselingType
+
+    onConfirm?.({
+      ...formData,
+      counselorName: selectedCounselor?.fullName || 'Unknown',
+      counselingType,
+      topic: topicToSend,
+    })
     setStep(1)
-    setFormData({ date: '', time: '', notes: '' })
+    setSelectedTopic('')
+    setFormData({ sessionType: '', counselorId: null, date: '', time: '', notes: '' })
+    setAvailableCounselors([])
     onClose()
   }
 
   const handleClose = () => {
     setStep(1)
-    setFormData({ date: '', time: '', notes: '' })
+    setSelectedTopic('')
+    setFormData({ sessionType: '', counselorId: null, date: '', time: '', notes: '' })
+    setAvailableCounselors([])
     onClose()
   }
 
@@ -70,7 +181,7 @@ const AppointmentScheduleModal: React.FC<AppointmentScheduleModalProps> = ({
   return (
     <div
       className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
-      onClick={(e) => {
+      onClick={(e: any) => {
         if (e.target === e.currentTarget) {
           handleClose()
         }
@@ -84,13 +195,27 @@ const AppointmentScheduleModal: React.FC<AppointmentScheduleModalProps> = ({
             </div>
             <div>
               <h2 className="text-2xl font-bold">
-                {step === 1 ? 'Pilih Tanggal' : step === 2 ? 'Pilih Waktu' : 'Konfirmasi'}
+                {step === 1
+                  ? 'Pilih Tipe Sesi'
+                  : step === 2 && counselingType === 'Konseling Lainnya'
+                  ? 'Pilih Topik Konseling'
+                  : step === 2
+                  ? 'Pilih Tanggal, Waktu & Konselor'
+                  : step === 3 && counselingType === 'Konseling Lainnya'
+                  ? 'Pilih Tanggal, Waktu & Konselor'
+                  : step === 3
+                  ? 'Konfirmasi Reservasi'
+                  : 'Konfirmasi Reservasi'}
               </h2>
               <p className="text-indigo-100 text-sm">
                 {step === 1
-                  ? 'Kapan Anda ingin berkonsultasi?'
+                  ? 'Pilih jenis sesi konseling'
+                  : step === 2 && counselingType === 'Konseling Lainnya'
+                  ? 'Pilih topik spesifik yang ingin Anda konsultasikan'
                   : step === 2
-                  ? 'Jam berapa yang sesuai?'
+                  ? 'Atur jadwal konseling Anda'
+                  : step === 3 && counselingType === 'Konseling Lainnya'
+                  ? 'Atur jadwal konseling Anda'
                   : 'Tinjau detail reservasi Anda'}
               </p>
             </div>
@@ -107,24 +232,91 @@ const AppointmentScheduleModal: React.FC<AppointmentScheduleModalProps> = ({
           <div className="space-y-6">
             <div className="flex gap-2">
               <div className="flex-1">
-                <div className={`h-1 rounded-full transition-all duration-300 ${1 <= step ? 'bg-indigo-500' : 'bg-gray-200'}`} />
+                <div
+                  className={`h-1 rounded-full transition-all duration-300 ${1 <= step ? 'bg-indigo-500' : 'bg-gray-200'}`}
+                />
                 <p className="text-xs text-gray-600 mt-1 text-center">Step 1</p>
               </div>
               <div className="flex-1">
-                <div className={`h-1 rounded-full transition-all duration-300 ${2 <= step ? 'bg-indigo-500' : 'bg-gray-200'}`} />
+                <div
+                  className={`h-1 rounded-full transition-all duration-300 ${2 <= step ? 'bg-indigo-500' : 'bg-gray-200'}`}
+                />
                 <p className="text-xs text-gray-600 mt-1 text-center">Step 2</p>
               </div>
               <div className="flex-1">
-                <div className={`h-1 rounded-full transition-all duration-300 ${3 <= step ? 'bg-indigo-500' : 'bg-gray-200'}`} />
+                <div
+                  className={`h-1 rounded-full transition-all duration-300 ${3 <= step ? 'bg-indigo-500' : 'bg-gray-200'}`}
+                />
                 <p className="text-xs text-gray-600 mt-1 text-center">Step 3</p>
+              </div>
+              <div className="flex-1">
+                <div
+                  className={`h-1 rounded-full transition-all duration-300 ${4 <= step ? 'bg-indigo-500' : 'bg-gray-200'}`}
+                />
+                <p className="text-xs text-gray-600 mt-1 text-center">Step 4</p>
               </div>
             </div>
 
             <div className="min-h-64">
               {step === 1 && (
                 <div className="space-y-4">
+                  <h3 className="font-semibold text-gray-900 mb-3">Pilih Tipe Sesi</h3>
+                  <div className="space-y-3">
+                    <button
+                      onClick={() => handleSessionTypeSelect('tatap-muka')}
+                      className={`w-full p-4 rounded-lg border-2 transition-all text-left ${
+                        formData.sessionType === 'tatap-muka'
+                          ? 'border-indigo-500 bg-indigo-50'
+                          : 'border-gray-200 hover:border-indigo-300'
+                      }`}
+                    >
+                      <p className="font-semibold text-gray-900">Tatap Muka</p>
+                      <p className="text-sm text-gray-600">Konsultasi langsung dengan konselor</p>
+                    </button>
+                    <button
+                      onClick={() => handleSessionTypeSelect('chat')}
+                      className={`w-full p-4 rounded-lg border-2 transition-all text-left ${
+                        formData.sessionType === 'chat'
+                          ? 'border-indigo-500 bg-indigo-50'
+                          : 'border-gray-200 hover:border-indigo-300'
+                      }`}
+                    >
+                      <p className="font-semibold text-gray-900">Sesi Chat</p>
+                      <p className="text-sm text-gray-600">Konsultasi melalui chat dengan konselor</p>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {step === 2 && counselingType === 'Konseling Lainnya' && (
+                <div className="space-y-4">
+                  <h3 className="font-semibold text-gray-900 mb-3">Pilih Topik Konseling</h3>
+                  <div className="space-y-3">
+                    {otherCounselingTopics.map((topic) => (
+                      <button
+                        key={topic.id}
+                        onClick={() => {
+                          setSelectedTopic(topic.label)
+                          setStep(3)
+                        }}
+                        className={`w-full p-4 rounded-lg border-2 transition-all text-left ${
+                          selectedTopic === topic.label
+                            ? 'border-orange-500 bg-orange-50'
+                            : 'border-gray-200 hover:border-orange-300'
+                        }`}
+                      >
+                        <p className="font-semibold text-gray-900">{topic.label}</p>
+                        <p className="text-sm text-gray-600">{topic.description}</p>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {step === 2 && counselingType !== 'Konseling Lainnya' && (
+                <div className="space-y-6">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-3">Pilih Tanggal</label>
+                    <h3 className="font-semibold text-gray-900 mb-3">Pilih Tanggal</h3>
                     <input
                       type="date"
                       value={formData.date}
@@ -132,75 +324,231 @@ const AppointmentScheduleModal: React.FC<AppointmentScheduleModalProps> = ({
                       className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500"
                     />
                   </div>
-                  <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
-                    <p className="text-sm text-blue-800">
-                      💡 Pilih tanggal minimal 1 hari sebelumnya untuk memastikan konselor tersedia
-                    </p>
-                  </div>
-                </div>
-              )}
 
-              {step === 2 && (
-                <div className="space-y-4">
-                  <div>
-                    <p className="text-sm font-medium text-gray-700 mb-3">
-                      Waktu Tersedia untuk {formData.date || 'tanggal yang dipilih'}
-                    </p>
-                    <div className="grid grid-cols-4 gap-3">
-                      {availableTimes.map((time) => {
-                        const isBooked = bookedTimes.includes(time)
-                        const isSelected = formData.time === time
-                        return (
-                          <button
-                            key={time}
-                            onClick={() => !isBooked && handleTimeSelect(time)}
-                            disabled={isBooked}
-                            className={`p-3 rounded-lg transition-all duration-300 font-medium flex flex-col items-center gap-1 ${
-                              isSelected
-                                ? 'bg-indigo-500 text-white shadow-lg ring-2 ring-indigo-300'
-                                : isBooked
-                                ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                                : 'bg-gray-50 text-gray-700 hover:bg-indigo-50 border border-gray-200'
-                            }`}
-                          >
-                            <Clock className="w-4 h-4" />
-                            {time}
-                            {isBooked && <span className="text-xs">Penuh</span>}
-                          </button>
-                        )
-                      })}
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {step === 3 && (
-                <div className="space-y-4">
-                  <div className="bg-gradient-to-br from-indigo-50 to-blue-50 rounded-xl p-6 border border-indigo-200 space-y-4">
-                    <div className="flex items-start gap-4">
-                      <div className="w-12 h-12 bg-indigo-500 rounded-full flex items-center justify-center text-white flex-shrink-0">
-                        <User className="w-6 h-6" />
-                      </div>
-                      <div className="flex-1">
-                        <p className="text-sm text-gray-600">Konselor</p>
-                        <p className="font-semibold text-gray-900">{counselorName}</p>
-                      </div>
-                    </div>
-
-                    <div className="border-t border-indigo-200 pt-4 space-y-3">
-                      <div className="flex items-center gap-3">
-                        <FileText className="w-5 h-5 text-indigo-500 flex-shrink-0" />
-                        <div>
-                          <p className="text-sm text-gray-600">Jenis Konseling</p>
-                          <p className="font-medium text-gray-900">{counselingType}</p>
+                  {formData.date && (
+                    <>
+                      <div>
+                        <h3 className="font-semibold text-gray-900 mb-3">
+                          Pilih Waktu untuk {new Date(formData.date).toLocaleDateString('id-ID')}
+                        </h3>
+                        <div className="grid grid-cols-4 gap-2">
+                          {timeSlots.map((time) => (
+                            <button
+                              key={time}
+                              onClick={() => handleTimeSelect(time)}
+                              disabled={!formData.date}
+                              className={`p-2 rounded-lg transition-all duration-300 font-medium flex flex-col items-center gap-1 text-sm ${
+                                formData.time === time
+                                  ? 'bg-indigo-500 text-white shadow-lg ring-2 ring-indigo-300'
+                                  : 'bg-gray-50 text-gray-700 hover:bg-indigo-50 border border-gray-200'
+                              }`}
+                            >
+                              <Clock className="w-4 h-4" />
+                              {time}
+                            </button>
+                          ))}
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-3">
-                        <Calendar className="w-5 h-5 text-indigo-500 flex-shrink-0" />
+                      {formData.time && (
+                        <div>
+                          <h3 className="font-semibold text-gray-900 mb-3">Pilih Konselor</h3>
+                          {loadingCounselors ? (
+                            <div className="flex items-center justify-center py-8">
+                              <Loader className="w-5 h-5 animate-spin text-indigo-500 mr-2" />
+                              <span className="text-gray-600">Memuat konselor tersedia...</span>
+                            </div>
+                          ) : availableCounselors.length === 0 ? (
+                            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                              <p className="text-yellow-800">Tidak ada konselor tersedia untuk waktu ini</p>
+                            </div>
+                          ) : (
+                            <div className="grid grid-cols-3 gap-3">
+                              {availableCounselors.map((counselor: any) => (
+                                <button
+                                  key={counselor.id}
+                                  onClick={() => !counselor.booked && handleCounselorSelect(counselor.id)}
+                                  disabled={counselor.booked}
+                                  className={`p-4 rounded-lg transition-all duration-300 border-2 relative ${
+                                    counselor.booked
+                                      ? 'bg-gray-100 border-gray-300 opacity-60 cursor-not-allowed'
+                                      : formData.counselorId === counselor.id
+                                      ? 'bg-indigo-50 border-indigo-500 ring-2 ring-indigo-300'
+                                      : 'bg-gray-50 border-gray-200 hover:border-indigo-300'
+                                  }`}
+                                >
+                                  <div className="flex items-center gap-2 mb-2">
+                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white flex-shrink-0 ${
+                                      counselor.booked ? 'bg-gray-400' : 'bg-indigo-500'
+                                    }`}>
+                                      <User className="w-4 h-4" />
+                                    </div>
+                                    <span className="font-medium text-sm text-gray-900">
+                                      {counselor.fullName}
+                                    </span>
+                                  </div>
+                                  {counselor.specialty && (
+                                    <p className="text-xs text-gray-600">{counselor.specialty}</p>
+                                  )}
+                                  {counselor.booked && (
+                                    <div className="absolute top-2 right-2 bg-red-500 text-white text-xs font-bold px-2 py-1 rounded">
+                                      Penuh
+                                    </div>
+                                  )}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
+
+              {step === 3 && counselingType === 'Konseling Lainnya' && (
+                <div className="space-y-6">
+                  <div>
+                    <h3 className="font-semibold text-gray-900 mb-3">Pilih Tanggal</h3>
+                    <input
+                      type="date"
+                      value={formData.date}
+                      onChange={(e) => handleDateChange(e.target.value)}
+                      className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                  </div>
+
+                  {formData.date && (
+                    <>
+                      <div>
+                        <h3 className="font-semibold text-gray-900 mb-3">
+                          Pilih Waktu untuk {new Date(formData.date).toLocaleDateString('id-ID')}
+                        </h3>
+                        <div className="grid grid-cols-4 gap-2">
+                          {timeSlots.map((time) => (
+                            <button
+                              key={time}
+                              onClick={() => handleTimeSelect(time)}
+                              disabled={!formData.date}
+                              className={`p-2 rounded-lg transition-all duration-300 font-medium flex flex-col items-center gap-1 text-sm ${
+                                formData.time === time
+                                  ? 'bg-indigo-500 text-white shadow-lg ring-2 ring-indigo-300'
+                                  : 'bg-gray-50 text-gray-700 hover:bg-indigo-50 border border-gray-200'
+                              }`}
+                            >
+                              <Clock className="w-4 h-4" />
+                              {time}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {formData.time && (
+                        <div>
+                          <h3 className="font-semibold text-gray-900 mb-3">Pilih Konselor</h3>
+                          {loadingCounselors ? (
+                            <div className="flex items-center justify-center py-8">
+                              <Loader className="w-5 h-5 animate-spin text-indigo-500 mr-2" />
+                              <span className="text-gray-600">Memuat konselor tersedia...</span>
+                            </div>
+                          ) : availableCounselors.length === 0 ? (
+                            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                              <p className="text-yellow-800">Tidak ada konselor tersedia untuk waktu ini</p>
+                            </div>
+                          ) : (
+                            <div className="grid grid-cols-3 gap-3">
+                              {availableCounselors.map((counselor: any) => (
+                                <button
+                                  key={counselor.id}
+                                  onClick={() => !counselor.booked && handleCounselorSelect(counselor.id)}
+                                  disabled={counselor.booked}
+                                  className={`p-4 rounded-lg transition-all duration-300 border-2 relative ${
+                                    counselor.booked
+                                      ? 'bg-gray-100 border-gray-300 opacity-60 cursor-not-allowed'
+                                      : formData.counselorId === counselor.id
+                                      ? 'bg-indigo-50 border-indigo-500 ring-2 ring-indigo-300'
+                                      : 'bg-gray-50 border-gray-200 hover:border-indigo-300'
+                                  }`}
+                                >
+                                  <div className="flex items-center gap-2 mb-2">
+                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white flex-shrink-0 ${
+                                      counselor.booked ? 'bg-gray-400' : 'bg-indigo-500'
+                                    }`}>
+                                      <User className="w-4 h-4" />
+                                    </div>
+                                    <span className="font-medium text-sm text-gray-900">
+                                      {counselor.fullName}
+                                    </span>
+                                  </div>
+                                  {counselor.specialty && (
+                                    <p className="text-xs text-gray-600">{counselor.specialty}</p>
+                                  )}
+                                  {counselor.booked && (
+                                    <div className="absolute top-2 right-2 bg-red-500 text-white text-xs font-bold px-2 py-1 rounded">
+                                      Penuh
+                                    </div>
+                                  )}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
+
+              {step === 4 && counselingType === 'Konseling Lainnya' && (
+                <div className="space-y-6">
+                  <div className="bg-gradient-to-br from-indigo-50 to-blue-50 rounded-xl p-6 border border-indigo-200 space-y-4">
+                    <div className="space-y-3">
+                      <div className="flex items-start gap-3">
+                        <FileText className="w-5 h-5 text-indigo-500 flex-shrink-0 mt-0.5" />
+                        <div>
+                          <p className="text-sm text-gray-600">Jenis Konseling</p>
+                          <p className="font-semibold text-gray-900">{counselingType}</p>
+                        </div>
+                      </div>
+
+                      {selectedTopic && (
+                        <div className="flex items-start gap-3">
+                          <div className="w-5 h-5 text-orange-500 flex-shrink-0 mt-0.5 font-semibold">🎯</div>
+                          <div>
+                            <p className="text-sm text-gray-600">Topik</p>
+                            <p className="font-semibold text-gray-900">{selectedTopic}</p>
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="flex items-start gap-3">
+                        <div className="w-5 h-5 text-indigo-500 flex-shrink-0 mt-0.5 font-semibold">📋</div>
+                        <div>
+                          <p className="text-sm text-gray-600">Tipe Sesi</p>
+                          <p className="font-semibold text-gray-900">
+                            {formData.sessionType === 'tatap-muka' ? 'Tatap Muka' : 'Sesi Chat'}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-start gap-3">
+                        <User className="w-5 h-5 text-indigo-500 flex-shrink-0 mt-0.5" />
+                        <div>
+                          <p className="text-sm text-gray-600">Konselor</p>
+                          <p className="font-semibold text-gray-900">
+                            {availableCounselors.find((c: any) => c.id === formData.counselorId)?.fullName || 'Belum dipilih'}
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            {availableCounselors.find((c: any) => c.id === formData.counselorId)?.specialty}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-start gap-3">
+                        <Calendar className="w-5 h-5 text-indigo-500 flex-shrink-0 mt-0.5" />
                         <div>
                           <p className="text-sm text-gray-600">Tanggal</p>
-                          <p className="font-medium text-gray-900">
+                          <p className="font-semibold text-gray-900">
                             {formData.date
                               ? new Date(formData.date).toLocaleDateString('id-ID', {
                                   weekday: 'long',
@@ -213,24 +561,153 @@ const AppointmentScheduleModal: React.FC<AppointmentScheduleModalProps> = ({
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-3">
-                        <Clock className="w-5 h-5 text-indigo-500 flex-shrink-0" />
+                      <div className="flex items-start gap-3">
+                        <Clock className="w-5 h-5 text-indigo-500 flex-shrink-0 mt-0.5" />
                         <div>
                           <p className="text-sm text-gray-600">Waktu</p>
-                          <p className="font-medium text-gray-900">{formData.time || 'Belum dipilih'}</p>
+                          <p className="font-semibold text-gray-900">{formData.time || 'Belum dipilih'}</p>
                         </div>
                       </div>
                     </div>
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Catatan (Opsional)</label>
+                    <label className="block text-sm font-semibold text-gray-900 mb-3">
+                      Catatan Tambahan (Opsional)
+                    </label>
                     <textarea
                       value={formData.notes}
-                      onChange={(e) => handleNotesChange(e.target.value)}
-                      placeholder="Ada yang ingin dibicarakan dengan konselor? Ceritakan di sini..."
+                      onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                      placeholder="Sampaikan informasi atau pertanyaan tambahan kepada konselor..."
                       className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
-                      rows={3}
+                      rows={4}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {step === 3 && counselingType !== 'Konseling Lainnya' && (
+                <div className="space-y-6">
+                  <div className="bg-gradient-to-br from-indigo-50 to-blue-50 rounded-xl p-6 border border-indigo-200 space-y-4">
+                    <div className="space-y-3">
+                      <div className="flex items-start gap-3">
+                        <FileText className="w-5 h-5 text-indigo-500 flex-shrink-0 mt-0.5" />
+                        <div>
+                          <p className="text-sm text-gray-600">Jenis Konseling</p>
+                          <p className="font-semibold text-gray-900">{counselingType}</p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-start gap-3">
+                        <div className="w-5 h-5 text-indigo-500 flex-shrink-0 mt-0.5 font-semibold">📋</div>
+                        <div>
+                          <p className="text-sm text-gray-600">Tipe Sesi</p>
+                          <p className="font-semibold text-gray-900">
+                            {formData.sessionType === 'tatap-muka' ? 'Tatap Muka' : 'Sesi Chat'}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-start gap-3">
+                        <User className="w-5 h-5 text-indigo-500 flex-shrink-0 mt-0.5" />
+                        <div>
+                          <p className="text-sm text-gray-600">Konselor</p>
+                          <p className="font-semibold text-gray-900">
+                            {availableCounselors.find((c: any) => c.id === formData.counselorId)?.fullName || 'Belum dipilih'}
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            {availableCounselors.find((c: any) => c.id === formData.counselorId)?.specialty}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-start gap-3">
+                        <Calendar className="w-5 h-5 text-indigo-500 flex-shrink-0 mt-0.5" />
+                        <div>
+                          <p className="text-sm text-gray-600">Tanggal</p>
+                          <p className="font-semibold text-gray-900">
+                            {formData.date
+                              ? new Date(formData.date).toLocaleDateString('id-ID', {
+                                  weekday: 'long',
+                                  year: 'numeric',
+                                  month: 'long',
+                                  day: 'numeric',
+                                })
+                              : 'Belum dipilih'}
+                          </p>
+                        </div>
+                      </div>
+
+                      {counselingType === 'Konseling Lainnya' && selectedTopic && (
+                        <div className="flex items-start gap-3">
+                          <div className="w-5 h-5 text-orange-500 flex-shrink-0 mt-0.5 font-semibold">🎯</div>
+                          <div>
+                            <p className="text-sm text-gray-600">Topik</p>
+                            <p className="font-semibold text-gray-900">{selectedTopic}</p>
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="flex items-start gap-3">
+                        <div className="w-5 h-5 text-indigo-500 flex-shrink-0 mt-0.5 font-semibold">📋</div>
+                        <div>
+                          <p className="text-sm text-gray-600">Tipe Sesi</p>
+                          <p className="font-semibold text-gray-900">
+                            {formData.sessionType === 'tatap-muka' ? 'Tatap Muka' : 'Sesi Chat'}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-start gap-3">
+                        <User className="w-5 h-5 text-indigo-500 flex-shrink-0 mt-0.5" />
+                        <div>
+                          <p className="text-sm text-gray-600">Konselor</p>
+                          <p className="font-semibold text-gray-900">
+                            {availableCounselors.find((c: any) => c.id === formData.counselorId)?.fullName || 'Belum dipilih'}
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            {availableCounselors.find((c: any) => c.id === formData.counselorId)?.specialty}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-start gap-3">
+                        <Calendar className="w-5 h-5 text-indigo-500 flex-shrink-0 mt-0.5" />
+                        <div>
+                          <p className="text-sm text-gray-600">Tanggal</p>
+                          <p className="font-semibold text-gray-900">
+                            {formData.date
+                              ? new Date(formData.date).toLocaleDateString('id-ID', {
+                                  weekday: 'long',
+                                  year: 'numeric',
+                                  month: 'long',
+                                  day: 'numeric',
+                                })
+                              : 'Belum dipilih'}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-start gap-3">
+                        <Clock className="w-5 h-5 text-indigo-500 flex-shrink-0 mt-0.5" />
+                        <div>
+                          <p className="text-sm text-gray-600">Waktu</p>
+                          <p className="font-semibold text-gray-900">{formData.time || 'Belum dipilih'}</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-900 mb-3">
+                      Catatan Tambahan (Opsional)
+                    </label>
+                    <textarea
+                      value={formData.notes}
+                      onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                      placeholder="Sampaikan informasi atau pertanyaan tambahan kepada konselor..."
+                      className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
+                      rows={4}
                     />
                   </div>
                 </div>
@@ -248,11 +725,23 @@ const AppointmentScheduleModal: React.FC<AppointmentScheduleModalProps> = ({
             Kembali
           </button>
           <button
-            onClick={step === 3 ? handleConfirm : handleNext}
-            disabled={(step === 1 && !formData.date) || (step === 2 && !formData.time)}
+            onClick={
+              counselingType === 'Konseling Lainnya'
+                ? step === 4 ? handleConfirm : handleNext
+                : step === 3 ? handleConfirm : handleNext
+            }
+            disabled={
+              (step === 1 && !formData.sessionType) ||
+              (step === 2 && counselingType === 'Konseling Lainnya' && !selectedTopic) ||
+              (step === 2 && counselingType !== 'Konseling Lainnya' && (!formData.date || !formData.time || !formData.counselorId)) ||
+              (step === 3 && counselingType === 'Konseling Lainnya' && (!formData.date || !formData.time || !formData.counselorId)) ||
+              (step === 3 && counselingType !== 'Konseling Lainnya' && (!formData.date || !formData.time || !formData.counselorId))
+            }
             className="flex-1 px-4 py-3 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg font-medium disabled:bg-gray-300 disabled:cursor-not-allowed transition-all duration-200"
           >
-            {step === 3 ? 'Konfirmasi Reservasi' : 'Lanjut'}
+            {(counselingType === 'Konseling Lainnya' && step === 4) || (counselingType !== 'Konseling Lainnya' && step === 3)
+              ? 'Konfirmasi Reservasi'
+              : 'Lanjut'}
           </button>
         </div>
       </div>
