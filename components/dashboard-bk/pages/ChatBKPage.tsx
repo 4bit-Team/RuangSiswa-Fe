@@ -1,8 +1,10 @@
 'use client'
 
 import React, { useState, useRef, useEffect } from 'react'
-import { Send, Search, Phone, Video, MoreVertical, Smile, Paperclip, Loader } from 'lucide-react'
+import { Send, Search, Phone, Video, MoreVertical, Smile, Paperclip, Loader, Mic, Square, Play } from 'lucide-react'
 import { apiRequest, API_URL } from '@lib/api'
+import { formatMessageTime, getMessageDateLabel, shouldShowDateSeparator } from '@lib/messageFormatting'
+import { handleEmojiClick, startRecording, stopRecording, sendVoiceMessage, cancelRecording, getInitialBgColor, formatRecordingTime, formatCallDuration } from '@lib/chatUtils'
 import CallUI from '../../call/CallUI'
 import {
   createPeerConnection,
@@ -19,7 +21,9 @@ import {
   onRemoteStream,
   onConnectionStateChange,
   onIceConnectionStateChange,
+  onNegotiationNeeded,
 } from '@lib/webrtc'
+import { startRTPMonitoring, stopRTPMonitoring } from '@lib/rtpDiagnostics'
 import { useAuth } from '@/hooks/useAuth'
 import { io, Socket } from 'socket.io-client'
 
@@ -33,6 +37,10 @@ interface APIMessage {
   isEdited: boolean
   isDeleted: boolean
   readStatuses?: Array<{ isRead: boolean }>
+  fileUrl?: string
+  fileName?: string
+  fileSize?: number
+  duration?: number
 }
 
 interface APIConversation {
@@ -43,15 +51,20 @@ interface APIConversation {
   messages?: APIMessage[]
   unreadCount?: number
   lastMessageAt: string
+  status?: 'active' | 'in_counseling' | 'completed'
 }
 
 interface Message {
   id: number
   sender: 'user' | 'counselor'
   content: string
-  timestamp: string
+  timestamp: string // Formatted time only (e.g., "16:24")
+  originalDate: string // ISO date string for date detection
   isEdited: boolean
   isDeleted: boolean
+  messageType?: 'text' | 'voice'
+  voiceUrl?: string
+  duration?: number
 }
 
 interface FormattedConversation {
@@ -66,6 +79,7 @@ interface FormattedConversation {
   time: string
   unread?: number
   photoUrl?: string
+  status?: 'active' | 'in_counseling' | 'completed'
 }
 
 const ChatBKPage: React.FC = () => {
@@ -76,6 +90,12 @@ const ChatBKPage: React.FC = () => {
   const [messageInput, setMessageInput] = useState('')
   const [loading, setLoading] = useState(true)
   const [sendingMessage, setSendingMessage] = useState(false)
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false)
+  const [isRecording, setIsRecording] = useState(false)
+  const [recordingTime, setRecordingTime] = useState(0)
+  const [recordedChunks, setRecordedChunks] = useState<Blob[]>([])
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
+  const recordingIntervalRef = useRef<any>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [callType, setCallType] = useState<'audio' | 'video' | null>(null)
   const [showCallModal, setShowCallModal] = useState(false)
@@ -85,20 +105,128 @@ const ChatBKPage: React.FC = () => {
   const [callDuration, setCallDuration] = useState(0)
   const [isConnected, setIsConnected] = useState(false)
   const [hasRemoteStream, setHasRemoteStream] = useState(false)
+  const [localStream, setLocalStream] = useState<MediaStream | null>(null)
+  const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null)
   const peerConnectionRef = useRef<RTCPeerConnection | null>(null)
   const localVideoRef = useRef<HTMLVideoElement | null>(null)
   const remoteVideoRef = useRef<HTMLVideoElement | null>(null)
+  const remoteAudioRef = useRef<HTMLAudioElement | null>(null)
   const localStreamRef = useRef<MediaStream | null>(null)
   const remoteStreamRef = useRef<MediaStream | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const socketRef = useRef<Socket | null>(null)
+  const callSocketRef = useRef<Socket | null>(null)
+  const callIdRef = useRef<string | null>(null) // ✅ Track callId immediately when call starts
+  const rtpMonitoringRef = useRef<boolean>(false) // ✅ Track if RTP monitoring is active
 
   // Auto-scroll to bottom
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
-  // Initialize WebSocket connection
+  // Initialize Call WebSocket connection (separate namespace)
+  useEffect(() => {
+    if (user && token && !authLoading) {
+      // Extract base URL from API_URL (remove /api suffix)
+      const baseUrl = API_URL.replace('/api', '')
+      const callSocket = io(`${baseUrl}/call`, {
+        auth: {
+          token: token,
+        },
+        reconnection: true,
+        reconnectionDelay: 1000,
+        reconnectionDelayMax: 5000,
+        reconnectionAttempts: 5,
+      })
+
+      callSocket.on('connect', () => {
+        console.log('✅ [ChatBKPage Call Socket] Connected to /call namespace')
+      })
+
+      callSocket.on('disconnect', () => {
+        console.log('❌ [ChatBKPage Call Socket] Disconnected from /call namespace')
+      })
+
+      // Receive incoming call notification
+      callSocket.on('call-incoming', (data: any) => {
+        console.log('📞 [ChatBKPage] Incoming call received:', data)
+        setIncomingCall(data)
+        setIncomingCallModalOpen(true)
+      })
+
+      // Receive SDP offer from caller (receiver side)
+      callSocket.on('call-offer', async (data: any) => {
+        console.log('📞 [ChatBKPage] Call offer received (storing in incomingCall):', { callId: data.callId, hasOffer: !!data.offer })
+        // ✅ CRITICAL FIX: Don't try to set SDP here (peer connection not created yet)
+        // Just store the offer in incomingCall state
+        // The actual SDP handling happens in handleAcceptIncomingCall after peer connection is ready
+        setIncomingCall((prev: any) => ({ ...(prev || {}), ...data, offer: data.offer }))
+      })
+
+      // Receive SDP answer from receiver (caller side)
+      callSocket.on('call-answer', async (data: any) => {
+        console.log('📞 [ChatBKPage] Call answer received:', data)
+        try {
+          if (peerConnectionRef.current && data.answer) {
+            await handleRemoteAnswer(peerConnectionRef.current, data.answer)
+            // apply any ICE candidates sent along
+            if (Array.isArray(data.iceCandidates)) {
+              for (const c of data.iceCandidates) {
+                try {
+                  await addIceCandidate(peerConnectionRef.current, c)
+                } catch (e) {
+                  console.warn('Failed to add remote ICE candidate', e)
+                }
+              }
+            }
+
+            setActiveCall((prev: any) => ({ ...(prev || {}), callId: data.callId }))
+          }
+        } catch (error) {
+          console.error('Error handling remote answer:', error)
+        }
+      })
+
+      // Receive ICE candidate from other side
+      callSocket.on('ice-candidate', async (data: any) => {
+        console.log('📞 [ChatBKPage] ICE candidate received:', data)
+        try {
+          if (peerConnectionRef.current && data.candidate) {
+            await addIceCandidate(peerConnectionRef.current, data)
+          }
+        } catch (error) {
+          console.error('Error adding remote ICE candidate:', error)
+        }
+      })
+
+      callSocket.on('call-rejected', (data: any) => {
+        console.log('📞 [ChatBKPage] Call rejected:', data)
+        alert('Panggilan ditolak')
+        // cleanup UI
+        setIncomingCall(null)
+        setIncomingCallModalOpen(false)
+        setActiveCall(null)
+      })
+
+      callSocket.on('call-ended', (data: any) => {
+        console.log('📞 [ChatBKPage] Call ended:', data)
+        alert('Panggilan berakhir')
+        // cleanup
+        if (localStreamRef.current) stopMediaStream(localStreamRef.current)
+        if (peerConnectionRef.current) peerConnectionRef.current.close()
+        setActiveCall(null)
+        setCallDuration(0)
+      })
+
+      callSocketRef.current = callSocket
+
+      return () => {
+        callSocket.disconnect()
+      }
+    }
+  }, [user, token, authLoading])
+
+  // Initialize WebSocket connection (for messaging)
   useEffect(() => {
     if (user && token && !authLoading) {
       // Extract base URL from API_URL (remove /api suffix)
@@ -132,13 +260,25 @@ const ChatBKPage: React.FC = () => {
             return prev
           }
           
+          // Validate createdAt is a proper date string, not accidentally the duration value
+          let validCreatedAt = data.message.createdAt
+          // Accept both ISO format (with T) and backend format (with space)
+          if (!validCreatedAt || typeof validCreatedAt !== 'string' || (!validCreatedAt.includes('T') && !validCreatedAt.includes(' '))) {
+            console.warn('⚠️ Invalid createdAt from WebSocket:', validCreatedAt, 'for message:', data.message.id)
+            validCreatedAt = new Date().toISOString() // Fallback to current time
+          }
+          
           const newMessage: Message = {
             id: data.message.id,
             sender: data.message.sender.id === user?.id ? 'user' : 'counselor',
             content: data.message.isDeleted ? '[Pesan dihapus]' : data.message.content,
-            timestamp: formatMessageTime(data.message.createdAt),
+            timestamp: formatMessageTime(validCreatedAt),
+            originalDate: validCreatedAt,
             isEdited: data.message.isEdited,
             isDeleted: data.message.isDeleted,
+            messageType: (data.message.messageType as 'text' | 'voice') || 'text',
+            voiceUrl: data.message.fileUrl,
+            duration: data.message.duration,
           }
           
           return [...prev, newMessage]
@@ -146,61 +286,6 @@ const ChatBKPage: React.FC = () => {
         
         // Refresh conversation list to update last message (don't await)
         fetchConversations()
-      })
-
-      socket.on('call-incoming', (data: any) => {
-        console.log('📞 [ChatBKPage] Incoming call received:', data)
-        setIncomingCall(data)
-        setIncomingCallModalOpen(true)
-      })
-
-      socket.on('call-answer', async (data: any) => {
-        console.log('📞 [ChatBKPage] Call answer received:', data)
-        try {
-          if (peerConnectionRef.current && data.answer) {
-            await handleRemoteAnswer(peerConnectionRef.current, data.answer)
-            if (Array.isArray(data.iceCandidates)) {
-              for (const c of data.iceCandidates) {
-                try {
-                  await addIceCandidate(peerConnectionRef.current, c)
-                } catch (e) {
-                  console.warn('Failed to add remote ICE candidate', e)
-                }
-              }
-            }
-            setActiveCall((prev: any) => ({ ...(prev || {}), callId: data.callId }))
-          }
-        } catch (error) {
-          console.error('Error handling remote answer:', error)
-        }
-      })
-
-      socket.on('ice-candidate', async (data: any) => {
-        console.log('📞 [ChatBKPage] ICE candidate received:', data)
-        try {
-          if (peerConnectionRef.current && data.candidate) {
-            await addIceCandidate(peerConnectionRef.current, data)
-          }
-        } catch (error) {
-          console.error('Error adding remote ICE candidate:', error)
-        }
-      })
-
-      socket.on('call-rejected', (data: any) => {
-        console.log('📞 [ChatBKPage] Call rejected:', data)
-        alert('Panggilan ditolak')
-        setIncomingCall(null)
-        setIncomingCallModalOpen(false)
-        setActiveCall(null)
-      })
-
-      socket.on('call-ended', (data: any) => {
-        console.log('📞 [ChatBKPage] Call ended:', data)
-        alert('Panggilan berakhir')
-        if (localStreamRef.current) stopMediaStream(localStreamRef.current)
-        if (peerConnectionRef.current) peerConnectionRef.current.close()
-        setActiveCall(null)
-        setCallDuration(0)
       })
 
       socketRef.current = socket
@@ -264,10 +349,8 @@ const ChatBKPage: React.FC = () => {
         console.log('Formatted conversations:', formattedConversations)
         setConversations(formattedConversations)
         
-        // Set first conversation as active
-        if (formattedConversations.length > 0 && !activeCounselorId) {
-          setActiveCounselorId(formattedConversations[0].id)
-        }
+        // Don't auto-select first conversation anymore
+        // User must manually click to open a conversation
       } else {
         console.warn('❌ [ChatBK] Response is not an array:', response)
         setConversations([])
@@ -294,20 +377,34 @@ const ChatBKPage: React.FC = () => {
       
       console.log('Messages response:', response)
       
-      if (response && response.messages) {
-        const apiMessages = response.messages
-        
-        const formattedMessages = apiMessages.map((msg: APIMessage) => ({
+    if (response && response.messages) {
+      const apiMessages = response.messages
+
+      const formattedMessages = apiMessages.map((msg: APIMessage) => {
+        // Validate createdAt is a proper date string, not accidentally the duration value
+        let validCreatedAt = msg.createdAt
+        // Accept both ISO format (with T) and backend format (with space)
+        if (!validCreatedAt || typeof validCreatedAt !== 'string' || (!validCreatedAt.includes('T') && !validCreatedAt.includes(' '))) {
+          console.warn('⚠️ Invalid createdAt value:', validCreatedAt, 'for message:', msg.id)
+          validCreatedAt = new Date().toISOString() // Fallback to current time
+        }
+
+        return {
           id: msg.id,
           sender: msg.sender.id === user?.id ? 'user' : 'counselor',
           content: msg.isDeleted ? '[Pesan dihapus]' : msg.content,
-          timestamp: formatMessageTime(msg.createdAt),
+          timestamp: formatMessageTime(validCreatedAt),
+          originalDate: validCreatedAt,
           isEdited: msg.isEdited,
           isDeleted: msg.isDeleted,
-        }))
-        
-        console.log('Formatted messages:', formattedMessages)
-        setMessages(formattedMessages)
+          messageType: (msg.messageType as 'text' | 'voice') || 'text',
+          voiceUrl: msg.fileUrl,
+          duration: msg.duration,
+        }
+      })
+      
+      console.log('Formatted messages:', formattedMessages)
+      setMessages(formattedMessages)
       } else {
         console.warn('No messages in response')
         setMessages([])
@@ -325,6 +422,12 @@ const ChatBKPage: React.FC = () => {
 
     const activeCounselor = conversations.find((c: FormattedConversation) => c.id === activeCounselorId)
     if (!activeCounselor) return
+
+    // Check if session is completed
+    if ((activeCounselor as any).status === 'completed') {
+      alert('Sesi telah selesai. Anda tidak dapat mengirim pesan.')
+      return
+    }
 
     setSendingMessage(true)
     const messageContent = messageInput
@@ -347,11 +450,20 @@ const ChatBKPage: React.FC = () => {
       console.log('Message sent response:', response)
 
       // Add user message locally
+      // Validate createdAt is a proper date string
+      let validCreatedAt = response.createdAt
+      // Accept both ISO format (with T) and backend format (with space)
+      if (!validCreatedAt || typeof validCreatedAt !== 'string' || (!validCreatedAt.includes('T') && !validCreatedAt.includes(' '))) {
+        console.warn('⚠️ Invalid createdAt from send response:', validCreatedAt)
+        validCreatedAt = new Date().toISOString() // Fallback to current time
+      }
+      
       const userMessage: Message = {
         id: response.id,
         sender: 'user',
         content: messageContent,
-        timestamp: formatMessageTime(response.createdAt),
+        timestamp: formatMessageTime(validCreatedAt),
+        originalDate: validCreatedAt,
         isEdited: false,
         isDeleted: false,
       }
@@ -385,20 +497,6 @@ const ChatBKPage: React.FC = () => {
     }
   }
 
-  const getInitialBgColor = (initial: string): string => {
-    const colors: Record<string, string> = {
-      S: 'bg-gradient-to-br from-blue-500 to-blue-600',
-      B: 'bg-gradient-to-br from-purple-500 to-purple-600',
-      R: 'bg-gradient-to-br from-green-500 to-green-600',
-      A: 'bg-gradient-to-br from-indigo-500 to-indigo-600',
-      C: 'bg-gradient-to-br from-rose-500 to-rose-600',
-      D: 'bg-gradient-to-br from-amber-500 to-amber-600',
-      E: 'bg-gradient-to-br from-cyan-500 to-cyan-600',
-      F: 'bg-gradient-to-br from-lime-500 to-lime-600',
-    }
-    return colors[initial] || 'bg-gradient-to-br from-gray-500 to-gray-600'
-  }
-
   const formatTime = (dateString: string): string => {
     const date = new Date(dateString)
     const now = new Date()
@@ -416,9 +514,44 @@ const ChatBKPage: React.FC = () => {
     return date.toLocaleDateString('id-ID', { month: 'short', day: 'numeric' })
   }
 
-  const formatMessageTime = (dateString: string): string => {
-    const date = new Date(dateString)
-    return date.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
+  const emojis = ['😀', '😂', '😍', '🥰', '😘', '😭', '😤', '😡', '🤔', '😎', '👍', '👏', '🎉', '❤️', '💯', '🔥', '✨', '🌟', '⭐', '💪']
+
+  const handleEmojiInsert = (emoji: string) => {
+    handleEmojiClick(emoji, messageInput, setMessageInput, setShowEmojiPicker)
+  }
+
+  const handleStartRecording = async () => {
+    await startRecording(
+      mediaRecorderRef,
+      recordingIntervalRef,
+      setIsRecording,
+      setRecordingTime,
+      setRecordedChunks
+    )
+  }
+
+  const handleStopRecording = () => {
+    stopRecording(mediaRecorderRef, recordingIntervalRef, setIsRecording)
+  }
+
+  const handleSendVoiceMessage = async () => {
+    await sendVoiceMessage(
+      recordedChunks,
+      recordingTime,
+      activeCounselorId,
+      token || '',
+      setSendingMessage,
+      setRecordedChunks,
+      setRecordingTime
+    )
+  }
+
+  const handleCancelRecording = () => {
+    cancelRecording(mediaRecorderRef, recordingIntervalRef, setIsRecording, setRecordedChunks, setRecordingTime)
+  }
+
+  const getAvatarBgColor = (initial: string): string => {
+    return getInitialBgColor(initial)
   }
 
   const filteredConversations = conversations.filter((conv: FormattedConversation) =>
@@ -459,30 +592,65 @@ const ChatBKPage: React.FC = () => {
       // Initialize peer connection
       peerConnectionRef.current = createPeerConnection()
 
-      // Handle ICE candidates
+      // ✅ CRITICAL: Use call socket namespace for ICE candidates, not chat socket
+      // Handle ICE candidates with detailed logging
       onIceCandidate(peerConnectionRef.current, (candidate) => {
         if (!candidate) {
-          console.log('ICE gathering complete for caller (BK)')
+          console.log('✅ [ChatBKPage ICE] ICE gathering complete for caller (BK)')
           return
         }
         
         const candidateObj = {
-          callId: activeCall?.callId || null,
+          callId: callIdRef.current, // ✅ USE CALLID REF (will be set when call-initiate emitted)
           candidate: candidate.candidate, // Send just the candidate string
           sdpMLineIndex: candidate.sdpMLineIndex,
           sdpMid: candidate.sdpMid,
         }
         
-        console.log('[ChatBKPage] Sending ICE candidate:', candidateObj)
-        socketRef.current?.emit('ice-candidate', candidateObj)
+        // Validate candidate object
+        if (!candidateObj.candidate || candidateObj.callId === null) {
+          console.warn('⚠️ [ChatBKPage ICE] ICE candidate incomplete - missing candidate or callId', candidateObj)
+          return
+        }
+        
+        console.log('📤 [ChatBKPage ICE] Sending ICE candidate via /call socket:', {
+          callId: candidateObj.callId,
+          candidateType: candidateObj.candidate.includes('typ host') ? 'HOST' : 
+                        candidateObj.candidate.includes('typ srflx') ? 'SRFLX' : 'RELAY',
+          sdpMLineIndex: candidateObj.sdpMLineIndex,
+          sdpMid: candidateObj.sdpMid,
+          socketConnected: callSocketRef.current?.connected,
+        })
+        
+        // ✅ CRITICAL: Use callSocketRef (call namespace) not socketRef (chat namespace)
+        if (!callSocketRef.current?.connected) {
+          console.error('❌ [ChatBKPage ICE] Call socket not connected! Cannot send candidate')
+          return
+        }
+        
+        // Send via call socket with confirmation
+        callSocketRef.current?.emit('ice-candidate', candidateObj, (response: any) => {
+          if (response?.status === 'ice-candidate-sent') {
+            console.log(`✅ [ChatBKPage ICE] Backend confirmed ICE candidate sent`)
+          } else if (response?.status === 'error') {
+            console.error(`❌ [ChatBKPage ICE] Backend rejected candidate: ${response?.message}`)
+          } else {
+            console.log(`ℹ️ [ChatBKPage ICE] Backend response:`, response)
+          }
+        })
       })
 
       // Handle remote stream
       onRemoteStream(peerConnectionRef.current, (stream) => {
-        console.log('Remote stream received:', stream)
+        console.log('✅ Remote stream received (initiator), updating state for CallUI to attach:', {
+          videoTracks: stream.getVideoTracks().length,
+          audioTracks: stream.getAudioTracks().length,
+          streamId: stream.id,
+        })
         remoteStreamRef.current = stream
+        setRemoteStream(stream)
         setHasRemoteStream(true)
-        if (remoteVideoRef.current) remoteVideoRef.current.srcObject = stream
+        // Stream attachment is now handled by CallUI component
       })
 
       onConnectionStateChange(peerConnectionRef.current, (state) => {
@@ -532,31 +700,77 @@ const ChatBKPage: React.FC = () => {
         console.log('📹 [ChatBKPage] Got local stream:', {
           videoTracks: (stream as MediaStream).getVideoTracks().length,
           audioTracks: (stream as MediaStream).getAudioTracks().length,
+          streamId: (stream as MediaStream).id,
         })
         
+        // ✅ CRITICAL: Store the EXACT same stream reference
+        // Don't create copies - WebRTC needs the original MediaStream object
         localStreamRef.current = stream
-        console.log('📹 [ChatBKPage] Stream stored in localStreamRef.current:', localStreamRef.current)
-        // ✅ Don't attach here - CallUI not mounted yet. Will attach via useEffect after activeCall is set
-        addLocalStreamToPeerConnection(peerConnectionRef.current, stream)
+        setLocalStream(stream)
+        console.log('📹 [ChatBKPage] Stream references set:', {
+          localStreamRefId: localStreamRef.current?.id,
+          localStreamStateId: localStream?.id,
+          areSame: localStreamRef.current === stream,
+        })
+        
+        // ✅ CRITICAL: Add BEFORE calling setActiveCall (which triggers CallUI mount)
+        // This ensures senders are set BEFORE the video element tries to attach
+        console.log('✅ [ChatBKPage] Adding local stream to peer connection NOW (before activeCall set)')
+        addLocalStreamToPeerConnection(peerConnectionRef.current, localStreamRef.current as MediaStream)
+        
+        // ✅ CRITICAL: Verify stream is still alive after PC operations
+        console.log('📹 [ChatBKPage] Stream health check AFTER adding to PC:', {
+          streamId: localStreamRef.current?.id,
+          streamActive: localStreamRef.current?.active,
+          videoTracks: localStreamRef.current?.getVideoTracks().length,
+          audioTracks: localStreamRef.current?.getAudioTracks().length,
+          videoTrackStates: localStreamRef.current?.getVideoTracks().map((t: any) => ({id: t.id, state: t.readyState, enabled: t.enabled})),
+          audioTrackStates: localStreamRef.current?.getAudioTracks().map((t: any) => ({id: t.id, state: t.readyState, enabled: t.enabled}))
+        })
+        console.log('✅ [ChatBKPage] Local stream added to peer connection BEFORE offer creation')
+
+        // ✅ NEW: Handle negotiation needed events for proper SDP renegotiation
+        let initialOfferSent = false
+        if (peerConnectionRef.current) {
+          onNegotiationNeeded(peerConnectionRef.current, async () => {
+            if (!initialOfferSent) {
+              console.log('📋 [ChatBKPage] Initial negotiation needed')
+              return
+            }
+            // For subsequent negotiations (if track changes)
+            if (peerConnectionRef.current) {
+              const offer = await createOffer(peerConnectionRef.current)
+              callSocketRef.current?.emit('call-renegotiate', {
+                callId: activeCall?.callId,
+                offer: offer,
+              })
+            }
+          })
+        }
 
         // Create offer
         const offerSDP = await createOffer(peerConnectionRef.current)
+        initialOfferSent = true
 
         // Emit call-initiate WITH OFFER
-        socketRef.current.emit('call-initiate', {
-          callerId: user?.id,
-          receiverId: receiverId,
-          callType: callType,
-          conversationId: activeCounselorId,
-          offer: offerSDP, // ✅ Include offer immediately
-        }, (response: any) => {
-          if (response?.status === 'initiated') {
-            const callId = response.callId
-            setActiveCall({ callId, receiverId, callType, isInitiator: true, remoteUserName: activeConversation.receiver.fullName })
-          } else {
-            alert('Gagal memulai panggilan')
-          }
-        })
+        if (callSocketRef.current) {
+          callSocketRef.current.emit('call-initiate', {
+            callerId: user?.id,
+            receiverId: receiverId,
+            callType: callType,
+            conversationId: activeCounselorId,
+            offer: offerSDP, // ✅ Include offer immediately
+          }, (response: any) => {
+            if (response?.status === 'initiated') {
+              const callId = response.callId
+              // ✅ CRITICAL: Set callIdRef IMMEDIATELY so ICE candidates use it
+              callIdRef.current = callId
+              setActiveCall({ callId, receiverId, callType, isInitiator: true, remoteUserName: activeConversation.receiver.fullName })
+            } else {
+              alert('Gagal memulai panggilan')
+            }
+          })
+        }
 
         handleCloseCall()
       } catch (error: any) {
@@ -584,9 +798,11 @@ const ChatBKPage: React.FC = () => {
       // Initialize peer connection
       peerConnectionRef.current = createPeerConnection()
 
+      // ✅ CRITICAL: Use call socket namespace for ICE candidates, not chat socket
+      // Handle ICE candidates with detailed logging
       onIceCandidate(peerConnectionRef.current, (candidate) => {
         if (!candidate) {
-          console.log('ICE gathering complete for receiver (BK)')
+          console.log('✅ [ChatBKPage ICE Receiver] ICE gathering complete for receiver (BK)')
           return
         }
         
@@ -597,15 +813,49 @@ const ChatBKPage: React.FC = () => {
           sdpMid: candidate.sdpMid,
         }
         
-        console.log('[ChatBKPage] Sending ICE candidate (receiver):', candidateObj)
-        socketRef.current?.emit('ice-candidate', candidateObj)
+        // Validate candidate object
+        if (!candidateObj.candidate || !candidateObj.callId) {
+          console.warn('⚠️ [ChatBKPage ICE Receiver] ICE candidate incomplete - missing candidate or callId', candidateObj)
+          return
+        }
+        
+        console.log('📤 [ChatBKPage ICE Receiver] Sending ICE candidate via /call socket:', {
+          callId: candidateObj.callId,
+          candidateType: candidateObj.candidate.includes('typ host') ? 'HOST' : 
+                        candidateObj.candidate.includes('typ srflx') ? 'SRFLX' : 'RELAY',
+          sdpMLineIndex: candidateObj.sdpMLineIndex,
+          sdpMid: candidateObj.sdpMid,
+          socketConnected: callSocketRef.current?.connected,
+        })
+        
+        // ✅ CRITICAL: Use callSocketRef (call namespace) not socketRef (chat namespace)
+        if (!callSocketRef.current?.connected) {
+          console.error('❌ [ChatBKPage ICE Receiver] Call socket not connected! Cannot send candidate')
+          return
+        }
+        
+        // Send via call socket with confirmation
+        callSocketRef.current?.emit('ice-candidate', candidateObj, (response: any) => {
+          if (response?.status === 'ice-candidate-sent') {
+            console.log(`✅ [ChatBKPage ICE Receiver] Backend confirmed ICE candidate sent`)
+          } else if (response?.status === 'error') {
+            console.error(`❌ [ChatBKPage ICE Receiver] Backend rejected candidate: ${response?.message}`)
+          } else {
+            console.log(`ℹ️ [ChatBKPage ICE Receiver] Backend response:`, response)
+          }
+        })
       })
 
       onRemoteStream(peerConnectionRef.current, (stream) => {
-        console.log('Remote stream received:', stream)
+        console.log('✅ Remote stream received (receiver), updating state for CallUI:', {
+          videoTracks: stream.getVideoTracks().length,
+          audioTracks: stream.getAudioTracks().length,
+          streamId: stream.id,
+        })
         remoteStreamRef.current = stream
+        setRemoteStream(stream)
         setHasRemoteStream(true)
-        if (remoteVideoRef.current) remoteVideoRef.current.srcObject = stream
+        // Stream attachment is now handled by CallUI component
       })
 
       onConnectionStateChange(peerConnectionRef.current, (state) => {
@@ -613,10 +863,22 @@ const ChatBKPage: React.FC = () => {
         if (state === 'connected') {
           console.log('✅ Peer connection established')
           setIsConnected(true)
+          
+          // ✅ NEW: Start RTP monitoring to diagnose media flow
+          if (!rtpMonitoringRef.current) {
+            console.log('🚀 Starting RTP monitoring...')
+            startRTPMonitoring(peerConnectionRef.current!, 2000)
+            rtpMonitoringRef.current = true
+          }
         } else if (state === 'failed' || state === 'closed') {
           console.error('❌ Peer connection failed/closed:', state)
           setIsConnected(false)
           setHasRemoteStream(false)
+          // ✅ Stop RTP monitoring on disconnect
+          if (rtpMonitoringRef.current) {
+            stopRTPMonitoring()
+            rtpMonitoringRef.current = false
+          }
           if (localStreamRef.current) stopMediaStream(localStreamRef.current)
           if (peerConnectionRef.current) peerConnectionRef.current.close()
           setActiveCall(null)
@@ -648,6 +910,19 @@ const ChatBKPage: React.FC = () => {
       })
 
       try {
+        // ✅ CRITICAL FIX: Handle remote offer FIRST before adding local tracks
+        // This is the correct WebRTC negotiation order
+        if (!incomingCall?.offer) {
+          console.error('❌ Tidak ada SDP offer pada incomingCall:', incomingCall)
+          alert('Panggilan tidak valid: offer SDP tidak ditemukan.')
+          return
+        }
+
+        console.log('📋 [ChatBKPage] Setting remote offer FIRST (before local tracks)')
+        await handleRemoteOffer(peerConnectionRef.current, incomingCall.offer)
+        console.log('✅ [ChatBKPage] Remote offer set')
+
+        // NOW get local stream
         const stream = incomingCall.callType === 'audio' ? await getLocalAudioStream() : await getLocalVideoStream()
         
         console.log('📹 [ChatBKPage] Got local stream (accept):', {
@@ -656,33 +931,39 @@ const ChatBKPage: React.FC = () => {
         })
         
         localStreamRef.current = stream
-        console.log('📹 [ChatBKPage] Stream stored in localStreamRef.current (accept):', localStreamRef.current)
-        // ✅ Don't attach here - CallUI not mounted yet. Will attach via useEffect after activeCall is set
+        setLocalStream(stream)  // ✅ Set state so CallUI gets the stream
+        console.log('📹 [ChatBKPage] Local stream stored in state & ref')
 
+        // ✅ Add local stream to peer connection AFTER remote offer is set
         addLocalStreamToPeerConnection(peerConnectionRef.current, stream)
+        console.log('✅ [ChatBKPage] Local stream added to peer connection')
 
-        // Pastikan offer valid sebelum createAnswer
-        if (!incomingCall?.offer) {
-          console.error('❌ Tidak ada SDP offer pada incomingCall:', incomingCall)
-          alert('Panggilan tidak valid: offer SDP tidak ditemukan.')
-          return
-        }
+        // ✅ NEW: Handle negotiation needed events
+        onNegotiationNeeded(peerConnectionRef.current, async () => {
+          console.log('📋 [ChatBKPage] Negotiation needed on receiver side')
+          // Receiver side renegotiation - usually not needed for initial setup
+        })
 
         // Create answer from received offer
         const answerSDP = await createAnswer(peerConnectionRef.current, incomingCall.offer)
 
+        // ✅ CRITICAL: Set callIdRef IMMEDIATELY for ICE candidates
+        callIdRef.current = incomingCall.callId
+
         // Send answer via WebSocket
-        socketRef.current.emit('call-accept', {
-          callId: incomingCall.callId,
-          answer: answerSDP,
-        }, (response: any) => {
-          if (response?.status === 'accepted') {
-            console.log('\u2705 Call accepted successfully')
-            setActiveCall({ callId: incomingCall.callId, callerId: incomingCall.callerId, callType: incomingCall.callType, isInitiator: false, remoteUserName: incomingCall.callerName })
-          } else {
-            alert('Gagal menerima panggilan')
-          }
-        })
+        if (callSocketRef.current) {
+          callSocketRef.current.emit('call-accept', {
+            callId: incomingCall.callId,
+            answer: answerSDP,
+          }, (response: any) => {
+            if (response?.status === 'accepted') {
+              console.log('\u2705 Call accepted successfully')
+              setActiveCall({ callId: incomingCall.callId, callerId: incomingCall.callerId, callType: incomingCall.callType, isInitiator: false, remoteUserName: incomingCall.callerName })
+            } else {
+              alert('Gagal menerima panggilan')
+            }
+          })
+        }
 
         setIncomingCallModalOpen(false)
         setIncomingCall(null)
@@ -703,17 +984,36 @@ const ChatBKPage: React.FC = () => {
     try {
       console.log('❌ Rejecting incoming call:', incomingCall.callId)
       
-      socketRef.current.emit('call-reject', {
-        callId: incomingCall.callId,
-        reason: 'User declined',
-      }, (response: any) => {
-        if (response?.status === 'rejected') {
-          console.log('✅ Call rejected successfully')
-        } else {
-          alert('Gagal menolak panggilan')
-        }
-      })
-
+      // ✅ CRITICAL: Stop camera/microphone BEFORE rejecting
+      if (localStreamRef.current) {
+        console.log('🛑 Stopping local media stream...')
+        stopMediaStream(localStreamRef.current)
+        localStreamRef.current = null
+        setLocalStream(null)
+        console.log('✅ Local media stream stopped')
+      }
+      
+      // Close peer connection if opened
+      if (peerConnectionRef.current) {
+        console.log('🔌 Closing peer connection...')
+        peerConnectionRef.current.close()
+        peerConnectionRef.current = null
+        console.log('✅ Peer connection closed')
+      }
+      
+      if (callSocketRef.current) {
+        callSocketRef.current.emit('call-reject', {
+          callId: incomingCall.callId,
+          reason: 'User declined',
+        }, (response: any) => {
+          if (response?.status === 'rejected') {
+            console.log('✅ Call rejected successfully')
+          } else {
+            alert('Gagal menolak panggilan')
+          }
+        })
+      }
+      
       setIncomingCallModalOpen(false)
       setIncomingCall(null)
     } catch (error) {
@@ -726,7 +1026,7 @@ const ChatBKPage: React.FC = () => {
     if (!activeCall) return
 
     try {
-      socketRef.current?.emit('call-end', { callId: activeCall.callId, duration: callDuration })
+      callSocketRef.current?.emit('call-end', { callId: activeCall.callId, duration: callDuration })
     } catch (error) {
       console.error('Error ending call:', error)
     } finally {
@@ -737,22 +1037,8 @@ const ChatBKPage: React.FC = () => {
     }
   }
 
-  // Attach local stream to video element AFTER CallUI is mounted
-  useEffect(() => {
-    if (activeCall && localStreamRef.current && localVideoRef.current) {
-      console.log('✅ [ChatBKPage] Attaching local stream to video element')
-      console.log('Stream:', localStreamRef.current)
-      console.log('Video ref:', localVideoRef.current)
-      localVideoRef.current.srcObject = localStreamRef.current
-      console.log('✅ [ChatBKPage] Stream attached! srcObject:', localVideoRef.current.srcObject)
-    } else {
-      console.log('⚠️ [ChatBKPage] Cannot attach stream:', {
-        activeCall: !!activeCall,
-        localStreamRef: !!localStreamRef.current,
-        localVideoRef: !!localVideoRef.current,
-      })
-    }
-  }, [activeCall, localStreamRef.current])
+  // Call UI handles all stream attachment now - no need to attach here
+  // Just ensure refs are passed correctly to CallUI
 
   useEffect(() => {
     let timer: any = null
@@ -789,9 +1075,9 @@ const ChatBKPage: React.FC = () => {
   return (
     <div className="flex h-[calc(100vh-120px)] bg-white rounded-lg shadow-sm overflow-hidden">
       {/* Chat List Sidebar */}
-      <div className="w-80 border-r border-gray-200 bg-white flex flex-col">
+      <div className="w-80 border-r border-gray-200 bg-white flex flex-col flex-shrink-0">
         {/* Header with Search */}
-        <div className="p-4 border-b border-gray-200">
+        <div className="p-4 border-b border-gray-200 flex-shrink-0">
           <h2 className="text-lg font-bold text-gray-900 mb-4">Pesan</h2>
           <div className="relative">
             <input
@@ -806,7 +1092,7 @@ const ChatBKPage: React.FC = () => {
         </div>
 
         {/* Counselor List */}
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto scrollbar-hide">
           {loading ? (
             <div className="flex items-center justify-center h-full">
               <Loader className="w-6 h-6 animate-spin text-blue-500" />
@@ -830,7 +1116,7 @@ const ChatBKPage: React.FC = () => {
                         className="w-12 h-12 rounded-full object-cover"
                       />
                     ) : (
-                      <div className={`w-12 h-12 ${getInitialBgColor(counselor.initial)} rounded-full flex items-center justify-center text-white font-semibold`}>
+                      <div className={`w-12 h-12 ${getAvatarBgColor(counselor.initial)} rounded-full flex items-center justify-center text-white font-semibold`}>
                         {counselor.initial}
                       </div>
                     )}
@@ -847,8 +1133,11 @@ const ChatBKPage: React.FC = () => {
 
                   {/* Unread Badge */}
                   {counselor.unread && counselor.unread > 0 && (
-                    <div className="bg-blue-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-semibold flex-shrink-0">
-                      {counselor.unread > 99 ? '99+' : counselor.unread}
+                    <div className="flex items-center gap-1">
+                      <span className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0"></span>
+                      <span className="bg-blue-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-semibold flex-shrink-0">
+                        {counselor.unread > 99 ? '99+' : counselor.unread}
+                      </span>
                     </div>
                   )}
                 </div>
@@ -869,21 +1158,21 @@ const ChatBKPage: React.FC = () => {
         {/* Header */}
         {activeCounselor ? (
           <>
-            <div className="p-4 border-b border-gray-200 flex items-center justify-between bg-white">
+            <div className="p-3 border-b border-gray-200 flex items-center justify-between bg-white flex-shrink-0">
               <div className="flex items-center gap-3">
                 {activeCounselor.photoUrl ? (
                   <img
                     src={activeCounselor.photoUrl}
                     alt={activeCounselor.name}
-                    className="w-10 h-10 rounded-full object-cover"
+                    className="w-9 h-9 rounded-full object-cover"
                   />
                 ) : (
-                  <div className={`w-10 h-10 ${getInitialBgColor(activeCounselor.initial)} rounded-full flex items-center justify-center text-white font-semibold text-sm`}>
+                  <div className={`w-9 h-9 ${getAvatarBgColor(activeCounselor.initial)} rounded-full flex items-center justify-center text-white font-semibold text-sm`}>
                     {activeCounselor.initial}
                   </div>
                 )}
                 <div>
-                  <h3 className="font-semibold text-gray-900">{activeCounselor.name}</h3>
+                  <h3 className="font-semibold text-gray-900 text-sm">{activeCounselor.name}</h3>
                   <p className="text-xs text-gray-500">
                     Online
                   </p>
@@ -891,72 +1180,89 @@ const ChatBKPage: React.FC = () => {
               </div>
 
               {/* Action Buttons */}
-              <div className="flex gap-3">
+              <div className="flex gap-2">
                 <button 
                   onClick={handleVoiceCall}
                   className="p-2 hover:bg-gray-100 rounded-lg transition text-gray-600 hover:text-blue-600"
                   title="Mulai panggilan suara"
                 >
-                  <Phone className="w-5 h-5" />
+                  <Phone className="w-4 h-4" />
                 </button>
                 <button 
                   onClick={handleVideoCall}
                   className="p-2 hover:bg-gray-100 rounded-lg transition text-gray-600 hover:text-blue-600"
                   title="Mulai video call"
                 >
-                  <Video className="w-5 h-5" />
+                  <Video className="w-4 h-4" />
                 </button>
                 <button className="p-2 hover:bg-gray-100 rounded-lg transition text-gray-600">
-                  <MoreVertical className="w-5 h-5" />
+                  <MoreVertical className="w-4 h-4" />
                 </button>
               </div>
             </div>
 
             {/* Messages Area */}
-            <div className="flex-1 p-4 overflow-y-auto bg-gray-50">
-              <div className="max-w-3xl mx-auto">
-                {messages.length > 0 && (
-                  <div className="text-center mb-6">
-                    <span className="text-xs text-gray-500 bg-white px-3 py-1 rounded-full">
-                      Hari ini
-                    </span>
-                  </div>
-                )}
-
+            <div className="flex-1 p-4 overflow-y-auto bg-gray-50 flex flex-col">
+              <div className="w-full">
                 {/* Messages */}
                 {messages.length > 0 ? (
-                  messages.map((message: Message) => (
-                    <div
-                      key={message.id}
-                      className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'} mb-4`}
-                    >
-                      <div
-                        className={`max-w-[70%] p-4 rounded-xl ${
-                          message.sender === 'user'
-                            ? 'bg-blue-500 text-white rounded-br-none'
-                            : 'bg-white border border-gray-200 rounded-bl-none'
-                        }`}
-                      >
-                        <p className={`text-sm leading-relaxed ${message.isDeleted ? 'italic text-gray-400' : ''}`}>
-                          {message.content}
-                        </p>
-                        <div className="flex items-center gap-2 mt-2">
-                          <p
-                            className={`text-xs ${
-                              message.sender === 'user' ? 'text-blue-100' : 'text-gray-500'
+                  messages.map((message: Message, index: number) => {
+                    const showDateSeparator = shouldShowDateSeparator(message, messages[index - 1])
+                    return (
+                      <div key={message.id} className="flex flex-col w-full">
+                        {showDateSeparator && (
+                          <div className="text-center mb-4 mt-2">
+                            <span className="text-xs text-gray-500 bg-white px-3 py-1 rounded-full">
+                              {getMessageDateLabel(message.originalDate)}
+                            </span>
+                          </div>
+                        )}
+                        <div className={`flex w-full ${message.sender === 'user' ? 'justify-end' : 'justify-start'} mb-2`}>
+                          <div
+                            className={`px-4 py-3 rounded-xl break-words max-w-xs sm:max-w-md ${
+                              message.sender === 'user'
+                                ? 'bg-blue-500 text-white'
+                                : 'bg-gray-200 text-gray-900'
                             }`}
                           >
-                            {message.timestamp}
-                          </p>
-                          {message.isEdited && (
-                            <p className={`text-xs ${message.sender === 'user' ? 'text-blue-100' : 'text-gray-400'}`}>
-                              (disunting)
-                            </p>
-                          )}
+                            {message.messageType === 'voice' ? (
+                              <div className="flex items-center gap-2">
+                                <audio
+                                  src={message.voiceUrl}
+                                  controls
+                                  className="h-8 flex-1"
+                                  onContextMenu={(e) => e.preventDefault()}
+                                />
+                                {message.duration && (
+                                  <span className="text-xs whitespace-nowrap">
+                                    {Math.floor(message.duration / 60)}:{String(message.duration % 60).padStart(2, '0')}
+                                  </span>
+                                )}
+                              </div>
+                            ) : (
+                              <>
+                                <p className="text-sm leading-relaxed">{message.content}</p>
+                                {message.isEdited && (
+                                  <p className={`text-xs ${message.sender === 'user' ? 'text-blue-100' : 'text-gray-500'}`}>
+                                    (disunting)
+                                  </p>
+                                )}
+                              </>
+                            )}
+                            <div className="flex items-center gap-2 mt-1">
+                              <p
+                                className={`text-xs ${
+                                  message.sender === 'user' ? 'text-blue-100' : 'text-gray-600'
+                                }`}
+                              >
+                                {message.timestamp}
+                              </p>
+                            </div>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))
+                    )
+                  })
                 ) : (
                   <div className="flex items-center justify-center h-full">
                     <p className="text-gray-500">Mulai percakapan dengan {activeCounselor.name}</p>
@@ -968,44 +1274,138 @@ const ChatBKPage: React.FC = () => {
             </div>
 
             {/* Input Area */}
-            <div className="p-4 border-t border-gray-200 bg-white">
-              <div className="flex gap-3 items-end">
-                <button className="text-gray-400 hover:text-gray-600 transition p-2">
-                  <Paperclip className="w-5 h-5" />
-                </button>
-
-                <div className="flex-1 flex gap-2 items-end bg-gray-50 rounded-lg px-4 py-2 border border-gray-200 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-200">
-                  <input
-                    type="text"
-                    value={messageInput}
-                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setMessageInput(e.target.value)}
-                    onKeyPress={(e: React.KeyboardEvent<HTMLInputElement>) => {
-                      if (e.key === 'Enter' && !e.shiftKey) {
-                        e.preventDefault()
-                        handleSendMessage()
-                      }
-                    }}
-                    placeholder="Ketik pesan..."
-                    disabled={sendingMessage}
-                    className="flex-1 bg-transparent outline-none text-sm text-gray-900 placeholder-gray-400 disabled:text-gray-400"
-                  />
-                  <button className="text-gray-400 hover:text-gray-600 transition p-1">
-                    <Smile className="w-5 h-5" />
-                  </button>
+            <div className="p-4 border-t border-gray-200 bg-white flex-shrink-0">
+              {(activeCounselor as FormattedConversation).status === 'completed' ? (
+                <div className="p-3 bg-gray-100 text-gray-700 rounded-lg text-center text-sm font-medium">
+                  ✓ Sesi telah selesai. Riwayat pesan tersedia untuk dilihat.
                 </div>
-
-                <button
-                  onClick={handleSendMessage}
-                  disabled={!messageInput.trim() || sendingMessage}
-                  className="px-4 py-2 bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 text-white rounded-lg transition flex items-center gap-2"
-                >
-                  {sendingMessage ? (
-                    <Loader className="w-4 h-4 animate-spin" />
+              ) : (
+                <div className="flex-col flex gap-3">
+                  {isRecording ? (
+                    <div className="flex gap-2 items-center justify-between bg-red-50 p-3 rounded-lg border border-red-200">
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>
+                        <span className="text-sm font-medium text-red-600">
+                          Merekam... {Math.floor(recordingTime / 60)}:{String(recordingTime % 60).padStart(2, '0')}
+                        </span>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={handleCancelRecording}
+                          className="px-3 py-1 text-sm bg-gray-300 hover:bg-gray-400 text-gray-700 rounded transition"
+                        >
+                          Batal
+                        </button>
+                        <button
+                          onClick={handleStopRecording}
+                          className="px-3 py-1 text-sm bg-red-500 hover:bg-red-600 text-white rounded transition flex items-center gap-1"
+                        >
+                          <Square className="w-3 h-3" />
+                          Selesai
+                        </button>
+                      </div>
+                    </div>
+                  ) : recordedChunks.length > 0 ? (
+                    <div className="flex flex-col gap-2 bg-blue-50 p-3 rounded-lg border border-blue-200">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium text-blue-600">
+                          Pesan suara siap dikirim ({Math.floor(recordingTime / 60)}:{String(recordingTime % 60).padStart(2, '0')})
+                        </span>
+                      </div>
+                      <div className="bg-white rounded p-2 border border-blue-200">
+                        <audio
+                          src={URL.createObjectURL(recordedChunks[0])}
+                          controls
+                          className="w-full h-8"
+                          onContextMenu={(e) => e.preventDefault()}
+                        />
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={handleCancelRecording}
+                          className="flex-1 px-3 py-2 text-sm bg-gray-300 hover:bg-gray-400 text-gray-700 rounded transition"
+                        >
+                          Hapus
+                        </button>
+                        <button
+                          onClick={handleSendVoiceMessage}
+                          disabled={sendingMessage}
+                          className="flex-1 px-3 py-2 text-sm bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 text-white rounded transition flex items-center justify-center gap-1"
+                        >
+                          {sendingMessage ? (
+                            <Loader className="w-3 h-3 animate-spin" />
+                          ) : (
+                            <Send className="w-3 h-3" />
+                          )}
+                          Kirim
+                        </button>
+                      </div>
+                    </div>
                   ) : (
-                    <Send className="w-4 h-4" />
+                    <div className="flex gap-3 items-end relative">
+                      <button
+                        onClick={handleStartRecording}
+                        disabled={sendingMessage}
+                        className="px-4 py-2 bg-red-500 hover:bg-red-600 disabled:bg-gray-300 text-white rounded-lg transition flex items-center gap-2"
+                      >
+                        <Mic className="w-4 h-4" />
+                      </button>
+
+                      <div className="flex-1 flex gap-2 items-end bg-gray-50 rounded-lg px-4 py-2 border border-gray-200 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-200">
+                        <input
+                          type="text"
+                          value={messageInput}
+                          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setMessageInput(e.target.value)}
+                          onKeyPress={(e: React.KeyboardEvent<HTMLInputElement>) => {
+                            if (e.key === 'Enter' && !e.shiftKey) {
+                              e.preventDefault()
+                              handleSendMessage()
+                            }
+                          }}
+                          placeholder="Ketik pesan..."
+                          disabled={sendingMessage || (activeCounselor as FormattedConversation).status === 'completed'}
+                          className="flex-1 bg-transparent outline-none text-sm text-gray-900 placeholder-gray-400 disabled:text-gray-400"
+                        />
+                        <button
+                          onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                          className="text-gray-400 hover:text-gray-600 transition p-1 hover:scale-110 duration-200"
+                        >
+                          <Smile className="w-5 h-5" />
+                        </button>
+                      </div>
+
+                      <button
+                        onClick={handleSendMessage}
+                        disabled={!messageInput.trim() || sendingMessage || (activeCounselor as FormattedConversation).status === 'completed'}
+                        className="px-4 py-2 bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 text-white rounded-lg transition flex items-center gap-2"
+                      >
+                        {sendingMessage ? (
+                          <Loader className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Send className="w-4 h-4" />
+                        )}
+                      </button>
+
+                      {/* Emoji Picker */}
+                      {showEmojiPicker && (
+                        <div className="absolute bottom-12 right-0 bg-white border border-gray-200 rounded-lg shadow-lg p-3 z-50 w-60">
+                          <div className="grid grid-cols-5 gap-2">
+                            {emojis.map((emoji) => (
+                              <button
+                                key={emoji}
+                                onClick={() => handleEmojiInsert(emoji)}
+                                className="text-2xl hover:bg-gray-100 p-2 rounded transition hover:scale-110"
+                              >
+                                {emoji}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   )}
-                </button>
-              </div>
+                </div>
+              )}
             </div>
           </>
         ) : (
@@ -1106,6 +1506,9 @@ const ChatBKPage: React.FC = () => {
           remoteUserName={activeCall.remoteUserName || incomingCall?.callerName || ''}
           localVideoRef={localVideoRef}
           remoteVideoRef={remoteVideoRef}
+          remoteAudioRef={remoteAudioRef}
+          localStream={localStream}
+          remoteStream={remoteStream}
           onHangup={handleHangup}
           isConnected={isConnected}
           callDuration={callDuration}

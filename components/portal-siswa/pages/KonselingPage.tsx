@@ -1,27 +1,34 @@
 "use client"
 
-import React, { useState } from 'react'
-import { Heart, MessageSquare, Shield, Clock, Calendar, Users, MessageCircle } from 'lucide-react'
-import { SessionItemProps, CounselingCardProps } from '@types'
+import React, { useState, useEffect } from 'react'
+import { Heart, MessageSquare, Shield, Clock, Calendar, Users, MessageCircle, AlertCircle, CheckCircle } from 'lucide-react'
+import { CounselingCardProps } from '@types'
 import AppointmentScheduleModal from '../modals/AppointmentScheduleModal'
+import { useAuth } from '@hooks/useAuth'
+import { apiRequest } from '@lib/api'
 
-const SessionItem: React.FC<SessionItemProps> = ({ icon: Icon, title, counselor, date, time, status, statusColor }) => (
-  <div className="bg-white rounded-lg p-4 flex items-center justify-between">
-    <div className="flex items-center gap-4">
-      <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
-        <Icon className="w-5 h-5 text-white" />
-      </div>
-      <div>
-        <h5 className="font-semibold text-gray-900">{title}</h5>
-        <p className="text-sm text-gray-600">{counselor} • {date} • {time}</p>
-      </div>
-    </div>
-    <span className={`px-3 py-1 rounded-full text-sm font-medium ${statusColor}`}>{status}</span>
-  </div>
-)
+interface Reservasi {
+  id: number
+  counselorId: number
+  counselorName: string
+  preferredDate: string
+  preferredTime: string
+  type: 'chat' | 'tatap-muka'
+  topic: string
+  status: 'pending' | 'approved' | 'rejected' | 'completed' | 'cancelled'
+}
 
-const CounselingCard: React.FC<CounselingCardProps> = ({ icon: Icon, title, description, duration, color, badge }) => {
-  const [modalOpen, setModalOpen] = useState(false);
+const CounselingCard: React.FC<CounselingCardProps & { onBooking?: (type: string) => void; handleSubmitReservasi: (data: any) => void }> = ({
+  icon: Icon,
+  title,
+  description,
+  duration,
+  color,
+  badge,
+  onBooking,
+  handleSubmitReservasi,
+}) => {
+  const [modalOpen, setModalOpen] = useState(false)
 
   return (
     <>
@@ -40,7 +47,7 @@ const CounselingCard: React.FC<CounselingCardProps> = ({ icon: Icon, title, desc
           <Clock className="w-4 h-4" />
           <span>{duration}</span>
         </div>
-        <button 
+        <button
           onClick={() => setModalOpen(true)}
           className="w-full bg-gradient-to-r from-blue-500 to-purple-600 text-white py-2 rounded-lg font-medium hover:opacity-90 transition-opacity duration-200 hover:shadow-lg"
         >
@@ -48,55 +55,213 @@ const CounselingCard: React.FC<CounselingCardProps> = ({ icon: Icon, title, desc
         </button>
       </div>
 
-      {modalOpen && (
-        <>
-          <div className="fixed inset-0 z-40 bg-black/20 backdrop-blur-sm" aria-hidden="true" />
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <AppointmentScheduleModal
-              isOpen={modalOpen}
-              onClose={() => setModalOpen(false)}
-              counselingType={title}
-              counselorName="Bu Sarah Wijaya"
-            />
-          </div>
-        </>
-      )}
+      <AppointmentScheduleModal
+        isOpen={modalOpen}
+        onClose={() => setModalOpen(false)}
+        counselingType={title}
+        onConfirm={(data) => {
+          console.log('Booking confirmed:', data)
+          handleSubmitReservasi(data)
+          setModalOpen(false)
+        }}
+      />
     </>
   )
 }
 
-const KonselingPage: React.FC = () => (
-  <div className="pt-16 px-8 space-y-6">
-    <div className="bg-white rounded-xl border border-gray-200 p-6">
-      <h3 className="font-bold text-gray-900 mb-2">Layanan Konseling</h3>
-      <p className="text-gray-600 mb-6">Pilih jenis konseling yang sesuai dengan kebutuhan Anda</p>
+const KonselingPage: React.FC = () => {
+  const { user, token } = useAuth()
+  const [reservasiList, setReservasiList] = useState<Reservasi[]>([])
+  const [successMessage, setSuccessMessage] = useState<string>('')
+  const [errorMessage, setErrorMessage] = useState<string>('')
+  const [loading, setLoading] = useState(false)
 
-      <div className="bg-gray-50 rounded-xl p-6 mb-6">
-        <h4 className="font-semibold text-gray-900 mb-4">Sesi Mendatang</h4>
-        <div className="space-y-3">
-          <SessionItem icon={Heart} title="Konseling Pribadi" counselor="Bu Sarah" date="25 Oktober 2025" time="10:00" status="Terkonfirmasi" statusColor="bg-green-100 text-green-700" />
-          <SessionItem icon={MessageSquare} title="Konseling Akademik" counselor="Pak Budi" date="27 Oktober 2025" time="14:00" status="Menunggu" statusColor="bg-yellow-100 text-yellow-700" />
+  useEffect(() => {
+    if (user && token) {
+      fetchMyReservasi()
+    }
+  }, [user, token])
+
+  const fetchMyReservasi = async () => {
+    try {
+      console.log('📥 Fetching user reservasi...')
+      const response = await apiRequest('/reservasi/student/my-reservations', 'GET', undefined, token)
+      console.log('✅ Reservasi loaded:', response)
+      setReservasiList(response || [])
+    } catch (error: any) {
+      console.error('❌ Error fetching reservasi:', error)
+    }
+  }
+
+  const handleSubmitReservasi = async (formData: any) => {
+    setLoading(true)
+    setErrorMessage('')
+    setSuccessMessage('')
+
+    try {
+      const payload = {
+        studentId: user?.id,
+        counselorId: formData.counselorId,
+        preferredDate: new Date(formData.date).toISOString(),
+        preferredTime: formData.time,
+        type: formData.sessionType === 'tatap-muka' ? 'tatap-muka' : 'chat',
+        topic: formData.topic || formData.counselingType,
+        notes: formData.notes,
+      }
+
+      console.log('📤 Submitting reservasi:', payload)
+      const response = await apiRequest('/reservasi', 'POST', payload, token)
+      console.log('✅ Reservasi created:', response)
+
+      setSuccessMessage('Reservasi berhasil dibuat! Menunggu konfirmasi dari konselor.')
+
+      // Refresh list
+      await fetchMyReservasi()
+
+      // Clear success message after 3 seconds
+      setTimeout(() => setSuccessMessage(''), 3000)
+    } catch (error: any) {
+      console.error('❌ Error creating reservasi:', error)
+      setErrorMessage(error?.message || 'Gagal membuat reservasi')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const getStatusBadgeColor = (status: string) => {
+    const colors: Record<string, string> = {
+      pending: 'bg-yellow-100 text-yellow-800',
+      approved: 'bg-green-100 text-green-800',
+      rejected: 'bg-red-100 text-red-800',
+      completed: 'bg-blue-100 text-blue-800',
+      cancelled: 'bg-gray-100 text-gray-800',
+    }
+    return colors[status] || 'bg-gray-100 text-gray-800'
+  }
+
+  const getStatusLabel = (status: string) => {
+    const labels: Record<string, string> = {
+      pending: 'Menunggu',
+      approved: 'Diterima',
+      rejected: 'Ditolak',
+      completed: 'Selesai',
+      cancelled: 'Dibatalkan',
+    }
+    return labels[status] || status
+  }
+
+  return (
+    <div className="pt-16 px-8 space-y-6">
+      {/* Alert Messages */}
+      {successMessage && (
+        <div className="bg-green-50 border border-green-200 rounded-lg p-4 flex items-center gap-3">
+          <CheckCircle className="w-5 h-5 text-green-600" />
+          <p className="text-green-800">{successMessage}</p>
         </div>
-      </div>
+      )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <CounselingCard icon={Heart} title="Konseling Pribadi" description="Sesi one-on-one dengan konselor untuk membahas masalah pribadi, emosional, atau sosial" duration="45-60 menit" color="bg-pink-500" />
-        <CounselingCard icon={MessageCircle} title="Konseling Akademik" description="Bantuan untuk mengatasi kesulitan belajar, motivasi akademik, dan perencanaan studi" duration="30-45 menit" color="bg-blue-500" />
-        <CounselingCard icon={Calendar} title="Konseling Karir" description="Bimbingan untuk eksplorasi minat, bakat, dan perencanaan karir masa depan" duration="60 menit" color="bg-purple-500" />
-        <CounselingCard icon={Users} title="Konseling Kelompok" description="Sesi bersama siswa lain untuk membahas topik tertentu dan saling mendukung" duration="90 menit" color="bg-green-500" badge="Terbatas" />
-      </div>
+      {errorMessage && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-center gap-3">
+          <AlertCircle className="w-5 h-5 text-red-600" />
+          <p className="text-red-800">{errorMessage}</p>
+        </div>
+      )}
 
-      <div className="mt-6 bg-green-50 rounded-xl p-4">
-        <div className="flex gap-3">
-          <Shield className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
-          <div>
-            <p className="font-semibold text-green-900 mb-1">Kerahasiaan Terjamin</p>
-            <p className="text-sm text-green-700">Semua informasi dan percakapan Anda dengan konselor BK bersifat rahasia dan dilindungi sesuai dengan kebijakan privasi sekolah.</p>
+      <div className="bg-white rounded-xl border border-gray-200 p-6">
+        <h3 className="font-bold text-gray-900 mb-2">Layanan Konseling</h3>
+        <p className="text-gray-600 mb-6">Pilih jenis konseling yang sesuai dengan kebutuhan Anda</p>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+          <CounselingCard
+            icon={Heart}
+            title="Konseling Pribadi"
+            description="Sesi one-on-one dengan konselor untuk membahas masalah pribadi, emosional, atau sosial"
+            duration="45-60 menit"
+            color="bg-pink-500"
+            handleSubmitReservasi={handleSubmitReservasi}
+          />
+          <CounselingCard
+            icon={MessageCircle}
+            title="Konseling Akademik"
+            description="Bantuan untuk mengatasi kesulitan belajar, motivasi akademik, dan perencanaan studi"
+            duration="30-45 menit"
+            color="bg-blue-500"
+            handleSubmitReservasi={handleSubmitReservasi}
+          />
+          <CounselingCard
+            icon={Calendar}
+            title="Konseling Karir"
+            description="Bimbingan untuk eksplorasi minat, bakat, dan perencanaan karir masa depan"
+            duration="60 menit"
+            color="bg-purple-500"
+            handleSubmitReservasi={handleSubmitReservasi}
+          />
+          <CounselingCard
+            icon={Users}
+            title="Konseling Kelompok"
+            description="Sesi bersama siswa lain untuk membahas topik tertentu dan saling mendukung"
+            duration="90 menit"
+            color="bg-green-500"
+            badge="Terbatas"
+            handleSubmitReservasi={handleSubmitReservasi}
+          />
+          <CounselingCard
+            icon={MessageSquare}
+            title="Konseling Lainnya"
+            description="Konsultasi untuk masalah sosial, keluarga, atau topik khusus lainnya"
+            duration="Disesuaikan"
+            color="bg-orange-500"
+            handleSubmitReservasi={handleSubmitReservasi}
+          />
+        </div>
+
+        <div className="bg-green-50 rounded-xl p-4">
+          <div className="flex gap-3">
+            <Shield className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="font-semibold text-green-900 mb-1">Kerahasiaan Terjamin</p>
+              <p className="text-sm text-green-700">
+                Semua informasi dan percakapan Anda dengan konselor BK bersifat rahasia dan dilindungi sesuai dengan kebijakan privasi sekolah.
+              </p>
+            </div>
           </div>
         </div>
       </div>
+
+      {/* Reservasi Saya */}
+      <div className="bg-white rounded-xl border border-gray-200 p-6">
+        <h3 className="font-bold text-gray-900 mb-2">Reservasi Saya</h3>
+        <p className="text-gray-600 mb-6">Daftar reservasi konseling Anda</p>
+
+        {reservasiList.length === 0 ? (
+          <div className="bg-gray-50 rounded-lg p-6 text-center">
+            <p className="text-gray-600">Belum ada reservasi</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {reservasiList.map((res) => (
+              <div key={res.id} className="bg-white rounded-lg p-4 border border-gray-200 flex items-center justify-between">
+                <div className="flex items-center gap-4 flex-1">
+                  <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                    <Heart className="w-5 h-5 text-blue-600" />
+                  </div>
+                  <div className="flex-1">
+                    <h5 className="font-semibold text-gray-900">{res.topic}</h5>
+                    <p className="text-sm text-gray-600">{res.counselorName} • {res.preferredDate} • {res.preferredTime}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className={`text-xs px-3 py-1 rounded-full font-medium ${getStatusBadgeColor(res.status)}`}>
+                    {getStatusLabel(res.status)}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
-  </div>
-)
+  )
+}
 
 export default KonselingPage

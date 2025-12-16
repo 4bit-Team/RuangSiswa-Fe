@@ -1,10 +1,10 @@
 'use client'
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { Eye, Heart, MessageCircle, X, Loader } from 'lucide-react';
+import { Eye, Heart, MessageCircle, X, Loader, Flame } from 'lucide-react';
 import { NewsItemProps } from '@types';
 import NewsDetailModal from '../modals/NewsDetailModal';
-import NewsAPI from '@lib/newsAPI';
+import NewsAPI, { getCleanPreview } from '@lib/newsAPI';
 import { formatTimeRelative } from '@lib/timeFormat';
 
 interface BeritaPageProps {
@@ -302,6 +302,22 @@ Waktu adalah aset terberharga. Gunakan dengan bijak!`,
     return allNews.filter(news => news.category === selectedCategory);
   }, [selectedCategory, allNews]);
 
+  // Get latest news (first item)
+  const latestNews = filteredNews.length > 0 ? filteredNews[0] : null;
+
+  // Get top 3 popular news (sorted by views/likes)
+  const topPopularNews = filteredNews
+    .filter(n => n.id !== latestNews?.id) // Exclude latest from popular
+    .sort((a, b) => (b.views + b.likes) - (a.views + a.likes))
+    .slice(0, 3);
+
+  // Get remaining news (exclude latest and top 3 popular)
+  const excludedIds = new Set([
+    latestNews?.id,
+    ...topPopularNews.map(n => n.id)
+  ]);
+  const remainingNews = filteredNews.filter(n => !excludedIds.has(n.id));
+
   const handleNewsClick = (news: NewsItemProps) => {
     setSelectedNews(news);
     setIsModalOpen(true);
@@ -373,20 +389,63 @@ Waktu adalah aset terberharga. Gunakan dengan bijak!`,
           <div className="flex justify-center py-12">
             <Loader className="animate-spin text-blue-600" size={40} />
           </div>
-        ) : filteredNews.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredNews.map((news) => (
-              <NewsCard
-                key={news.id}
-                news={news}
-                onViewDetail={handleNewsClick}
-              />
-            ))}
-          </div>
         ) : (
-          <div className="text-center py-12 bg-white rounded-xl border border-gray-200">
-            <p className="text-gray-500">Tidak ada berita dalam kategori ini</p>
-          </div>
+          <>
+            {/* Latest + Top 3 Popular Section */}
+            {(latestNews || topPopularNews.length > 0) && (
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+                {/* Latest News - Large Card (Left) */}
+                {latestNews && (
+                  <div className="lg:col-span-2">
+                    <NewsCard
+                      news={latestNews}
+                      onViewDetail={handleNewsClick}
+                      isLarge={true}
+                    />
+                  </div>
+                )}
+
+                {/* Top 3 Popular News (Right) */}
+                <div className="space-y-4">
+                  <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                    <Flame className="w-5 h-5 text-orange-500" />
+                    Paling Populer
+                  </h3>
+                  {topPopularNews.map((news) => (
+                    <NewsCard
+                      key={news.id}
+                      news={news}
+                      onViewDetail={handleNewsClick}
+                      isSmall={true}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Remaining News - All */}
+            {remainingNews.length > 0 && (
+              <div>
+                <h3 className="text-lg font-bold text-gray-900 mb-6">Semua Berita</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {remainingNews.map((news) => (
+                    <NewsCard
+                      key={news.id}
+                      news={news}
+                      onViewDetail={handleNewsClick}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* No News */}
+            {!latestNews && topPopularNews.length === 0 && remainingNews.length === 0 && (
+              <div className="text-center py-12 bg-white rounded-xl border border-gray-200">
+                <p className="text-gray-500">Tidak ada berita dalam kategori ini</p>
+              </div>
+            )}
+          </>
         )}
       </div>
 
@@ -404,13 +463,19 @@ Waktu adalah aset terberharga. Gunakan dengan bijak!`,
 const NewsCard: React.FC<{
   news: NewsItemProps;
   onViewDetail: (news: NewsItemProps) => void;
-}> = ({ news, onViewDetail }) => (
+  isLarge?: boolean;
+  isSmall?: boolean;
+}> = ({ news, onViewDetail, isLarge = false, isSmall = false }) => (
   <div
     onClick={() => onViewDetail(news)}
-    className="bg-white rounded-xl overflow-hidden border border-gray-200 hover:shadow-lg transition-all duration-300 cursor-pointer transform hover:-translate-y-1"
+    className={`bg-white rounded-xl overflow-hidden border border-gray-200 hover:shadow-lg transition-all duration-300 cursor-pointer transform hover:-translate-y-1 ${
+      isLarge ? '' : isSmall ? 'h-full' : ''
+    }`}
   >
     {/* Image */}
-    <div className="w-full h-48 bg-gradient-to-br from-purple-500 to-blue-600 overflow-hidden">
+    <div className={`bg-gradient-to-br from-purple-500 to-blue-600 overflow-hidden ${
+      isLarge ? 'w-full h-64' : isSmall ? 'w-full h-32' : 'w-full h-48'
+    }`}>
       {news.image ? (
         <img
           src={news.image}
@@ -419,60 +484,84 @@ const NewsCard: React.FC<{
         />
       ) : (
         <div className="w-full h-full flex items-center justify-center text-white text-center px-4">
-          <span className="text-lg font-semibold">{news.title}</span>
+          <span className={isLarge ? 'text-xl font-semibold' : isSmall ? 'text-sm font-semibold' : 'text-lg font-semibold'}>{news.title}</span>
         </div>
       )}
     </div>
 
     {/* Content */}
-    <div className="p-4 space-y-3">
+    <div className={`space-y-3 ${isLarge ? 'p-6' : isSmall ? 'p-3' : 'p-4'}`}>
       {/* Category & Status */}
-      <div className="flex items-center gap-2">
-        <span className="inline-block px-2 py-1 bg-purple-100 text-purple-700 text-xs font-semibold rounded">
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className={`inline-block px-2 py-1 bg-purple-100 text-purple-700 font-semibold rounded ${
+          isSmall ? 'text-xs' : 'text-xs'
+        }`}>
           {news.category}
         </span>
-        <span className="inline-block px-2 py-1 bg-green-100 text-green-700 text-xs font-semibold rounded">
+        <span className={`inline-block px-2 py-1 bg-green-100 text-green-700 font-semibold rounded ${
+          isSmall ? 'text-xs' : 'text-xs'
+        }`}>
           {news.status}
         </span>
       </div>
 
       {/* Title */}
-      <h3 className="font-bold text-gray-900 line-clamp-2 hover:text-blue-600">
+      <h3 className={`font-bold text-gray-900 hover:text-blue-600 ${
+        isLarge ? 'text-2xl line-clamp-3' : isSmall ? 'text-sm line-clamp-2' : 'line-clamp-2'
+      }`}>
         {news.title}
       </h3>
 
-      {/* Description Preview */}
-      <p className="text-sm text-gray-600 line-clamp-2">
-        {news.description.substring(0, 100)}...
-      </p>
+      {/* Description Preview - Only for large */}
+      {isLarge && (
+        <p className="text-gray-600 line-clamp-3">
+          {getCleanPreview(news.description, 150)}
+        </p>
+      )}
 
       {/* Author & Date */}
-      <div className="flex items-center gap-2 text-xs text-gray-500 border-t border-gray-200 pt-3">
-        <div className="w-6 h-6 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center flex-shrink-0">
+      <div className={`flex items-center gap-2 text-gray-500 border-t border-gray-200 pt-2 ${
+        isSmall ? 'text-xs' : 'text-xs'
+      }`}>
+        <div className={`${isSmall ? 'w-5 h-5' : 'w-6 h-6'} bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center flex-shrink-0`}>
           <span className="text-white text-xs font-semibold">
             {news.author.charAt(0).toUpperCase()}
           </span>
         </div>
-        <span>{news.author}</span>
-        <span>•</span>
-        <span>{formatTimeRelative(news.date)}</span>
+        <span className="line-clamp-1">{news.author}</span>
+        {!isSmall && (
+          <>
+            <span>•</span>
+            <span>{formatTimeRelative(news.date)}</span>
+          </>
+        )}
       </div>
 
-      {/* Stats */}
-      <div className="flex items-center gap-4 text-sm text-gray-500 border-t border-gray-100 pt-3">
-        <button className="flex items-center gap-1 hover:text-pink-600 transition-colors">
-          <Heart className="w-4 h-4" />
-          <span>{news.likes}</span>
-        </button>
-        <button className="flex items-center gap-1 hover:text-blue-600 transition-colors">
-          <MessageCircle className="w-4 h-4" />
-          <span>{news.comments}</span>
-        </button>
-        <div className="flex items-center gap-1 ml-auto">
-          <Eye className="w-4 h-4" />
-          <span>{news.views}</span>
+      {/* Stats - Only for large */}
+      {isLarge && (
+        <div className="flex items-center gap-4 text-sm text-gray-500 border-t border-gray-100 pt-3">
+          <button className="flex items-center gap-1 hover:text-pink-600 transition-colors">
+            <Heart className="w-4 h-4" />
+            <span>{news.likes}</span>
+          </button>
+          <button className="flex items-center gap-1 hover:text-blue-600 transition-colors">
+            <MessageCircle className="w-4 h-4" />
+            <span>{news.comments}</span>
+          </button>
+          <div className="flex items-center gap-1 ml-auto">
+            <Eye className="w-4 h-4" />
+            <span>{news.views}</span>
+          </div>
         </div>
-      </div>
+      )}
+
+      {/* Stats - Small version */}
+      {isSmall && (
+        <div className="flex items-center gap-2 text-xs text-gray-500">
+          <Eye className="w-3 h-3" />
+          <span>{news.views} views</span>
+        </div>
+      )}
     </div>
   </div>
 );

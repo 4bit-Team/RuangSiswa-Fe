@@ -42,7 +42,6 @@ const CounselorCardWithModal: React.FC<CounselorCardProps & { selectedTab: strin
         isOpen={modalOpen}
         onClose={() => setModalOpen(false)}
         counselingType={selectedTab === 'tatap-muka' ? 'Konseling Tatap Muka' : 'Sesi Chat'}
-        counselorName={name}
       />
     </>
   )

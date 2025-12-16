@@ -5,7 +5,7 @@ import { Heart, MessageCircle, Calendar, Users, ArrowRight, Eye, Loader } from '
 import { StatCardProps } from '@types';
 import NewsDetailModal from '../modals/NewsDetailModal';
 import { NewsItemProps } from '@types';
-import NewsAPI from '@lib/newsAPI';
+import NewsAPI, { getCleanPreview } from '@lib/newsAPI';
 import { formatTimeRelative } from '@lib/timeFormat';
 import { useRouter } from 'next/navigation'; // Import useRouter hook
 
@@ -62,7 +62,7 @@ const NewsPreviewCard: React.FC<{
 
       {/* Description Preview */}
       <p className="text-sm text-gray-600 line-clamp-2 mb-3 flex-1">
-        {news.description.substring(0, 80)}...
+        {getCleanPreview(news.description, 80)}
       </p>
 
       {/* Author & Date */}

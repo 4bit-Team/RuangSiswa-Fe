@@ -29,3 +29,83 @@ export async function apiRequest(
 
   return res.json();
 }
+
+// ==================== RESERVASI FEEDBACK ====================
+
+export async function submitFeedback(
+  reservasiId: number,
+  rating: number,
+  comment: string,
+  token: string | null
+) {
+  return apiRequest(
+    '/reservasi/feedback',
+    'POST',
+    { reservasiId, rating, comment },
+    token
+  );
+}
+
+export async function getFeedbackByReservasi(
+  reservasiId: number,
+  token: string | null
+) {
+  return apiRequest(
+    `/reservasi/feedback/${reservasiId}`,
+    'GET',
+    undefined,
+    token
+  );
+}
+
+export async function getCounselorFeedback(
+  counselorId: number,
+  token: string | null
+) {
+  return apiRequest(
+    `/reservasi/counselor/${counselorId}/feedback`,
+    'GET',
+    undefined,
+    token
+  );
+}
+
+export async function getStudentFeedback(
+  studentId: number,
+  token: string | null
+) {
+  return apiRequest(
+    `/reservasi/student/${studentId}/feedback`,
+    'GET',
+    undefined,
+    token
+  );
+}
+
+// ==================== QR CODE & ATTENDANCE ====================
+
+export async function confirmAttendance(
+  reservasiId: number,
+  qrData: string,
+  token?: string | null
+) {
+  return apiRequest(
+    `/reservasi/${reservasiId}/confirm-attendance`,
+    'POST',
+    { qrData },
+    token
+  );
+}
+
+export async function markSessionComplete(
+  reservasiId: number,
+  token?: string | null
+) {
+  return apiRequest(
+    `/reservasi/${reservasiId}/complete`,
+    'PATCH',
+    undefined,
+    token
+  );
+}
+

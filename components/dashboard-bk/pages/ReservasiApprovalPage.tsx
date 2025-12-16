@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useEffect } from 'react';
-import { Search, CheckCircle, XCircle, Clock, User, Calendar, MessageCircle, MapPin, Loader, AlertCircle, Eye } from 'lucide-react';
+import { Search, CheckCircle, XCircle, Clock, User, Calendar, MessageCircle, MapPin, Loader, AlertCircle, Eye, QrCode } from 'lucide-react';
 import { apiRequest } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -13,13 +13,18 @@ interface Reservasi {
   preferredTime: string;
   type: 'chat' | 'tatap-muka';
   topic: string;
-  notes: string;
-  status: 'pending' | 'approved' | 'rejected' | 'completed' | 'cancelled';
+  notes?: string;
+  status: 'pending' | 'approved' | 'rejected' | 'in_counseling' | 'completed' | 'cancelled';
   conversationId?: number;
+  rejectionReason?: string;
   room?: string;
+  qrCode?: string;
+  attendanceConfirmed?: boolean;
+  completedAt?: string;
   student?: { id: number; fullName: string; email: string; username: string };
   counselor?: { fullName: string };
-  createdAt: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 interface ReservasiCardProps {
@@ -45,8 +50,10 @@ const ReservasiCard: React.FC<ReservasiCardProps> = ({ reservasi, onViewDetail, 
         return 'bg-green-100 text-green-800';
       case 'rejected':
         return 'bg-red-100 text-red-800';
-      case 'completed':
+      case 'in_counseling':
         return 'bg-blue-100 text-blue-800';
+      case 'completed':
+        return 'bg-purple-100 text-purple-800';
       default:
         return 'bg-gray-100 text-gray-800';
     }
@@ -78,7 +85,7 @@ const ReservasiCard: React.FC<ReservasiCardProps> = ({ reservasi, onViewDetail, 
           <div className="flex items-center space-x-3 mb-1">
             <p className="font-semibold text-gray-900">{reservasi.student?.fullName || reservasi.student?.username || 'Siswa'}</p>
             <span className={`text-xs px-2 py-1 rounded-full font-medium ${getStatusColor(reservasi.status)}`}>
-              {reservasi.status === 'pending' ? 'Menunggu' : reservasi.status === 'approved' ? 'Diterima' : reservasi.status === 'rejected' ? 'Ditolak' : 'Selesai'}
+              {reservasi.status === 'pending' ? 'Menunggu' : reservasi.status === 'approved' ? 'Diterima' : reservasi.status === 'rejected' ? 'Ditolak' : reservasi.status === 'in_counseling' ? 'Sedang Berlangsung' : 'Selesai'}
             </span>
           </div>
           <div className="flex items-center space-x-4 text-xs text-gray-500">
@@ -149,12 +156,14 @@ interface DetailModalProps {
   onClose: () => void;
   onApprove: (id: number) => void;
   onReject: (id: number, reason?: string) => void;
+  onMarkComplete: (id: number) => void;
   loading: boolean;
 }
 
-const DetailModal: React.FC<DetailModalProps> = ({ reservasi, isOpen, onClose, onApprove, onReject, loading }) => {
+const DetailModal: React.FC<DetailModalProps> = ({ reservasi, isOpen, onClose, onApprove, onReject, onMarkComplete, loading }) => {
   const [rejectReason, setRejectReason] = useState('');
   const [showRejectForm, setShowRejectForm] = useState(false);
+  const [showQRCode, setShowQRCode] = useState(false);
 
   if (!isOpen || !reservasi) return null;
 
@@ -177,7 +186,8 @@ const DetailModal: React.FC<DetailModalProps> = ({ reservasi, isOpen, onClose, o
     pending: 'bg-yellow-100 text-yellow-800',
     approved: 'bg-green-100 text-green-800',
     rejected: 'bg-red-100 text-red-800',
-    completed: 'bg-blue-100 text-blue-800',
+    in_counseling: 'bg-blue-100 text-blue-800',
+    completed: 'bg-purple-100 text-purple-800',
     cancelled: 'bg-gray-100 text-gray-800',
   };
 
@@ -329,10 +339,81 @@ const DetailModal: React.FC<DetailModalProps> = ({ reservasi, isOpen, onClose, o
               </div>
             )}
 
-            {reservasi.status !== 'pending' && (
+            {/* QR Code Display */}
+            {reservasi.status === 'approved' && reservasi.qrCode && (
+              <div className="space-y-3 border-t pt-4">
+                <button
+                  onClick={() => setShowQRCode(!showQRCode)}
+                  className="w-full bg-purple-100 hover:bg-purple-200 text-purple-700 py-2.5 rounded-lg font-semibold flex items-center justify-center gap-2"
+                >
+                  <QrCode size={18} />
+                  {showQRCode ? 'Sembunyikan QR' : 'Tampilkan QR untuk Siswa'}
+                </button>
+
+                {showQRCode && (
+                  <div className="bg-blue-50 rounded-lg p-4 text-center border-2 border-blue-200">
+                    <p className="text-sm font-semibold text-blue-900 mb-3">Tunjukkan QR Code ini ke siswa untuk check-in</p>
+                    <div className="bg-white p-3 rounded inline-block">
+                      <img
+                        src={reservasi.qrCode}
+                        alt="QR Code"
+                        className="w-40 h-40"
+                      />
+                    </div>
+                    <p className="text-sm text-blue-700 mt-3 font-medium">Ruangan: {reservasi.room}</p>
+                    <p className="text-xs text-blue-600 mt-3">Siswa akan scan QR code ini menggunakan ponselnya</p>
+                  </div>
+                )}
+
+                {/* Attendance Status */}
+                <div className="bg-gray-50 rounded-lg p-4 text-center border border-gray-200">
+                  <p className="text-xs text-gray-600 font-medium mb-2">Status Absensi</p>
+                  {reservasi.attendanceConfirmed ? (
+                    <div className="flex items-center justify-center gap-2 text-green-600">
+                      <CheckCircle size={20} />
+                      <span className="font-semibold">Siswa Sudah Check-in</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-center gap-2 text-yellow-600">
+                      <Clock size={20} />
+                      <span className="font-semibold">Menunggu Check-in Siswa</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Mark Complete Button */}
+                {reservasi.attendanceConfirmed && !reservasi.completedAt && (
+                  <button
+                    onClick={() => onMarkComplete(reservasi.id)}
+                    disabled={loading}
+                    className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-400 text-white py-2.5 rounded-lg font-semibold flex items-center justify-center gap-2 transition"
+                  >
+                    {loading ? <Loader size={18} className="animate-spin" /> : <CheckCircle size={18} />}
+                    {loading ? 'Memproses...' : 'Selesaikan Sesi'}
+                  </button>
+                )}
+
+                {reservasi.completedAt && (
+                  <div className="w-full bg-green-100 text-green-700 py-2.5 rounded-lg font-semibold text-center">
+                    ✅ Sesi Selesai
+                  </div>
+                )}
+              </div>
+            )}
+
+            {reservasi.status !== 'pending' && reservasi.status !== 'approved' && (
               <button
                 onClick={onClose}
                 className="w-full bg-gray-600 hover:bg-gray-700 text-white py-2.5 rounded-lg font-semibold"
+              >
+                Tutup
+              </button>
+            )}
+
+            {reservasi.status === 'approved' && (
+              <button
+                onClick={onClose}
+                className="w-full mt-3 bg-gray-600 hover:bg-gray-700 text-white py-2.5 rounded-lg font-semibold"
               >
                 Tutup
               </button>
@@ -415,7 +496,7 @@ const ReservasiApprovalPage: React.FC = () => {
     try {
       setSearching(true);
       console.log('✅ Approving reservasi:', reservasiId);
-      await apiRequest(`/reservasi/${reservasiId}/approve`, 'PATCH', {}, token);
+      await apiRequest(`/reservasi/${reservasiId}/status`, 'PUT', { status: 'approved' }, token);
 
       // Reload & close modal
       await loadReservasi();
@@ -433,7 +514,7 @@ const ReservasiApprovalPage: React.FC = () => {
     try {
       setSearching(true);
       console.log('❌ Rejecting reservasi:', reservasiId);
-      await apiRequest(`/reservasi/${reservasiId}/reject`, 'PATCH', { reason }, token);
+      await apiRequest(`/reservasi/${reservasiId}/status`, 'PUT', { status: 'rejected', rejectionReason: reason }, token);
 
       // Reload & close modal
       await loadReservasi();
@@ -442,6 +523,24 @@ const ReservasiApprovalPage: React.FC = () => {
     } catch (error: any) {
       console.error('❌ Error rejecting:', error);
       alert('Gagal menolak reservasi');
+    } finally {
+      setSearching(false);
+    }
+  };
+
+  const handleMarkComplete = async (id: number) => {
+    try {
+      setSearching(true);
+      console.log('✅ Marking session as completed:', id);
+      const response = await apiRequest(`/reservasi/${id}/complete`, 'PATCH', undefined, token);
+      console.log('✅ Session marked complete:', response);
+      await loadReservasi();
+      setDetailModalOpen(false);
+      setSelectedDetail(null);
+      alert('Sesi berhasil ditandai sebagai selesai!');
+    } catch (error: any) {
+      console.error('❌ Error marking complete:', error);
+      alert('Error: ' + (error?.message || 'Gagal menyelesaikan sesi'));
     } finally {
       setSearching(false);
     }
@@ -516,6 +615,7 @@ const ReservasiApprovalPage: React.FC = () => {
             <option value="pending">Menunggu</option>
             <option value="approved">Disetujui</option>
             <option value="rejected">Ditolak</option>
+            <option value="in_counseling">Sedang Berlangsung</option>
             <option value="completed">Selesai</option>
           </select>
           <select
@@ -571,6 +671,7 @@ const ReservasiApprovalPage: React.FC = () => {
         }}
         onApprove={handleApprove}
         onReject={handleReject}
+        onMarkComplete={handleMarkComplete}
         loading={searching}
       />
     </div>
