@@ -8,12 +8,13 @@ import dynamic from 'next/dynamic'
 const CKEditorComponent = dynamic(
   async () => {
     const { CKEditor } = await import('@ckeditor/ckeditor5-react')
-    const ClassicEditor = (await import('@ckeditor/ckeditor5-build-classic')).default
+    // Import ClassicEditor and ensure its default export is correctly handled
+    const ClassicEditor = await import('@ckeditor/ckeditor5-build-classic').then(module => module.default)
     
     return {
       default: ({ value, onChange }: { value: string; onChange: (data: string) => void }) => (
         <CKEditor
-          editor={ClassicEditor}
+          editor={ClassicEditor as any}
           data={value}
           onChange={(_: any, editor: any) => onChange(editor.getData())}
           config={{
@@ -25,34 +26,11 @@ const CKEditorComponent = dynamic(
             ],
             heading: {
               options: [
-                { model: 'paragraph', title: 'Paragraph' },
-                { model: 'heading1', view: 'h1', title: 'Heading 1' },
-                { model: 'heading2', view: 'h2', title: 'Heading 2' },
-                { model: 'heading3', view: 'h3', title: 'Heading 3' },
+                { model: 'paragraph', title: 'Paragraph', class: 'ck-heading_paragraph' },
+                { model: 'heading1', view: 'h1', title: 'Heading 1', class: 'ck-heading_h1' },
+                { model: 'heading2', view: 'h2', title: 'Heading 2', class: 'ck-heading_h2' },
+                { model: 'heading3', view: 'h3', title: 'Heading 3', class: 'ck-heading_h3' },
               ]
-            },
-            htmlSupport: {
-              allow: [
-                {
-                  name: 'iframe',
-                  attributes: {
-                    allow: true,
-                    allowfullscreen: true,
-                    frameborder: true,
-                    height: true,
-                    src: true,
-                    width: true,
-                    style: true,
-                  },
-                },
-              ],
-            },
-            htmlEmbed: {
-              showPreviews: true,
-            },
-            paste: {
-              preventDropFilesEditing: false,
-              allowPasteFromOtherSources: true,
             },
           }}
         />
