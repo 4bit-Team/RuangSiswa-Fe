@@ -3,9 +3,9 @@ import { ChevronRight, Zap } from 'lucide-react'
 
 const Hero = () => {
   const stats = [
-    { number: "14+", label: "Modul Terintegrasi" },
-    { number: "4", label: "Jenis User Role" },
-    { number: "100%", label: "Digital Solution" },
+    { number: "7", label: "Fitur Portal Siswa" },
+    { number: "7", label: "Fitur Dashboard BK" },
+    { number: "7", label: "Fitur Kesiswaan" },
     { number: "24/7", label: "Akses Sistem" }
   ]
 
@@ -16,32 +16,31 @@ const Hero = () => {
         <div className="text-center">
           <div className="inline-flex items-center bg-blue-100 text-blue-800 px-4 py-2 rounded-full text-sm font-medium mb-6">
             <Zap className="w-4 h-4 mr-2" />
-            Sistem Informasi Terdepan untuk SMK
+            Sistem Manajemen Kesiswaan & Bimbingan Konseling
           </div>
           
           <h1 className="text-4xl md:text-6xl font-bold text-gray-900 mb-6 leading-tight">
-            Sistem Informasi
+            📚 Sistem Informasi
             <span className="text-gradient-text block leading-tight md:leading-tight text-blue-600">
-              Pengembangan Kompetensi
+              Manajemen Kesiswaan & BK
             </span>
             <span className="text-3xl md:text-4xl text-gray-700">
-              & Kesejahteraan Siswa SMK
+              untuk SMK
             </span>
           </h1>
           
           <p className="text-xl text-gray-600 mb-8 max-w-3xl mx-auto leading-relaxed">
-            Platform digital terintegrasi untuk mengoptimalkan pengembangan kompetensi siswa SMK 
-            melalui pemetaan skill, monitoring kemajuan, dan layanan pendukung komprehensif
-          </p>
+          Sistem informasi terintegrasi antara Kesiswaan dan Bimbingan Konseling (BK) yang digunakan sekolah untuk memantau kehadiran, kedisiplinan, prestasi, dan kondisi siswa, sekaligus menyediakan layanan konseling yang mudah diakses oleh siswa.
+          </p>  
           
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-12">
-            <button className="btn-primary">
+            <a href="/login" className="btn-primary">
               Mulai Sekarang
               <ChevronRight className="w-5 h-5 inline ml-2" />
-            </button>
-            <button className="btn-secondary">
+            </a>
+            {/* <button className="btn-secondary">
               Lihat Demo
-            </button>
+            </button> */}
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6 max-w-4xl mx-auto">
@@ -51,6 +50,15 @@ const Hero = () => {
                 <div className="text-sm text-gray-600">{stat.label}</div>
               </div>
             ))}
+          </div>
+          
+          <div className="mt-16 pt-12 border-t border-gray-200">
+            <p className="text-gray-600 mb-4">Fitur utama tersedia melalui:</p>
+            <div className="flex flex-wrap justify-center gap-4">
+              <span className="inline-flex items-center px-4 py-2 rounded-full bg-green-100 text-green-800 font-medium">✨ Portal Siswa</span>
+              <span className="inline-flex items-center px-4 py-2 rounded-full bg-orange-100 text-orange-800 font-medium">🧑‍💼 Dashboard BK</span>
+              <span className="inline-flex items-center px-4 py-2 rounded-full bg-purple-100 text-purple-800 font-medium">📊 Dashboard Kesiswaan</span>
+            </div>
           </div>
         </div>
       </div>
