@@ -1,22 +1,35 @@
 "use client"
 
 import React, { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { Heart, MessageCircle, Calendar, MessageSquare, User, Home } from 'lucide-react';
-import { SidebarItemProps, SidebarProps } from '@types';
 
-const SidebarItem: React.FC<SidebarItemProps> = ({ icon: Icon, label, active, onClick }) => (
-  <button
+interface SidebarItemProps {
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  active: boolean;
+  href: string;
+  onClick?: () => void;
+}
+
+const SidebarItem: React.FC<SidebarItemProps> = ({ icon: Icon, label, active, href, onClick }) => (
+  <Link
+    href={href}
     onClick={onClick}
-    className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
+    className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
       active ? 'bg-blue-50 text-blue-600' : 'text-gray-600 hover:bg-gray-50'
     }`}
   >
     <Icon className="w-5 h-5" />
     <span className="font-medium">{label}</span>
-  </button>
+  </Link>
 );
 
-const Sidebar: React.FC<SidebarProps> = ({ activePage, setActivePage }) => {
+interface SidebarProps {
+  pathname?: string;
+}
+
+const Sidebar: React.FC<SidebarProps> = ({ pathname = '' }) => {
   const [isOpen, setIsOpen] = useState(false);
 
   useEffect(() => {
@@ -56,13 +69,13 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, setActivePage }) => {
   const navContent = (
     <>
       <nav className="flex-1 p-4 space-y-1">
-        <SidebarItem icon={Home} label="Dashboard" active={activePage === 'dashboard'} onClick={() => setActivePage('dashboard')} />
-        <SidebarItem icon={User} label="Berita" active={activePage === 'berita'} onClick={() => setActivePage('berita')} />
-        <SidebarItem icon={Heart} label="Konseling" active={activePage === 'konseling'} onClick={() => setActivePage('konseling')} />
-        <SidebarItem icon={MessageCircle} label="Konsultasi" active={activePage === 'konsultasi'} onClick={() => setActivePage('konsultasi')} />
-        <SidebarItem icon={Calendar} label="Reservasi Saya" active={activePage === 'reservasi'} onClick={() => setActivePage('reservasi')} />
-        <SidebarItem icon={MessageSquare} label="Chat BK" active={activePage === 'chat'} onClick={() => setActivePage('chat')} />
-        <SidebarItem icon={User} label="Profil" active={activePage === 'profil'} onClick={() => setActivePage('profil')} />
+        <SidebarItem icon={Home} label="Dashboard" active={pathname === '/home/siswa' || pathname === '/home/siswa/'} href="/home/siswa" onClick={() => setIsOpen(false)} />
+        <SidebarItem icon={User} label="Berita" active={pathname === '/home/siswa/berita'} href="/home/siswa/berita" onClick={() => setIsOpen(false)} />
+        <SidebarItem icon={Heart} label="Konseling" active={pathname === '/home/siswa/konseling'} href="/home/siswa/konseling" onClick={() => setIsOpen(false)} />
+        <SidebarItem icon={MessageCircle} label="Konsultasi" active={pathname === '/home/siswa/konsultasi'} href="/home/siswa/konsultasi" onClick={() => setIsOpen(false)} />
+        <SidebarItem icon={Calendar} label="Reservasi Saya" active={pathname === '/home/siswa/reservasi'} href="/home/siswa/reservasi" onClick={() => setIsOpen(false)} />
+        <SidebarItem icon={MessageSquare} label="Chat BK" active={pathname === '/home/siswa/chat'} href="/home/siswa/chat" onClick={() => setIsOpen(false)} />
+        <SidebarItem icon={User} label="Profil" active={pathname === '/home/siswa/profil'} href="/home/siswa/profil" onClick={() => setIsOpen(false)} />
       </nav>
 
       <div className="p-4 border-t border-gray-200">

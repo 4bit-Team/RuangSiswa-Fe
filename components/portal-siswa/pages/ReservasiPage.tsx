@@ -7,11 +7,12 @@ import { useAuth } from '@/hooks/useAuth'
 import AppointmentScheduleModal from '../modals/AppointmentScheduleModal'
 import { FeedbackModal } from '@/components/FeedbackModal'
 import { QRScannerModal } from '@/components/QRScannerModal'
+import { getStatusLabel, getStatusBadgeColor, statusBadgeColor, getTypeColor, getStatusColor, formatDate, typeLabel } from '@/lib/reservasi';
 
 interface Reservasi {
   id: number
   counselorId: number
-  counselorName: string
+  counselor?: { id: number; username: string; fullName?: string }
   preferredDate: string
   preferredTime: string
   type: 'chat' | 'tatap-muka'
@@ -129,30 +130,6 @@ const ReservasiPage: React.FC = () => {
     }
   }
 
-  const getStatusBadgeColor = (status: string) => {
-    const colors: Record<string, string> = {
-      pending: 'bg-yellow-100 text-yellow-800',
-      approved: 'bg-green-100 text-green-800',
-      rejected: 'bg-red-100 text-red-800',
-      in_counseling: 'bg-blue-100 text-blue-800',
-      cancelled: 'bg-gray-100 text-gray-800',
-      selesai: 'bg-purple-100 text-purple-800',
-    }
-    return colors[status] || 'bg-gray-100 text-gray-800'
-  }
-
-  const getStatusLabel = (status: string) => {
-    const labels: Record<string, string> = {
-      pending: 'Menunggu',
-      approved: 'Diterima',
-      rejected: 'Ditolak',
-      in_counseling: 'Sedang Berlangsung',
-      cancelled: 'Dibatalkan',
-      selesai: 'Sesi Selesai',
-    }
-    return labels[status] || status
-  }
-
   const canCancelOrReschedule = (status: string) => {
     return ['pending', 'approved'].includes(status)
   }
@@ -224,7 +201,7 @@ const ReservasiPage: React.FC = () => {
                     <div className="flex-1">
                       <h5 className="font-semibold text-gray-900">{res.topic}</h5>
                       <p className="text-sm text-gray-600">
-                        {res.counselorName} • {new Date(res.preferredDate).toLocaleDateString('id-ID')} • {res.preferredTime}
+                        {typeLabel[res.type]} • {res.counselor?.username || res.counselor?.fullName || 'Konselor'} • {formatDate(res.preferredDate)} • {res.preferredTime}
                       </p>
                     </div>
                   </div>
@@ -298,7 +275,7 @@ const ReservasiPage: React.FC = () => {
                 {res.status === 'completed' && (
                   <div className="flex gap-2 pt-4 border-t border-gray-200">
                     <button
-                      onClick={() => setFeedbackModal({ show: true, reservasiId: res.id, counselorName: res.counselorName })}
+                      onClick={() => setFeedbackModal({ show: true, reservasiId: res.id, counselorName: res.counselor?.username || res.counselor?.fullName || 'Konselor' })}
                       className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-purple-50 text-purple-700 rounded-lg hover:bg-purple-100 transition-colors text-sm font-medium"
                       disabled={feedbackLoading}
                     >

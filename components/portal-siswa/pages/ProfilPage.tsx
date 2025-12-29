@@ -53,17 +53,8 @@ const StudentCardView: React.FC<StudentCardViewProps> = ({ userId }) => {
         return res.json();
       })
       .then((data: StudentCardData[]) => {
-        // ✅ Convert userId ke string untuk comparison dengan user_id dari API
         const userIdStr = userId?.toString();
-        console.log(`🔍 [StudentCard] Filtering cards - userId=${userIdStr}, available users:`, data.map(d => d.user_id));
-        
-        const userCards = data.filter(card => {
-          const match = card.user_id?.toString() === userIdStr;
-          console.log(`  - Checking card user_id="${card.user_id}" vs "${userIdStr}": ${match ? '✅' : '❌'}`);
-          return match;
-        });
-        
-        console.log(`🔍 [StudentCard] Found ${userCards.length} cards for user ${userIdStr}`);
+        const userCards = data.filter(card => card.user_id?.toString() === userIdStr);
         setCards(userCards);
         if (userCards.length > 0) setSelectedKelas(userCards[0].kelas);
       })
@@ -90,12 +81,12 @@ const StudentCardView: React.FC<StudentCardViewProps> = ({ userId }) => {
   }
 
   return (
-    <div className="flex flex-col items-center w-full py-8">
-      <div className="mb-8 w-full max-w-md">
-        <label className="block text-sm font-medium text-gray-700 mb-2">Pilih Kelas</label>
+    <div className="flex flex-col items-center w-full py-4 sm:py-6 md:py-8 px-2 sm:px-4">
+      <div className="mb-4 sm:mb-6 md:mb-8 w-full max-w-xs sm:max-w-md">
+        <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">Pilih Kelas</label>
         <div className="relative">
           <select
-            className="w-full border border-gray-200 rounded-lg px-4 py-3 bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition appearance-none"
+            className="w-full border border-gray-200 rounded-lg px-3 sm:px-4 py-2 sm:py-3 bg-white text-xs sm:text-base shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition appearance-none"
             value={selectedKelas}
             onChange={e => setSelectedKelas(e.target.value)}
           >
@@ -103,110 +94,83 @@ const StudentCardView: React.FC<StudentCardViewProps> = ({ userId }) => {
               <option key={kelas} value={kelas}>{kelasLabel(kelas)}</option>
             ))}
           </select>
-          <svg className="pointer-events-none absolute right-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden>
+          <svg className="pointer-events-none absolute right-3 top-1/2 transform -translate-y-1/2 w-4 sm:w-5 h-4 sm:h-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden>
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
           </svg>
         </div>
       </div>
-      
-      {/* Student Card - Responsive Container */}
-      <div className="w-full max-w-3xl px-4 sm:px-6">
+
+      <div className="w-full max-w-xs sm:max-w-sm md:max-w-md px-0 sm:px-2">
         <div 
-          className="w-full rounded-lg overflow-hidden shadow-2xl relative"
+          className="w-full rounded-lg overflow-hidden shadow-lg relative mx-auto"
           style={{
             backgroundImage: 'url(/frame.png)',
             backgroundSize: 'cover',
             backgroundPosition: 'center',
             aspectRatio: '16 / 9',
+            maxWidth: '100%',
           }}
         >
-          {/* Header Section with Logo and Text */}
-          <div className="absolute top-2 sm:top-3 md:top-4 left-0 right-0 px-1.5 sm:px-3 md:px-4 pt-0.5 sm:pt-1 pb-1 sm:pb-2 md:pb-3 flex gap-2 sm:gap-3 md:gap-4 justify-start items-start z-30">
-            {/* Logo */}
-            <div className="flex-shrink-0 mt-0.5">
-              <img src="/logo.svg" alt="SMKN 1 Cibinong" className="w-24 h-24 sm:w-28 sm:h-28 md:w-36 md:h-36" />
-            </div>
-
-            {/* Header Text */}
-            <div className="text-left text-white leading-tight flex-1">
-              <div className="text-[27px] sm:text-[32px] md:text-[42px] font-medium">
-                PEMERINTAH DAERAH PROVINSI JAWA BARAT
-              </div>
-              <div className="text-[27px] sm:text-[32px] md:text-[42px] font-medium">
-                DINAS PENDIDIKAN
-              </div>
-              <div className="text-[24px] sm:text-[28px] md:text-[36px] font-medium">
-                CABANG DINAS PENDIDIKAN WILAYAH 1
-              </div>
-              <div className="text-[24px] sm:text-[28px] md:text-[36px] font-bold">
-                SEKOLAH MENENGAH KEJURUAN NEGERI 1 CIBINONG
-              </div>
-              <div className="text-[21px] sm:text-[25px] md:text-[32px] font-normal mt-0">
-                Jl. Karadenan No.7 Cibinong Bogor 16193
-              </div>
-              <div className="text-[21px] sm:text-[25px] md:text-[32px] font-normal">
-                Email: admin@smkn1cibinong.sch.id • Website: www.smkn1cibinong.sch.id
-              </div>
-            </div>
+          <div className="absolute top-1 sm:top-2 left-1 sm:left-2 right-1 sm:right-2 px-1 sm:px-2 py-0.5 sm:py-1 flex flex-col gap-0.5 sm:gap-1 justify-start items-start z-30">
+            <img src="/logo.svg" alt="SMKN 1 Cibinong" className="w-6 sm:w-8 md:w-10 h-6 sm:h-8 md:h-10" />
+            <p className="text-[0.35rem] sm:text-[0.55rem] md:text-xs font-bold text-white leading-tight">PEMERINTAH DAERAH PROVINSI JAWA BARAT</p>
+            <p className="text-[0.35rem] sm:text-[0.55rem] md:text-xs text-white leading-tight">DINAS PENDIDIKAN</p>
+            <p className="text-[0.35rem] sm:text-[0.55rem] md:text-xs text-white leading-tight">CABANG DINAS PENDIDIKAN WILAYAH 1</p>
           </div>
 
-          {/* Title centered at lower position */}
-          <div className="absolute top-[60%] left-0 right-0 flex justify-center z-10">
+          <div className="absolute top-[50%] sm:top-[55%] md:top-[60%] left-0 right-0 flex justify-center z-10 px-2">
             <h2 
-              className="font-bold"
+              className="font-bold text-center"
               style={{
-                fontSize: 'clamp(30px, 7.5vw, 54px)',
+                fontSize: 'clamp(12px, 2.8vw, 24px)',
                 color: '#FDF05C',
-                textShadow: '-1px -1px 0 #222222, 1px -1px 0 #222222, -1px 1px 0 #222222, 1px 1px 0 #222222, -0.5px 0 0 #222222, 0.5px 0 0 #222222, 0 -0.5px 0 #222222, 0 0.5px 0 #222222'
+                textShadow: '-1px -1px 0 #222222, 1px -1px 0 #222222, -1px 1px 0 #222222, 1px 1px 0 #222222',
               }}
             >
               KARTU PELAJAR
             </h2>
           </div>
 
-          {/* Content layout */}
-          <div className="w-full h-full flex items-end px-1.5 sm:px-3 md:px-6 pb-6 sm:pb-8 md:pb-12">
-            {/* Left side - Data */}
-            <div className="flex-grow">
-              <div className="text-black space-y-1.5 sm:space-y-3 md:space-y-4">
-                <div className="flex flex-wrap gap-0.5 sm:gap-1" style={{ fontSize: 'clamp(24px, 5.4vw, 42px)' }}>
-                  <span className="font-semibold w-36 sm:w-60 flex-shrink-0">NAMA</span>
-                  <span className="hidden sm:inline mx-0.5 sm:mx-1">:</span>
-                  <span className="flex-grow break-words">{card?.nama || '-'}</span>
+          <div className="w-full h-full flex items-end px-1 sm:px-1.5 md:px-2 pb-1.5 sm:pb-2 md:pb-3">
+            <div className="flex-grow min-w-0">
+              <div className="text-black space-y-0.25 sm:space-y-0.5">
+                <div className="flex flex-wrap gap-0.25 sm:gap-0.5" style={{ fontSize: 'clamp(7px, 1.8vw, 12px)' }}>
+                  <span className="font-semibold w-14 sm:w-16 md:w-20 flex-shrink-0">NAMA</span>
+                  <span className="hidden sm:inline mx-0.25 sm:mx-0.5">:</span>
+                  <span className="flex-grow break-words min-w-0">{card?.nama || '-'}</span>
                 </div>
-                <div className="flex flex-wrap gap-0.5 sm:gap-1" style={{ fontSize: 'clamp(24px, 5.4vw, 42px)' }}>
-                  <span className="font-semibold w-36 sm:w-60 flex-shrink-0">NIS/NISN</span>
-                  <span className="hidden sm:inline mx-0.5 sm:mx-1">:</span>
-                  <span className="flex-grow break-words">{card?.nis || '-'} / {card?.nisn || '-'}</span>
+                <div className="flex flex-wrap gap-0.25 sm:gap-0.5" style={{ fontSize: 'clamp(7px, 1.8vw, 12px)' }}>
+                  <span className="font-semibold w-14 sm:w-16 md:w-20 flex-shrink-0">NIS/NISN</span>
+                  <span className="hidden sm:inline mx-0.25 sm:mx-0.5">:</span>
+                  <span className="flex-grow break-words min-w-0">{card?.nis || '-'} / {card?.nisn || '-'}</span>
                 </div>
-                <div className="flex flex-wrap gap-0.5 sm:gap-1" style={{ fontSize: 'clamp(24px, 5.4vw, 42px)' }}>
-                  <span className="font-semibold w-36 sm:w-60 flex-shrink-0">T.T.L</span>
-                  <span className="hidden sm:inline mx-0.5 sm:mx-1">:</span>
-                  <span className="flex-grow break-words">{card?.ttl || '-'}</span>
+                <div className="flex flex-wrap gap-0.25 sm:gap-0.5" style={{ fontSize: 'clamp(7px, 1.8vw, 12px)' }}>
+                  <span className="font-semibold w-14 sm:w-16 md:w-20 flex-shrink-0">T.T.L</span>
+                  <span className="hidden sm:inline mx-0.25 sm:mx-0.5">:</span>
+                  <span className="flex-grow break-words min-w-0">{card?.ttl || '-'}</span>
                 </div>
-                <div className="flex flex-wrap gap-0.5 sm:gap-1" style={{ fontSize: 'clamp(24px, 5.4vw, 42px)' }}>
-                  <span className="font-semibold w-36 sm:w-60 flex-shrink-0">L / P</span>
-                  <span className="hidden sm:inline mx-0.5 sm:mx-1">:</span>
-                  <span className="flex-grow">{genderLabel(card?.gender || '')}</span>
+                <div className="flex flex-wrap gap-0.25 sm:gap-0.5" style={{ fontSize: 'clamp(7px, 1.8vw, 12px)' }}>
+                  <span className="font-semibold w-14 sm:w-16 md:w-20 flex-shrink-0">L / P</span>
+                  <span className="hidden sm:inline mx-0.25 sm:mx-0.5">:</span>
+                  <span className="flex-grow min-w-0">{genderLabel(card?.gender || '')}</span>
                 </div>
-                <div className="flex flex-wrap gap-0.5 sm:gap-1" style={{ fontSize: 'clamp(24px, 5.4vw, 42px)' }}>
-                  <span className="font-semibold w-36 sm:w-60 flex-shrink-0">KELAS</span>
-                  <span className="hidden sm:inline mx-0.5 sm:mx-1">:</span>
-                  <span className="flex-grow">{card?.kelas || '-'}</span>
+                <div className="flex flex-wrap gap-0.25 sm:gap-0.5" style={{ fontSize: 'clamp(7px, 1.8vw, 12px)' }}>
+                  <span className="font-semibold w-14 sm:w-16 md:w-20 flex-shrink-0">KELAS</span>
+                  <span className="hidden sm:inline mx-0.25 sm:mx-0.5">:</span>
+                  <span className="flex-grow min-w-0">{card?.kelas || '-'}</span>
                 </div>
               </div>
             </div>
 
-            {/* Right side - Photo Frame */}
-            <div className="flex-shrink-0 ml-3 sm:ml-4 md:ml-6">
+            <div className="flex-shrink-0 ml-1 sm:ml-1.5 md:ml-2">
               <div 
-                className="border-1.5 sm:border-2 md:border-3 border-black bg-gray-300 flex items-center justify-center"
+                className="border border-black bg-gray-300 flex items-center justify-center flex-shrink-0"
                 style={{
-                  width: 'clamp(135px, 36vw, 360px)',
-                  height: 'clamp(180px, 48vw, 480px)',
+                  width: 'clamp(40px, 10vw, 80px)',
+                  height: 'clamp(50px, 13vw, 105px)',
                 }}
               >
-                <span className="text-gray-600" style={{ fontSize: 'clamp(24px, 5.4vw, 42px)' }}>Foto</span>
+                <span className="text-gray-600" style={{ fontSize: 'clamp(6px, 1.5vw, 10px)' }}>Foto</span>
               </div>
             </div>
           </div>

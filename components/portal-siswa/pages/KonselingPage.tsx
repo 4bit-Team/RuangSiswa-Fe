@@ -6,11 +6,12 @@ import { CounselingCardProps } from '@types'
 import AppointmentScheduleModal from '../modals/AppointmentScheduleModal'
 import { useAuth } from '@hooks/useAuth'
 import { apiRequest } from '@lib/api'
+import { getStatusLabel, getStatusBadgeColor, statusBadgeColor, getTypeColor, getStatusColor, formatDate, typeLabel } from '@/lib/reservasi';
 
 interface Reservasi {
   id: number
   counselorId: number
-  counselorName: string
+  counselor?: { id: number; username: string; fullName?: string }
   preferredDate: string
   preferredTime: string
   type: 'chat' | 'tatap-muka'
@@ -128,28 +129,6 @@ const KonselingPage: React.FC = () => {
     }
   }
 
-  const getStatusBadgeColor = (status: string) => {
-    const colors: Record<string, string> = {
-      pending: 'bg-yellow-100 text-yellow-800',
-      approved: 'bg-green-100 text-green-800',
-      rejected: 'bg-red-100 text-red-800',
-      completed: 'bg-blue-100 text-blue-800',
-      cancelled: 'bg-gray-100 text-gray-800',
-    }
-    return colors[status] || 'bg-gray-100 text-gray-800'
-  }
-
-  const getStatusLabel = (status: string) => {
-    const labels: Record<string, string> = {
-      pending: 'Menunggu',
-      approved: 'Diterima',
-      rejected: 'Ditolak',
-      completed: 'Selesai',
-      cancelled: 'Dibatalkan',
-    }
-    return labels[status] || status
-  }
-
   return (
     <div className="pt-16 px-8 space-y-6">
       {/* Alert Messages */}
@@ -247,7 +226,7 @@ const KonselingPage: React.FC = () => {
                   </div>
                   <div className="flex-1">
                     <h5 className="font-semibold text-gray-900">{res.topic}</h5>
-                    <p className="text-sm text-gray-600">{res.counselorName} • {res.preferredDate} • {res.preferredTime}</p>
+                    <p className="text-sm text-gray-600">{typeLabel[res.type]} • {res.counselor?.username || res.counselor?.fullName || 'Konselor'} • {formatDate(res.preferredDate)} • {res.preferredTime}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-3">

@@ -178,3 +178,59 @@ export const formatCallDuration = (seconds: number): string => {
   }
   return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
 }
+
+/**
+ * Format time difference to human-readable format (relative time)
+ */
+export const formatTime = (dateString: string): string => {
+  const date = new Date(dateString)
+  const now = new Date()
+  const diffInMs = now.getTime() - date.getTime()
+  const diffInMinutes = Math.floor(diffInMs / (1000 * 60))
+  const diffInHours = Math.floor(diffInMs / (1000 * 60 * 60))
+  const diffInDays = Math.floor(diffInMs / (1000 * 60 * 60 * 24))
+
+  if (diffInMinutes < 1) return 'Baru saja'
+  if (diffInMinutes < 60) return `${diffInMinutes}m`
+  if (diffInHours < 24) return `${diffInHours}h`
+  if (diffInDays === 1) return 'Kemarin'
+  if (diffInDays < 7) return `${diffInDays}d`
+  
+  return date.toLocaleDateString('id-ID', { month: 'short', day: 'numeric' })
+}
+
+/**
+ * Emoji list for emoji picker
+ */
+export const emojis = ['😀', '😂', '😍', '🥰', '😘', '😭', '😤', '😡', '🤔', '😎', '👍', '👏', '🎉', '❤️', '💯', '🔥', '✨', '🌟', '⭐', '💪']
+
+/**
+ * Fetch emojis from API (dynamic emoji library)
+ */
+export const fetchEmojisFromAPI = async (): Promise<string[]> => {
+  try {
+    const response = await fetch(`${API_URL}/emojis?active=true`)
+    if (!response.ok) throw new Error('Failed to fetch emojis')
+    const data = await response.json()
+    // Extract emoji characters from response
+    return data.map((emoji: any) => emoji.emoji).filter((e: string) => e)
+  } catch (error) {
+    console.error('Error fetching emojis from API:', error)
+    // Fallback to default emojis
+    return emojis
+  }
+}
+
+/**
+ * Get emoji categories from API
+ */
+export const fetchEmojiCategories = async (): Promise<string[]> => {
+  try {
+    const response = await fetch(`${API_URL}/emojis/categories`)
+    if (!response.ok) throw new Error('Failed to fetch categories')
+    return await response.json()
+  } catch (error) {
+    console.error('Error fetching emoji categories:', error)
+    return []
+  }
+}

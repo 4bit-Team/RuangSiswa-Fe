@@ -35,6 +35,7 @@ const CallUI: React.FC<CallUIProps> = ({
   const [displayDuration, setDisplayDuration] = useState('00:00')
   const [hasLocalStream, setHasLocalStream] = useState(false)
   const [hasRemote, setHasRemote] = useState(false)
+  const connectionTimeRef = useRef<number | null>(null) // ✅ Track when connection was established
 
   // Attach local stream to video element with robust retry logic
   useEffect(() => {
@@ -356,7 +357,7 @@ const CallUI: React.FC<CallUIProps> = ({
     return () => clearInterval(debugInterval)
   }, [callType])
 
-  // ✅ NEW: Monitor and ensure local track stays enabled
+  // ✅ FIXED: Monitor local tracks but RESPECT mute state
   useEffect(() => {
     if (!localStream) return
 
@@ -364,39 +365,68 @@ const CallUI: React.FC<CallUIProps> = ({
       const audioTracks = localStream.getAudioTracks()
       const videoTracks = localStream.getVideoTracks()
 
-      // Check and re-enable tracks if they became disabled
+      // ✅ CRITICAL: Only re-enable if NOT muted by user
+      // If user muted, DO NOT force enable
       audioTracks.forEach((track) => {
-        if (!track.enabled && track.readyState === 'live') {
-          console.log(`🔊 [CallUI Local Monitor] Audio track was disabled, re-enabling...`)
+        // Only re-enable if:
+        // 1. Track disabled by accident (readyState is still live)
+        // 2. AND user hasn't muted it
+        if (!track.enabled && track.readyState === 'live' && !isMuted) {
+          console.log(`🔊 [CallUI Local Monitor] Audio track was disabled accidentally, re-enabling...`)
           track.enabled = true
+        } else if (isMuted && track.enabled) {
+          // If user muted but track is still enabled, disable it
+          console.log(`🔊 [CallUI Local Monitor] User muted but track enabled, disabling...`)
+          track.enabled = false
         }
       })
 
       videoTracks.forEach((track) => {
-        if (!track.enabled && track.readyState === 'live') {
-          console.log(`📹 [CallUI Local Monitor] Video track was disabled, re-enabling...`)
+        // Only re-enable if:
+        // 1. Track disabled by accident
+        // 2. AND user hasn't turned off video
+        if (!track.enabled && track.readyState === 'live' && isVideoOn) {
+          console.log(`📹 [CallUI Local Monitor] Video track was disabled accidentally, re-enabling...`)
           track.enabled = true
+        } else if (!isVideoOn && track.enabled) {
+          // If user turned off video but track is still enabled, disable it
+          console.log(`📹 [CallUI Local Monitor] User turned off video but track enabled, disabling...`)
+          track.enabled = false
         }
       })
     }, 500) // Check every 500ms
 
     return () => clearInterval(interval)
-  }, [localStream])
+  }, [localStream, isMuted, isVideoOn])
 
-  // Format call duration
+  // ✅ FIXED: Calculate duration from connection time (same for both sides)
   useEffect(() => {
     if (!isConnected) return
 
+    // Set connection time on first connection
+    if (!connectionTimeRef.current) {
+      connectionTimeRef.current = Date.now()
+      console.log('📱 [CallUI] Connection established, starting timer from this moment')
+    }
+
     const interval = setInterval(() => {
-      const minutes = Math.floor(callDuration / 60)
-      const seconds = callDuration % 60
-      setDisplayDuration(
-        `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
-      )
+      // Calculate duration from connection time (not from prop which might be different)
+      const elapsedMs = Date.now() - (connectionTimeRef.current || Date.now())
+      const totalSeconds = Math.floor(elapsedMs / 1000)
+      const minutes = Math.floor(totalSeconds / 60)
+      const seconds = totalSeconds % 60
+      
+      const formattedDuration = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
+      setDisplayDuration(formattedDuration)
+      
+      // Optional: Also log for debugging (remove later)
+      if (totalSeconds % 10 === 0 && totalSeconds > 0) {
+        console.log(`⏱️ [CallUI] Call duration: ${formattedDuration}`)
+      }
     }, 1000)
 
     return () => clearInterval(interval)
-  }, [callDuration, isConnected])
+  }, [isConnected])
 
   const toggleMute = () => {
     const newMutedState = !isMuted
