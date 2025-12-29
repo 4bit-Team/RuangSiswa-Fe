@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Home, Users, MessageCircle, FileText, Newspaper, BarChart3, Settings, Menu, X, Calendar, CheckCircle } from 'lucide-react';
+import { Home, Users, MessageCircle, FileText, Newspaper, BarChart3, Settings, Menu, X, Calendar, CheckCircle, HelpCircle } from 'lucide-react';
 
 interface SidebarProps {
   pathname?: string;
@@ -35,6 +35,7 @@ const Sidebar: React.FC<SidebarProps> = ({ pathname = '', sidebarOpen, setSideba
     { id: 'dashboard', icon: Home, label: 'Dashboard', href: '/home/bk' },
     { id: 'siswa', icon: Users, label: 'Daftar Siswa', href: '/home/bk/siswa' },
     { id: 'chat', icon: MessageCircle, label: 'Chat', href: '/home/bk/chat' },
+    { id: 'konsultasi', icon: HelpCircle, label: 'Konsultasi', href: '/home/bk/konsultasi' },
     { id: 'persetujuan', icon: CheckCircle, label: 'Persetujuan Reservasi', href: '/home/bk/persetujuan' },
     // { id: 'reservasi', icon: Calendar, label: 'Manajemen Reservasi' },
     { id: 'laporan', icon: FileText, label: 'Laporan', href: '/home/bk/laporan' },

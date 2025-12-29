@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
-import { useParams, useRouter, usePathname } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import {
   ArrowLeft,
   Heart,
@@ -17,6 +17,7 @@ import {
   Bookmark,
   MoreVertical,
   Loader,
+  User,
 } from 'lucide-react'
 import { apiRequest } from '@/lib/api'
 
@@ -34,14 +35,13 @@ interface Answer {
   edited?: string
 }
 
-interface DetailKonsultasiPageProps {
+interface DetailKonsultasiPageBKProps {
   onBack?: () => void
 }
 
-const DetailKonsultasiPage: React.FC<DetailKonsultasiPageProps> = ({ onBack }) => {
+const DetailKonsultasiPageBK: React.FC<DetailKonsultasiPageBKProps> = ({ onBack }) => {
   const params = useParams()
   const router = useRouter()
-  const pathname = usePathname()
   const questionId = params.id as string
   
   const [question, setQuestion] = useState<any>(null)
@@ -80,6 +80,7 @@ const DetailKonsultasiPage: React.FC<DetailKonsultasiPageProps> = ({ onBack }) =
           title: data.question.title,
           category: categoryMap[questionCategory] || data.question.category,
           author: data.question.author?.name || 'Anonymous',
+          authorClass: data.question.author?.studentCard?.class?.name || 'N/A',
           authorId: data.question.authorId,
           avatar: (data.question.author?.name || 'A').substring(0, 2).toUpperCase(),
           timestamp: formatDate(data.question.createdAt),
@@ -152,8 +153,6 @@ const DetailKonsultasiPage: React.FC<DetailKonsultasiPageProps> = ({ onBack }) =
       newLiked.add(answerId)
     }
     setLikedAnswers(newLiked)
-    
-    // TODO: Call API to save vote
   }
 
   const handleSubmitAnswer = async () => {
@@ -172,8 +171,8 @@ const DetailKonsultasiPage: React.FC<DetailKonsultasiPageProps> = ({ onBack }) =
           id: newAnswer.id,
           authorId: newAnswer.authorId,
           authorName: 'Anda',
-          authorRole: 'siswa',
-          avatar: 'YO',
+          authorRole: 'bk',
+          avatar: 'BK',
           timestamp: 'baru saja',
           content: newAnswer.content,
           likes: 0,
@@ -220,7 +219,7 @@ const DetailKonsultasiPage: React.FC<DetailKonsultasiPageProps> = ({ onBack }) =
       <div className="bg-white border-b border-gray-200 sticky top-0 z-40">
         <div className="max-w-3xl mx-auto px-4 py-4 flex items-center gap-3">
           <button
-            onClick={() => router.push('/home/siswa/konsultasi')}
+            onClick={() => router.push('/home/bk/konsultasi')}
             className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
           >
             <ArrowLeft className="w-5 h-5 text-gray-600" />
@@ -253,13 +252,20 @@ const DetailKonsultasiPage: React.FC<DetailKonsultasiPageProps> = ({ onBack }) =
         <div className="bg-white rounded-lg border border-gray-200 p-6 mb-6">
           {/* Header */}
           <div className="flex items-start justify-between mb-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white font-semibold text-sm">
-                {question.avatar}
+            <div className="flex-1">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white font-semibold text-sm">
+                  {question.avatar}
+                </div>
+                <div>
+                  <p className="font-medium text-gray-900">{question.author}</p>
+                  <p className="text-xs text-gray-500">{question.timestamp}</p>
+                </div>
               </div>
-              <div>
-                <p className="font-medium text-gray-900">{question.author}</p>
-                <p className="text-xs text-gray-500">{question.timestamp}</p>
+              {/* Student Info */}
+              <div className="ml-13 flex items-center gap-2 text-sm text-gray-600 bg-blue-50 p-2 rounded border border-blue-200">
+                <User className="w-4 h-4 text-blue-600" />
+                <span className="font-medium">{question.authorClass}</span>
               </div>
             </div>
             <span className="px-3 py-1 bg-cyan-50 text-cyan-700 text-xs font-semibold rounded-full">
@@ -412,7 +418,7 @@ const DetailKonsultasiPage: React.FC<DetailKonsultasiPageProps> = ({ onBack }) =
             <textarea
               value={answerText}
               onChange={(e) => setAnswerText(e.target.value)}
-              placeholder="Tulis jawaban Anda di sini. Pastikan jawaban jelas, membantu, dan menghormati komunitas..."
+              placeholder="Tulis jawaban Anda di sini. Pastikan jawaban jelas, membantu, dan menghormati siswa..."
               className="w-full px-4 py-3 bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white resize-none"
               rows={4}
             />
@@ -453,4 +459,4 @@ const DetailKonsultasiPage: React.FC<DetailKonsultasiPageProps> = ({ onBack }) =
   )
 }
 
-export default DetailKonsultasiPage
+export default DetailKonsultasiPageBK
