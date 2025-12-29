@@ -1,7 +1,8 @@
 'use client'
 
 import React, { useState } from 'react'
-import { HelpCircle, Send, X } from 'lucide-react'
+import { HelpCircle, Send, X, Loader } from 'lucide-react'
+import { apiRequest } from '@/lib/api'
 
 interface AskQuestionModalProps {
   isOpen: boolean
@@ -28,19 +29,43 @@ const AskQuestionModal: React.FC<AskQuestionModalProps> = ({
   const [question, setQuestion] = useState('')
   const [selectedCategory, setSelectedCategory] = useState(category)
   const [isSubmitted, setIsSubmitted] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (question.trim()) {
-      onSubmit?.({
-        question,
-        category: selectedCategory,
-      })
-      setIsSubmitted(true)
-      setTimeout(() => {
-        setQuestion('')
-        setIsSubmitted(false)
-        onClose()
-      }, 2000)
+      try {
+        setLoading(true)
+        setError('')
+        const token = localStorage.getItem('token')
+        
+        const data = await apiRequest(
+          '/v1/konsultasi',
+          'POST',
+          {
+            title: question.split('\n')[0] || question.substring(0, 100),
+            content: question,
+            category: selectedCategory,
+          },
+          token
+        )
+
+        onSubmit?.({
+          question,
+          category: selectedCategory,
+        })
+        setIsSubmitted(true)
+        setTimeout(() => {
+          setQuestion('')
+          setIsSubmitted(false)
+          onClose()
+        }, 2000)
+      } catch (err: any) {
+        console.error('Error creating question:', err)
+        setError(err.message || 'Gagal mengirim pertanyaan. Silakan coba lagi.')
+      } finally {
+        setLoading(false)
+      }
     }
   }
 
@@ -78,17 +103,17 @@ const AskQuestionModal: React.FC<AskQuestionModalProps> = ({
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
-          <div className={`${isSubmitted ? 'bg-gradient-to-r from-green-500 to-emerald-500' : 'bg-gradient-to-r from-orange-500 to-yellow-500'} px-6 py-6 text-white flex items-center justify-between sticky top-0 z-10`}>
+          <div className={`${isSubmitted ? 'bg-gradient-to-r from-green-600 to-emerald-600' : 'bg-gradient-to-r from-blue-600 to-blue-700'} px-6 py-6 text-white flex items-center justify-between sticky top-0 z-10`}>
             <div className="flex items-center gap-4">
               <div className="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center">
                 <HelpCircle className="w-6 h-6" />
               </div>
               <div>
-                <h2 className="text-2xl font-bold">
-                  {isSubmitted ? '✅ Pertanyaan Terkirim' : 'Ajukan Pertanyaan'}
+                <h2 className="text-xl font-bold">
+                  {isSubmitted ? '✓ Pertanyaan Terkirim' : 'Ajukan Pertanyaan'}
                 </h2>
-                <p className="text-white/80 text-sm">
-                  {isSubmitted ? 'Konselor akan menjawab dalam waktu singkat' : 'Tanyakan apa yang sedang Anda pikirkan'}
+                <p className="text-blue-100 text-sm">
+                  {isSubmitted ? 'Konselor BK kami akan segera meresponnya' : 'Berbagi pertanyaan atau masalah Anda'}
                 </p>
               </div>
             </div>
@@ -104,19 +129,24 @@ const AskQuestionModal: React.FC<AskQuestionModalProps> = ({
           <div className="p-6">
           {!isSubmitted ? (
             <div className="space-y-6">
+              {error && (
+                <div className="bg-red-50 border border-red-200 rounded-xl p-4">
+                  <p className="text-red-700 text-sm font-medium">❌ {error}</p>
+                </div>
+              )}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-3">
                   Kategori Pertanyaan
                 </label>
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                   {categories.map((cat) => (
                     <button
                       key={cat.id}
                       onClick={() => setSelectedCategory(cat.id)}
-                      className={`p-3 rounded-lg transition-all duration-300 text-sm font-medium text-center ${
+                      className={`p-3 rounded-lg transition-all duration-200 text-sm font-medium text-center ${
                         selectedCategory === cat.id
-                          ? 'bg-orange-500 text-white ring-2 ring-orange-300 shadow-lg'
-                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                          ? 'bg-blue-600 text-white shadow-md ring-2 ring-blue-300'
+                          : 'bg-gray-50 text-gray-700 border border-gray-200 hover:border-gray-300 hover:bg-gray-100'
                       }`}
                     >
                       <span className="text-lg block mb-1">{cat.emoji}</span>
@@ -134,7 +164,7 @@ const AskQuestionModal: React.FC<AskQuestionModalProps> = ({
                   value={question}
                   onChange={(e) => setQuestion(e.target.value)}
                   placeholder="Ceritakan pertanyaan atau masalah Anda dengan detail. Semakin detail, semakin baik kami dapat membantu..."
-                  className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent resize-none"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
                   rows={5}
                 />
                 <p className="text-xs text-gray-500 mt-2">
@@ -142,9 +172,9 @@ const AskQuestionModal: React.FC<AskQuestionModalProps> = ({
                 </p>
               </div>
 
-              <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4">
-                <h5 className="font-semibold text-yellow-900 mb-2">💡 Tips untuk Pertanyaan Terbaik</h5>
-                <ul className="text-sm text-yellow-800 space-y-1">
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <h5 className="font-semibold text-blue-900 mb-2">💡 Tips untuk Pertanyaan Terbaik</h5>
+                <ul className="text-sm text-blue-800 space-y-1">
                   <li>✓ Jelaskan situasi dengan detail</li>
                   <li>✓ Sebutkan perasaan atau kekhawatiran Anda</li>
                   <li>✓ Ceritakan apa yang sudah Anda coba</li>
@@ -159,37 +189,48 @@ const AskQuestionModal: React.FC<AskQuestionModalProps> = ({
 
               <button
                 onClick={handleSubmit}
-                disabled={!question.trim() || question.length > 500}
-                className="w-full py-3 bg-orange-500 hover:bg-orange-600 text-white rounded-lg font-medium disabled:bg-gray-300 disabled:cursor-not-allowed transition-all duration-300 flex items-center justify-center gap-2"
+                disabled={!question.trim() || question.length > 500 || loading}
+                className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium disabled:bg-gray-300 disabled:cursor-not-allowed transition-all duration-300 flex items-center justify-center gap-2 shadow-sm"
               >
-                <Send className="w-4 h-4" />
-                Kirim Pertanyaan
+                {loading ? (
+                  <>
+                    <Loader className="w-4 h-4 animate-spin" />
+                    Mengirim...
+                  </>
+                ) : (
+                  <>
+                    <Send className="w-4 h-4" />
+                    Kirim Pertanyaan
+                  </>
+                )}
               </button>
             </div>
           ) : (
             <div className="space-y-4 py-8 text-center">
-              <div className="text-5xl mb-4">🎉</div>
-              <p className="text-gray-700">
-                Terima kasih telah mengajukan pertanyaan! Tim konselor BK kami akan segera meresponnya.
+              <div className="text-6xl mb-4">✓</div>
+              <p className="text-gray-800 font-semibold text-lg">
+                Pertanyaan Anda Telah Terkirim
               </p>
-              <div className="grid grid-cols-2 gap-3 pt-4 text-sm">
-                <div className="bg-green-50 p-3 rounded-lg">
-                  <p className="text-green-700 font-medium">Kategori</p>
-                  <p className="text-green-600">
+              <p className="text-gray-600 text-sm">
+                Terima kasih telah mengajukan pertanyaan. Tim konselor BK kami akan segera meresponnya.
+              </p>
+              <div className="grid grid-cols-2 gap-3 pt-4 text-sm bg-gray-50 rounded-lg p-4">
+                <div className="bg-white p-3 rounded border border-gray-200">
+                  <p className="text-gray-600 font-medium text-xs">Kategori</p>
+                  <p className="text-blue-600 font-semibold">
                     {categoryLabel}
                   </p>
                 </div>
-                <div className="bg-blue-50 p-3 rounded-lg">
-                  <p className="text-blue-700 font-medium">Status</p>
-                  <p className="text-blue-600">Menunggu Jawaban</p>
+                <div className="bg-white p-3 rounded border border-gray-200">
+                  <p className="text-gray-600 font-medium text-xs">Status</p>
+                  <p className="text-blue-600 font-semibold">Menunggu Jawaban</p>
                 </div>
               </div>
               <button
                 onClick={handleClose}
-                className="w-full mt-6 py-3 bg-orange-500 hover:bg-orange-600 text-white rounded-lg font-medium transition-all duration-300 flex items-center justify-center gap-2"
+                className="w-full mt-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-all duration-300 shadow-sm"
               >
-                <Send className="w-4 h-4" />
-                Ajukan Pertanyaan Lagi
+                Tutup
               </button>
             </div>
           )}

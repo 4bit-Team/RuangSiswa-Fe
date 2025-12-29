@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import {
   ChevronRight,
   Search,
@@ -18,9 +18,12 @@ import {
   Award,
   Filter,
   Plus,
+  Loader,
 } from 'lucide-react'
 import { CategoryCardProps, QuestionItemProps } from '@types'
 import AskQuestionModal from '../modals/AskQuestionModal'
+import Link from 'next/link'
+import { apiRequest } from '@/lib/api'
 
 
 const CategoryCard: React.FC<CategoryCardProps & { gradient?: string; onOpen?: () => void }> = ({ icon: Icon, title, description, articles, gradient, onOpen }) => {
@@ -163,6 +166,10 @@ const KonsultasiPage: React.FC<{ setActivePage?: (page: string) => void }> = ({ 
   const [filterCategory, setFilterCategory] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [showModal, setShowModal] = useState(false);
+  const [posts, setPosts] = useState<PostCardProps[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
 
   // Mock data
   const categories = [
@@ -173,7 +180,89 @@ const KonsultasiPage: React.FC<{ setActivePage?: (page: string) => void }> = ({ 
     { id: 'development', label: 'Pengembangan', icon: Lightbulb, color: 'bg-violet-50' },
   ];
 
-  const posts: PostCardProps[] = [
+  const categoryMap = {
+    personal: 'Pribadi',
+    academic: 'Akademik',
+    social: 'Sosial',
+    development: 'Pengembangan',
+  };
+
+  const categoryColorMap = {
+    personal: 'bg-pink-50',
+    academic: 'bg-cyan-50',
+    social: 'bg-emerald-50',
+    development: 'bg-violet-50',
+  };
+
+  // Fetch data dari API
+  useEffect(() => {
+    const fetchConsultations = async () => {
+      try {
+        setLoading(true);
+        const category = filterCategory !== 'all' ? filterCategory : undefined;
+        const params = new URLSearchParams({
+          sort: sortBy,
+          page: page.toString(),
+          limit: '10',
+          ...(category && { category }),
+          ...(searchQuery && { search: searchQuery }),
+        });
+
+        const token = localStorage.getItem('token');
+        const data = await apiRequest(
+          `/v1/konsultasi?${params}`,
+          'GET',
+          undefined,
+          token
+        );
+
+        const transformedPosts = data.data.map((item: any) => {
+          const category = item.category as keyof typeof categoryMap;
+          return {
+            id: item.id,
+            title: item.title,
+            category: categoryMap[category] || item.category,
+            author: item.author?.name || 'Anonymous',
+            avatar: (item.author?.name || 'A').substring(0, 2).toUpperCase(),
+            timestamp: formatDate(item.createdAt),
+            content: item.content,
+            votes: item.votes,
+            answers: item.answerCount,
+            views: item.views,
+            categoryColor: categoryColorMap[category] || 'bg-gray-50',
+            isVerified: false,
+          };
+        });
+
+        setPosts(transformedPosts);
+        setTotalPages(data.pagination.pages);
+      } catch (error) {
+        console.error('Error fetching consultations:', error);
+        setPosts([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchConsultations();
+  }, [sortBy, filterCategory, searchQuery, page]);
+
+  const formatDate = (date: string) => {
+    const now = new Date();
+    const postDate = new Date(date);
+    const diffMs = now.getTime() - postDate.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+
+    if (diffMins < 1) return 'baru saja';
+    if (diffMins < 60) return `${diffMins} menit lalu`;
+    if (diffHours < 24) return `${diffHours} jam lalu`;
+    if (diffDays < 7) return `${diffDays} hari lalu`;
+    return postDate.toLocaleDateString('id-ID');
+  };
+
+  const posts_old: PostCardProps[] = [
     {
       id: '1',
       title: 'Bagaimana cara mengatasi rasa cemas saat menghadapi ujian?',
@@ -235,12 +324,7 @@ const KonsultasiPage: React.FC<{ setActivePage?: (page: string) => void }> = ({ 
     return matchesSearch && matchesCategory;
   });
 
-  const sortedPosts = [...filteredPosts].sort((a, b) => {
-    if (sortBy === 'trending') return b.votes - a.votes;
-    if (sortBy === 'newest') return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
-    if (sortBy === 'unanswered') return a.answers - b.answers;
-    return 0;
-  });
+  const sortedPosts = posts;
 
   return (
     <div className="bg-gray-50 min-h-screen py-6">
@@ -311,24 +395,65 @@ const KonsultasiPage: React.FC<{ setActivePage?: (page: string) => void }> = ({ 
 
             {/* Posts */}
             <div className="space-y-3">
-              {sortedPosts.length > 0 ? (
+              {loading ? (
+                <div className="flex items-center justify-center py-12">
+                  <div className="flex flex-col items-center gap-3">
+                    <Loader className="w-8 h-8 text-blue-600 animate-spin" />
+                    <p className="text-gray-600">Memuat pertanyaan...</p>
+                  </div>
+                </div>
+              ) : sortedPosts.length > 0 ? (
                 sortedPosts.map(post => (
-                  <PostCard
-                    key={post.id}
-                    {...post}
-                    onClick={() => {
-                      // Navigate to detail page
-                      console.log('Navigate to detail:', post.id);
-                    }}
-                  />
+                  <Link key={post.id} href={`/home/siswa/konsultasi/${post.id}`}>
+                    <PostCard
+                      {...post}
+                      onClick={() => {
+                        // Navigate handled by Link
+                      }}
+                    />
+                  </Link>
                 ))
               ) : (
                 <div className="text-center py-12 bg-white rounded-lg border border-gray-200">
-                  <MessageCircle className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                  <p className="text-gray-600">Tidak ada pertanyaan yang sesuai</p>
+                  <p className="text-gray-600">Tidak ada pertanyaan yang cocok</p>
                 </div>
               )}
             </div>
+
+            {/* Pagination */}
+            {totalPages > 1 && (
+              <div className="flex justify-center gap-2 mt-6">
+                <button
+                  onClick={() => setPage(Math.max(1, page - 1))}
+                  disabled={page === 1}
+                  className="px-3 py-2 border border-gray-300 rounded-lg disabled:opacity-50 hover:bg-gray-50"
+                >
+                  Sebelumnya
+                </button>
+                <div className="flex items-center gap-2">
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
+                    <button
+                      key={p}
+                      onClick={() => setPage(p)}
+                      className={`px-3 py-2 rounded-lg ${
+                        page === p
+                          ? 'bg-blue-600 text-white'
+                          : 'border border-gray-300 hover:bg-gray-50'
+                      }`}
+                    >
+                      {p}
+                    </button>
+                  ))}
+                </div>
+                <button
+                  onClick={() => setPage(Math.min(totalPages, page + 1))}
+                  disabled={page === totalPages}
+                  className="px-3 py-2 border border-gray-300 rounded-lg disabled:opacity-50 hover:bg-gray-50"
+                >
+                  Berikutnya
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Sidebar */}
