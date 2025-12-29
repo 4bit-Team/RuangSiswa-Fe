@@ -1,5 +1,99 @@
   // WebRTC utility functions for peer-to-peer communication
 
+  /**
+   * ✅ ICE Candidate Throttler - Prevents spam by batching candidates
+   * Backend rejects >30 candidates in 1 second, so we batch them
+   */
+  export class IceCandidateThrottler {
+    private candidateQueue: RTCIceCandidate[] = [];
+    private sendTimer: NodeJS.Timeout | null = null;
+    private batchSize = 5; // Send max 5 at a time
+    private batchDelay = 150; // Wait 150ms between batches
+    private sendCount = 0;
+    private lastResetTime = Date.now();
+
+    constructor() {
+      // Reset counters every 1 second
+      setInterval(() => {
+        if (Date.now() - this.lastResetTime >= 1000) {
+          this.sendCount = 0;
+          this.lastResetTime = Date.now();
+        }
+      }, 100);
+    }
+
+    enqueue(candidate: RTCIceCandidate): void {
+      this.candidateQueue.push(candidate);
+      this.scheduleFlush();
+    }
+
+    private scheduleFlush(): void {
+      if (this.sendTimer) {
+        clearTimeout(this.sendTimer);
+      }
+
+      this.sendTimer = setTimeout(() => {
+        this.flush();
+      }, this.batchDelay);
+    }
+
+    private flush(): void {
+      if (this.candidateQueue.length === 0) return;
+
+      // Check rate limit: max 15 candidates per second
+      const elapsedMs = Date.now() - this.lastResetTime;
+      if (elapsedMs >= 1000) {
+        this.sendCount = 0;
+        this.lastResetTime = Date.now();
+      }
+
+      const canSend = Math.min(15 - this.sendCount, this.batchSize);
+      if (canSend <= 0) {
+        // Still over limit, schedule retry
+        this.scheduleFlush();
+        return;
+      }
+
+      const batch = this.candidateQueue.splice(0, canSend);
+      this.sendCount += batch.length;
+
+      // Return batch for caller to send
+      for (const candidate of batch) {
+        // The caller will call getNextBatch() to get these
+      }
+
+      if (this.candidateQueue.length > 0) {
+        this.scheduleFlush();
+      }
+    }
+
+    getNextBatch(): RTCIceCandidate[] {
+      const elapsedMs = Date.now() - this.lastResetTime;
+      if (elapsedMs >= 1000) {
+        this.sendCount = 0;
+        this.lastResetTime = Date.now();
+      }
+
+      const canSend = Math.min(15 - this.sendCount, this.batchSize);
+      if (canSend <= 0) {
+        return [];
+      }
+
+      const batch = this.candidateQueue.splice(0, canSend);
+      this.sendCount += batch.length;
+      return batch;
+    }
+
+    clear(): void {
+      this.candidateQueue = [];
+      if (this.sendTimer) {
+        clearTimeout(this.sendTimer);
+        this.sendTimer = null;
+      }
+      this.sendCount = 0;
+    }
+  }
+
   export interface WebRTCConfig {
     iceServers?: RTCIceServer[];
     offerOptions?: RTCOfferOptions;
@@ -167,6 +261,15 @@
     config: WebRTCConfig = defaultWebRTCConfig
   ): Promise<string> {
     try {
+      // ✅ NEW: Check connection state BEFORE creating answer
+      const signalingState = peerConnection.signalingState;
+      console.log(`📡 [createAnswer] Current signaling state: ${signalingState}`);
+      
+      if (signalingState !== 'have-remote-offer') {
+        console.error(`❌ [createAnswer] Invalid state to create answer! Current: ${signalingState}, Expected: have-remote-offer`);
+        throw new Error(`Cannot create answer in ${signalingState} state`);
+      }
+
       console.log('🎙️ Creating answer with options:', config.answerOptions)
       // Parse offer SDP
       let offerObj: any
@@ -262,10 +365,11 @@
       console.log('📝 Setting local description with answer')
       await peerConnection.setLocalDescription(answer)
       console.log('✅ Local description set')
+      console.log(`📡 [createAnswer] New signaling state: ${peerConnection.signalingState}`)
       
       return JSON.stringify(answer)
     } catch (error) {
-      console.error('Error creating answer:', error)
+      console.error('Error creating answer:', error instanceof Error ? error.message : String(error))
       throw error
     }
   }
@@ -278,6 +382,16 @@
     offerSDP: string
   ): Promise<void> {
     try {
+      // ✅ NEW: Check connection state BEFORE setting remote description
+      const signalingState = peerConnection.signalingState;
+      console.log(`📡 [handleRemoteOffer] Current signaling state: ${signalingState}`);
+      
+      // Only set remote offer in valid states
+      if (signalingState !== 'stable') {
+        console.error(`⚠️ [handleRemoteOffer] Invalid state to set remote offer! Current: ${signalingState}, Expected: stable`);
+        throw new Error(`Cannot set remote offer in ${signalingState} state`);
+      }
+
       // Parse offer SDP
       let offerObj: any
       if (typeof offerSDP === 'string') {
@@ -296,15 +410,30 @@
         throw new Error('Offer does not contain valid SDP: ' + JSON.stringify(offerObj))
       }
       
+      // ✅ Log offer SDP for debugging
+      const offerLines = offerObj.sdp.split('\n')
+      const offerHasVideo = offerLines.some((line: string) => line.includes('m=video'))
+      const offerHasAudio = offerLines.some((line: string) => line.includes('m=audio'))
+      
+      console.log('📋 [handleRemoteOffer] OFFER SDP ANALYSIS:', {
+        hasVideo: offerHasVideo,
+        hasAudio: offerHasAudio,
+        totalLines: offerLines.length,
+        videoLine: offerLines.find((line: string) => line.includes('m=video')) || 'MISSING ❌',
+      })
+      
       // Create RTCSessionDescription using object format
       const offer = new RTCSessionDescription({
         type: 'offer',
         sdp: offerObj.sdp,
       })
       
+      console.log('📥 [handleRemoteOffer] Setting remote description (offer)...')
       await peerConnection.setRemoteDescription(offer)
+      console.log('✅ [handleRemoteOffer] Remote description (offer) set successfully!')
+      console.log(`📡 [handleRemoteOffer] New signaling state: ${peerConnection.signalingState}`)
     } catch (error) {
-      console.error('Error handling remote offer:', error)
+      console.error('Error handling remote offer:', error instanceof Error ? error.message : String(error))
       throw error
     }
   }
@@ -317,6 +446,21 @@
     answerSDP: string
   ): Promise<void> {
     try {
+      // ✅ NEW: Check connection state BEFORE setting remote description
+      const signalingState = peerConnection.signalingState;
+      console.log(`📡 [handleRemoteAnswer] Current signaling state: ${signalingState}`);
+      
+      // Only set remote answer if in valid state
+      if (signalingState === 'stable') {
+        console.warn('⚠️ [handleRemoteAnswer] Already in stable state! Answer already applied or stale.');
+        return;
+      }
+      
+      if (signalingState !== 'have-local-offer') {
+        console.error(`❌ [handleRemoteAnswer] Invalid state to set remote answer! Current: ${signalingState}, Expected: have-local-offer`);
+        throw new Error(`Cannot set remote answer in ${signalingState} state`);
+      }
+
       // Parse answer SDP
       let answerObj: any
       if (typeof answerSDP === 'string') {
@@ -375,6 +519,7 @@
       console.log('📥 [handleRemoteAnswer] Setting remote description (answer)...')
       await peerConnection.setRemoteDescription(answer)
       console.log('✅ [handleRemoteAnswer] Remote description (answer) set successfully!')
+      console.log(`📡 [handleRemoteAnswer] New signaling state: ${peerConnection.signalingState}`)
       
       // ✅ NEW: Check DTLS state after setting answer
       const dsc = peerConnection.getStats().then(stats => {
@@ -396,7 +541,7 @@
         console.warn('⚠️ [handleRemoteAnswer] Could not check DTLS state:', err.message)
       })
     } catch (error) {
-      console.error('Error handling remote answer:', error)
+      console.error('Error handling remote answer:', error instanceof Error ? error.message : String(error))
       throw error
     }
   }

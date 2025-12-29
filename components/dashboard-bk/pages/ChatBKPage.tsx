@@ -1,10 +1,10 @@
 'use client'
 
 import React, { useState, useRef, useEffect } from 'react'
-import { Send, Search, Phone, Video, MoreVertical, Smile, Paperclip, Loader, Mic, Square, Play } from 'lucide-react'
+import { Send, Search, Phone, Video, MoreVertical, Smile, Paperclip, Loader, Mic, Square, Play, X } from 'lucide-react'
 import { apiRequest, API_URL } from '@lib/api'
 import { formatMessageTime, getMessageDateLabel, shouldShowDateSeparator } from '@lib/messageFormatting'
-import { handleEmojiClick, startRecording, stopRecording, sendVoiceMessage, cancelRecording, getInitialBgColor, formatRecordingTime, formatCallDuration } from '@lib/chatUtils'
+import { handleEmojiClick, startRecording, stopRecording, sendVoiceMessage, cancelRecording, getInitialBgColor, formatRecordingTime, formatCallDuration, formatTime, emojis, fetchEmojisFromAPI } from '@lib/chatUtils'
 import CallUI from '../../call/CallUI'
 import {
   createPeerConnection,
@@ -22,6 +22,7 @@ import {
   onConnectionStateChange,
   onIceConnectionStateChange,
   onNegotiationNeeded,
+  IceCandidateThrottler,
 } from '@lib/webrtc'
 import { startRTPMonitoring, stopRTPMonitoring } from '@lib/rtpDiagnostics'
 import { useAuth } from '@/hooks/useAuth'
@@ -52,6 +53,8 @@ interface APIConversation {
   unreadCount?: number
   lastMessageAt: string
   status?: 'active' | 'in_counseling' | 'completed'
+  subject?: string
+  topic?: string
 }
 
 interface Message {
@@ -67,6 +70,21 @@ interface Message {
   duration?: number
 }
 
+interface Reservasi {
+  id: number
+  studentId: number
+  counselorId: number
+  preferredDate: string
+  preferredTime: string
+  type: 'chat' | 'tatap-muka'
+  topic: string
+  notes?: string
+  status: 'pending' | 'approved' | 'rejected' | 'in_counseling' | 'completed' | 'cancelled'
+  conversationId?: number
+  completedAt?: Date
+  createdAt: string
+}
+
 interface FormattedConversation {
   id: number
   sender: { id: number; fullName: string }
@@ -80,6 +98,8 @@ interface FormattedConversation {
   unread?: number
   photoUrl?: string
   status?: 'active' | 'in_counseling' | 'completed'
+  topic?: string
+  subject?: string
 }
 
 const ChatBKPage: React.FC = () => {
@@ -91,6 +111,7 @@ const ChatBKPage: React.FC = () => {
   const [loading, setLoading] = useState(true)
   const [sendingMessage, setSendingMessage] = useState(false)
   const [showEmojiPicker, setShowEmojiPicker] = useState(false)
+  const [dynamicEmojis, setDynamicEmojis] = useState<string[]>(emojis) // Dynamic emojis from API
   const [isRecording, setIsRecording] = useState(false)
   const [recordingTime, setRecordingTime] = useState(0)
   const [recordedChunks, setRecordedChunks] = useState<Blob[]>([])
@@ -118,11 +139,72 @@ const ChatBKPage: React.FC = () => {
   const callSocketRef = useRef<Socket | null>(null)
   const callIdRef = useRef<string | null>(null) // ✅ Track callId immediately when call starts
   const rtpMonitoringRef = useRef<boolean>(false) // ✅ Track if RTP monitoring is active
+  const iceThrottlerRef = useRef<IceCandidateThrottler>(new IceCandidateThrottler()) // ✅ Throttle ICE candidates to prevent spam
+
+  // Pinned topics state
+  const [pinnedTopics, setPinnedTopics] = useState<Array<{ id: string; topic: string; subject: string; timestamp: number }>>([])
+  const [showPinnedModal, setShowPinnedModal] = useState(false)
+  const [reservasiHistory, setReservasiHistory] = useState<Reservasi[]>([])
+  const topicSeparatorRefs = useRef<{ [key: string]: HTMLDivElement | null }>({})
 
   // Auto-scroll to bottom
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
+
+  // Fetch reservasi history from backend
+  useEffect(() => {
+    if (!activeCounselorId) return
+
+    const fetchReservasiHistory = async () => {
+      try {
+        // For counselor, get all reservasi (admin can view all, or filter by counselor ID)
+        const response = await apiRequest(`/reservasi`)
+        
+        console.log('Response received:', response, 'Type:', typeof response)
+        
+        let data = response
+        // Check if response has .ok property (it's a Response object)
+        if (response && typeof response === 'object' && 'ok' in response) {
+          if (!response.ok) {
+            console.warn('Failed to fetch reservasi:', response.status)
+            return
+          }
+          data = await response.json()
+        }
+        // Otherwise assume response is already the data
+        
+        console.log('All reservasi data fetched:', data)
+        setReservasiHistory(data)
+        
+        // Generate pinned topics from reservasi history - only chat type with topics
+        const pinned = data
+          .filter((r: Reservasi) => r.type === 'chat' && r.topic)
+          .map((r: Reservasi) => ({
+            id: `${r.id}`,
+            topic: `📚 Sesi chat: ${r.topic}${r.notes ? ` | ${r.notes}` : ''}`,
+            subject: '',
+            timestamp: new Date(r.createdAt).getTime()
+          }))
+        
+        console.log('Pinned topics:', pinned)
+        setPinnedTopics(pinned)
+      } catch (error) {
+        console.error('Failed to fetch reservasi history:', error)
+      }
+    }
+
+    fetchReservasiHistory()
+  }, [activeCounselorId])
+
+  // Fetch emojis from API on mount
+  useEffect(() => {
+    const loadEmojis = async () => {
+      const fetchedEmojis = await fetchEmojisFromAPI()
+      setDynamicEmojis(fetchedEmojis)
+    }
+    loadEmojis()
+  }, [])
 
   // Initialize Call WebSocket connection (separate namespace)
   useEffect(() => {
@@ -137,14 +219,24 @@ const ChatBKPage: React.FC = () => {
         reconnectionDelay: 1000,
         reconnectionDelayMax: 5000,
         reconnectionAttempts: 5,
+        transports: ['websocket', 'polling'],
       })
 
       callSocket.on('connect', () => {
         console.log('✅ [ChatBKPage Call Socket] Connected to /call namespace')
       })
 
-      callSocket.on('disconnect', () => {
-        console.log('❌ [ChatBKPage Call Socket] Disconnected from /call namespace')
+      callSocket.on('disconnect', (reason: string) => {
+        console.log('❌ [ChatBKPage Call Socket] Disconnected from /call namespace - Reason:', reason)
+        if (reason === 'io server disconnect') {
+          console.error('[ChatBKPage Call] Server explicitly disconnected this client')
+        } else if (reason === 'ping timeout') {
+          console.error('[ChatBKPage Call] Did not respond to ping in time')
+        }
+      })
+
+      callSocket.on('connect_error', (error: any) => {
+        console.error('❌ [ChatBKPage Call] Connection error:', error)
       })
 
       // Receive incoming call notification
@@ -167,8 +259,29 @@ const ChatBKPage: React.FC = () => {
       callSocket.on('call-answer', async (data: any) => {
         console.log('📞 [ChatBKPage] Call answer received:', data)
         try {
-          if (peerConnectionRef.current && data.answer) {
+          if (!peerConnectionRef.current) {
+            console.warn('⚠️ [ChatBKPage] Peer connection not ready for answer, ignoring')
+            return
+          }
+
+          // ✅ CRITICAL: Check if answer already processed
+          if (peerConnectionRef.current.remoteDescription) {
+            console.warn('⚠️ [ChatBKPage] Remote description already set, ignoring duplicate answer')
+            return
+          }
+
+          // ✅ Check signaling state before setting remote description
+          const state = peerConnectionRef.current.signalingState
+          console.log(`📡 [ChatBKPage] Current signaling state: ${state}`)
+          
+          if (state !== 'have-local-offer') {
+            console.warn(`⚠️ [ChatBKPage] Cannot set remote answer in state ${state}, expected have-local-offer`)
+            return
+          }
+
+          if (data.answer) {
             await handleRemoteAnswer(peerConnectionRef.current, data.answer)
+            
             // apply any ICE candidates sent along
             if (Array.isArray(data.iceCandidates)) {
               for (const c of data.iceCandidates) {
@@ -239,14 +352,24 @@ const ChatBKPage: React.FC = () => {
         reconnectionDelay: 1000,
         reconnectionDelayMax: 5000,
         reconnectionAttempts: 5,
+        transports: ['websocket', 'polling'],
       })
 
       socket.on('connect', () => {
         console.log('✅ [ChatBKPage] WebSocket connected')
       })
 
-      socket.on('disconnect', () => {
-        console.log('❌ [ChatBKPage] WebSocket disconnected')
+      socket.on('disconnect', (reason: string) => {
+        console.log('❌ [ChatBKPage] WebSocket disconnected - Reason:', reason)
+        if (reason === 'io server disconnect') {
+          console.error('[ChatBKPage] Server explicitly disconnected this client')
+        } else if (reason === 'ping timeout') {
+          console.error('[ChatBKPage] Did not respond to ping in time')
+        }
+      })
+
+      socket.on('connect_error', (error: any) => {
+        console.error('❌ [ChatBKPage] Connection error:', error)
       })
 
       socket.on('message-received', (data: any) => {
@@ -329,24 +452,40 @@ const ChatBKPage: React.FC = () => {
       console.log('✅ [ChatBK] Conversations response:', response)
       
       if (Array.isArray(response)) {
-        const formattedConversations = response.map((conv: APIConversation) => {
-          const otherUser = conv.sender.id === user?.id ? conv.receiver : conv.sender
-          const lastMsg = conv.lastMessage
-          const time = formatTime(conv.lastMessageAt)
+        const calculateUnreadMessages = (messages: APIMessage[]): number => {
+          return messages.filter((message) => {
+            const readStatus = message.readStatuses?.find((status) => status.isRead);
+            return !readStatus;
+          }).length;
+        };
+
+        // Update unread count display logic
+        const formattedConversations = response.map((conversation: APIConversation) => {
+          const unreadCount = calculateUnreadMessages(conversation.messages || []);
+          const otherUser = conversation.sender.id === user?.id ? conversation.receiver : conversation.sender;
+          const lastMessageContent = conversation.lastMessage?.isDeleted 
+            ? '[Pesan dihapus]' 
+            : conversation.lastMessage?.content || '';
           
           return {
-            ...conv,
+            id: conversation.id,
+            sender: conversation.sender,
+            receiver: conversation.receiver,
+            lastMessage: conversation.lastMessage,
+            lastMessageAt: conversation.lastMessageAt,
             otherUserId: otherUser.id,
             initial: otherUser.fullName?.charAt(0).toUpperCase() || 'U',
             name: otherUser.fullName || otherUser.username || 'Unknown',
-            message: lastMsg?.content || 'Mulai percakapan',
-            time,
-            unread: conv.unreadCount || 0,
+            message: lastMessageContent,
+            time: conversation.lastMessage ? formatMessageTime(conversation.lastMessage.createdAt) : formatMessageTime(conversation.lastMessageAt),
+            unread: unreadCount > 0 ? unreadCount : undefined,
             photoUrl: otherUser.photoUrl,
-          }
-        })
-        
-        console.log('Formatted conversations:', formattedConversations)
+            status: conversation.status,
+            topic: conversation.topic || conversation.subject,
+            subject: conversation.subject,
+          };
+        });
+
         setConversations(formattedConversations)
         
         // Don't auto-select first conversation anymore
@@ -405,10 +544,10 @@ const ChatBKPage: React.FC = () => {
       
       console.log('Formatted messages:', formattedMessages)
       setMessages(formattedMessages)
-      } else {
-        console.warn('No messages in response')
-        setMessages([])
-      }
+    } else {
+      console.warn('No messages in response')
+      setMessages([])
+    }
     } catch (error: any) {
       console.error('Error fetching messages:', error)
       console.error('Error details:', error?.message, error?.response?.data)
@@ -497,25 +636,6 @@ const ChatBKPage: React.FC = () => {
     }
   }
 
-  const formatTime = (dateString: string): string => {
-    const date = new Date(dateString)
-    const now = new Date()
-    const diffInMs = now.getTime() - date.getTime()
-    const diffInMinutes = Math.floor(diffInMs / (1000 * 60))
-    const diffInHours = Math.floor(diffInMs / (1000 * 60 * 60))
-    const diffInDays = Math.floor(diffInMs / (1000 * 60 * 60 * 24))
-
-    if (diffInMinutes < 1) return 'Baru saja'
-    if (diffInMinutes < 60) return `${diffInMinutes}m`
-    if (diffInHours < 24) return `${diffInHours}h`
-    if (diffInDays === 1) return 'Kemarin'
-    if (diffInDays < 7) return `${diffInDays}d`
-    
-    return date.toLocaleDateString('id-ID', { month: 'short', day: 'numeric' })
-  }
-
-  const emojis = ['😀', '😂', '😍', '🥰', '😘', '😭', '😤', '😡', '🤔', '😎', '👍', '👏', '🎉', '❤️', '💯', '🔥', '✨', '🌟', '⭐', '💪']
-
   const handleEmojiInsert = (emoji: string) => {
     handleEmojiClick(emoji, messageInput, setMessageInput, setShowEmojiPicker)
   }
@@ -576,7 +696,7 @@ const ChatBKPage: React.FC = () => {
   }
 
   const handleConfirmCall = async () => {
-    if (!activeCounselor || !socketRef.current || !activeCounselorId) return
+    if (!activeCounselor || !callSocketRef.current || !activeCounselorId) return
 
     try {
       console.log(`✅ Confirmed ${callType} call with ${activeCounselor.name}`)
@@ -600,44 +720,52 @@ const ChatBKPage: React.FC = () => {
           return
         }
         
-        const candidateObj = {
-          callId: callIdRef.current, // ✅ USE CALLID REF (will be set when call-initiate emitted)
-          candidate: candidate.candidate, // Send just the candidate string
-          sdpMLineIndex: candidate.sdpMLineIndex,
-          sdpMid: candidate.sdpMid,
-        }
+        // Enqueue candidate for throttled sending
+        iceThrottlerRef.current.enqueue(candidate)
         
-        // Validate candidate object
-        if (!candidateObj.candidate || candidateObj.callId === null) {
-          console.warn('⚠️ [ChatBKPage ICE] ICE candidate incomplete - missing candidate or callId', candidateObj)
-          return
-        }
+        // Try to send pending candidates (batch of max 5)
+        const batch = iceThrottlerRef.current.getNextBatch()
         
-        console.log('📤 [ChatBKPage ICE] Sending ICE candidate via /call socket:', {
-          callId: candidateObj.callId,
-          candidateType: candidateObj.candidate.includes('typ host') ? 'HOST' : 
-                        candidateObj.candidate.includes('typ srflx') ? 'SRFLX' : 'RELAY',
-          sdpMLineIndex: candidateObj.sdpMLineIndex,
-          sdpMid: candidateObj.sdpMid,
-          socketConnected: callSocketRef.current?.connected,
-        })
-        
-        // ✅ CRITICAL: Use callSocketRef (call namespace) not socketRef (chat namespace)
-        if (!callSocketRef.current?.connected) {
-          console.error('❌ [ChatBKPage ICE] Call socket not connected! Cannot send candidate')
-          return
-        }
-        
-        // Send via call socket with confirmation
-        callSocketRef.current?.emit('ice-candidate', candidateObj, (response: any) => {
-          if (response?.status === 'ice-candidate-sent') {
-            console.log(`✅ [ChatBKPage ICE] Backend confirmed ICE candidate sent`)
-          } else if (response?.status === 'error') {
-            console.error(`❌ [ChatBKPage ICE] Backend rejected candidate: ${response?.message}`)
-          } else {
-            console.log(`ℹ️ [ChatBKPage ICE] Backend response:`, response)
+        for (const candidateToSend of batch) {
+          const candidateObj = {
+            callId: callIdRef.current, // ✅ USE CALLID REF (will be set when call-initiate emitted)
+            candidate: candidateToSend.candidate, // Send just the candidate string
+            sdpMLineIndex: candidateToSend.sdpMLineIndex,
+            sdpMid: candidateToSend.sdpMid,
           }
-        })
+          
+          // Validate candidate object
+          if (!candidateObj.candidate || candidateObj.callId === null) {
+            console.warn('⚠️ [ChatBKPage ICE] ICE candidate incomplete - missing candidate or callId', candidateObj)
+            continue
+          }
+          
+          console.log('📤 [ChatBKPage ICE] Sending ICE candidate via /call socket (throttled):', {
+            callId: candidateObj.callId,
+            candidateType: candidateObj.candidate.includes('typ host') ? 'HOST' : 
+                          candidateObj.candidate.includes('typ srflx') ? 'SRFLX' : 'RELAY',
+            sdpMLineIndex: candidateObj.sdpMLineIndex,
+            sdpMid: candidateObj.sdpMid,
+            socketConnected: callSocketRef.current?.connected,
+          })
+          
+          // ✅ CRITICAL: Use callSocketRef (call namespace) not socketRef (chat namespace)
+          if (!callSocketRef.current?.connected) {
+            console.error('❌ [ChatBKPage ICE] Call socket not connected! Cannot send candidate')
+            continue
+          }
+          
+          // Send via call socket with confirmation
+          callSocketRef.current?.emit('ice-candidate', candidateObj, (response: any) => {
+            if (response?.status === 'ice-candidate-sent') {
+              console.log(`✅ [ChatBKPage ICE] Backend confirmed ICE candidate sent`)
+            } else if (response?.status === 'error') {
+              console.error(`❌ [ChatBKPage ICE] Backend rejected candidate: ${response?.message}`)
+            } else {
+              console.log(`ℹ️ [ChatBKPage ICE] Backend response:`, response)
+            }
+          })
+        }
       })
 
       // Handle remote stream
@@ -790,7 +918,7 @@ const ChatBKPage: React.FC = () => {
   }
 
   const handleAcceptIncomingCall = async () => {
-    if (!socketRef.current || !incomingCall) return
+    if (!callSocketRef.current || !incomingCall) return
 
     try {
       console.log('📞 Accepting incoming call:', incomingCall.callId)
@@ -806,44 +934,52 @@ const ChatBKPage: React.FC = () => {
           return
         }
         
-        const candidateObj = {
-          callId: incomingCall.callId,
-          candidate: candidate.candidate, // Send just the candidate string
-          sdpMLineIndex: candidate.sdpMLineIndex,
-          sdpMid: candidate.sdpMid,
-        }
+        // Enqueue candidate for throttled sending
+        iceThrottlerRef.current.enqueue(candidate)
         
-        // Validate candidate object
-        if (!candidateObj.candidate || !candidateObj.callId) {
-          console.warn('⚠️ [ChatBKPage ICE Receiver] ICE candidate incomplete - missing candidate or callId', candidateObj)
-          return
-        }
+        // Try to send pending candidates (batch of max 5)
+        const batch = iceThrottlerRef.current.getNextBatch()
         
-        console.log('📤 [ChatBKPage ICE Receiver] Sending ICE candidate via /call socket:', {
-          callId: candidateObj.callId,
-          candidateType: candidateObj.candidate.includes('typ host') ? 'HOST' : 
-                        candidateObj.candidate.includes('typ srflx') ? 'SRFLX' : 'RELAY',
-          sdpMLineIndex: candidateObj.sdpMLineIndex,
-          sdpMid: candidateObj.sdpMid,
-          socketConnected: callSocketRef.current?.connected,
-        })
-        
-        // ✅ CRITICAL: Use callSocketRef (call namespace) not socketRef (chat namespace)
-        if (!callSocketRef.current?.connected) {
-          console.error('❌ [ChatBKPage ICE Receiver] Call socket not connected! Cannot send candidate')
-          return
-        }
-        
-        // Send via call socket with confirmation
-        callSocketRef.current?.emit('ice-candidate', candidateObj, (response: any) => {
-          if (response?.status === 'ice-candidate-sent') {
-            console.log(`✅ [ChatBKPage ICE Receiver] Backend confirmed ICE candidate sent`)
-          } else if (response?.status === 'error') {
-            console.error(`❌ [ChatBKPage ICE Receiver] Backend rejected candidate: ${response?.message}`)
-          } else {
-            console.log(`ℹ️ [ChatBKPage ICE Receiver] Backend response:`, response)
+        for (const candidateToSend of batch) {
+          const candidateObj = {
+            callId: incomingCall.callId,
+            candidate: candidateToSend.candidate, // Send just the candidate string
+            sdpMLineIndex: candidateToSend.sdpMLineIndex,
+            sdpMid: candidateToSend.sdpMid,
           }
-        })
+          
+          // Validate candidate object
+          if (!candidateObj.candidate || !candidateObj.callId) {
+            console.warn('⚠️ [ChatBKPage ICE Receiver] ICE candidate incomplete - missing candidate or callId', candidateObj)
+            continue
+          }
+          
+          console.log('📤 [ChatBKPage ICE Receiver] Sending ICE candidate via /call socket (throttled):', {
+            callId: candidateObj.callId,
+            candidateType: candidateObj.candidate.includes('typ host') ? 'HOST' : 
+                          candidateObj.candidate.includes('typ srflx') ? 'SRFLX' : 'RELAY',
+            sdpMLineIndex: candidateObj.sdpMLineIndex,
+            sdpMid: candidateObj.sdpMid,
+            socketConnected: callSocketRef.current?.connected,
+          })
+          
+          // ✅ CRITICAL: Use callSocketRef (call namespace) not socketRef (chat namespace)
+          if (!callSocketRef.current?.connected) {
+            console.error('❌ [ChatBKPage ICE Receiver] Call socket not connected! Cannot send candidate')
+            continue
+          }
+          
+          // Send via call socket with confirmation
+          callSocketRef.current?.emit('ice-candidate', candidateObj, (response: any) => {
+            if (response?.status === 'ice-candidate-sent') {
+              console.log(`✅ [ChatBKPage ICE Receiver] Backend confirmed ICE candidate sent`)
+            } else if (response?.status === 'error') {
+              console.error(`❌ [ChatBKPage ICE Receiver] Backend rejected candidate: ${response?.message}`)
+            } else {
+              console.log(`ℹ️ [ChatBKPage ICE Receiver] Backend response:`, response)
+            }
+          })
+        }
       })
 
       onRemoteStream(peerConnectionRef.current, (stream) => {
@@ -979,7 +1115,7 @@ const ChatBKPage: React.FC = () => {
   }
 
   const handleRejectIncomingCall = async () => {
-    if (!socketRef.current || !incomingCall) return
+    if (!callSocketRef.current || !incomingCall) return
 
     try {
       console.log('❌ Rejecting incoming call:', incomingCall.callId)
@@ -1195,9 +1331,24 @@ const ChatBKPage: React.FC = () => {
                 >
                   <Video className="w-4 h-4" />
                 </button>
-                <button className="p-2 hover:bg-gray-100 rounded-lg transition text-gray-600">
-                  <MoreVertical className="w-4 h-4" />
-                </button>
+                <div className="relative group">
+                  <button className="p-2 hover:bg-gray-100 rounded-lg transition text-gray-600">
+                    <MoreVertical className="w-4 h-4" />
+                  </button>
+                  {/* Kebab Menu Dropdown */}
+                  <div className="absolute right-0 mt-1 w-56 bg-white rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-10 border border-gray-200">
+                    {pinnedTopics.length > 0 && (
+                      <>
+                        <button
+                          onClick={() => setShowPinnedModal(true)}
+                          className="w-full text-left px-4 py-2 hover:bg-gray-100 text-sm text-gray-700 border-b border-gray-200 first:rounded-t-lg flex items-center gap-2"
+                        >
+                          📌 Riwayat Sesi ({pinnedTopics.length})
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -1208,12 +1359,45 @@ const ChatBKPage: React.FC = () => {
                 {messages.length > 0 ? (
                   messages.map((message: Message, index: number) => {
                     const showDateSeparator = shouldShowDateSeparator(message, messages[index - 1])
+                    
+                    // Helper: Get reservasi active at message time
+                    const getReservatiForMessage = (msg: Message): Reservasi | null => {
+                      const matchingReservasi = reservasiHistory.filter((r: Reservasi) => r.conversationId === activeCounselorId)
+                      if (matchingReservasi.length === 0) return null
+                      // Find reservasi created before or at message time
+                      const msgTime = new Date(msg.originalDate)
+                      return matchingReservasi
+                        .filter(r => new Date(r.createdAt) <= msgTime)
+                        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0] || null
+                    }
+                    
+                    const currentReservasi = getReservatiForMessage(message)
+                    const previousReservasi = index > 0 ? getReservatiForMessage(messages[index - 1]) : null
+                    // Check if reservasi changed
+                    const showSessionSeparator = currentReservasi && (index === 0 || currentReservasi.id !== previousReservasi?.id)
+                    const topicDisplay = currentReservasi?.topic ? `📚 Sesi chat: ${currentReservasi.topic}${currentReservasi.notes ? ` | ${currentReservasi.notes}` : ''}` : ((activeCounselor as FormattedConversation)?.topic ? `📚 Sesi chat: ${(activeCounselor as FormattedConversation).topic}` : null)
+                    const topicId = currentReservasi ? `sesi-${currentReservasi.id}` : 'conversation'
+                    
                     return (
                       <div key={message.id} className="flex flex-col w-full">
                         {showDateSeparator && (
                           <div className="text-center mb-4 mt-2">
                             <span className="text-xs text-gray-500 bg-white px-3 py-1 rounded-full">
                               {getMessageDateLabel(message.originalDate)}
+                            </span>
+                          </div>
+                        )}
+                        
+                        {/* Topic Separator - Show when session changes */}
+                        {showSessionSeparator && topicDisplay && (
+                          <div 
+                            ref={el => {
+                              if (el && topicId) topicSeparatorRefs.current[topicId] = el
+                            }}
+                            className="text-center mb-4 mt-2 cursor-pointer hover:bg-blue-100 transition-colors rounded-full px-3 py-1.5"
+                          >
+                            <span className="text-xs bg-blue-50 text-blue-700 px-3 py-1 rounded-full font-medium inline-block">
+                              {topicDisplay}
                             </span>
                           </div>
                         )}
@@ -1257,6 +1441,11 @@ const ChatBKPage: React.FC = () => {
                               >
                                 {message.timestamp}
                               </p>
+                              {message.sender === 'user' && (
+                                <span className="text-xs text-gray-500">
+                                  dibaca
+                                </span>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -1267,6 +1456,53 @@ const ChatBKPage: React.FC = () => {
                   <div className="flex items-center justify-center h-full">
                     <p className="text-gray-500">Mulai percakapan dengan {activeCounselor.name}</p>
                   </div>
+                )}
+
+                {/* Show separator for latest reservasi if not already shown in messages */}
+                {reservasiHistory.length > 0 && activeCounselorId && (
+                  (() => {
+                    // Get latest reservasi for this conversation
+                    const matchingReservasi = reservasiHistory
+                      .filter((r: Reservasi) => r.conversationId === activeCounselorId && r.type === 'chat')
+                      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+                    
+                    if (matchingReservasi.length > 0) {
+                      const latestReservasi = matchingReservasi[0]
+                      
+                      // Check if latest reservasi is already shown in messages
+                      const lastMessageReservasi = messages.length > 0 
+                        ? (() => {
+                            const lastMsg = messages[messages.length - 1]
+                            const msgTime = new Date(lastMsg.originalDate)
+                            return matchingReservasi
+                              .filter(r => new Date(r.createdAt) <= msgTime)
+                              .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0]
+                          })()
+                        : null
+                      
+                      // Show separator if latest reservasi is different from last message's reservasi
+                      if (latestReservasi.id !== lastMessageReservasi?.id) {
+                        const topicDisplay = `📚 Sesi chat: ${latestReservasi.topic}${latestReservasi.notes ? ` | ${latestReservasi.notes}` : ''}`
+                        const topicId = `sesi-${latestReservasi.id}`
+                        
+                        return (
+                          <div key={`latest-separator-${latestReservasi.id}`} className="flex flex-col w-full mt-4">
+                            <div 
+                              ref={el => {
+                                if (el && topicId) topicSeparatorRefs.current[topicId] = el
+                              }}
+                              className="text-center mb-4 cursor-pointer hover:bg-blue-100 transition-colors rounded-full px-3 py-1.5"
+                            >
+                              <span className="text-xs bg-blue-50 text-blue-700 px-3 py-1 rounded-full font-medium inline-block">
+                                {topicDisplay}
+                              </span>
+                            </div>
+                          </div>
+                        )
+                      }
+                    }
+                    return null
+                  })()
                 )}
 
                 <div ref={messagesEndRef} />
@@ -1390,7 +1626,7 @@ const ChatBKPage: React.FC = () => {
                       {showEmojiPicker && (
                         <div className="absolute bottom-12 right-0 bg-white border border-gray-200 rounded-lg shadow-lg p-3 z-50 w-60">
                           <div className="grid grid-cols-5 gap-2">
-                            {emojis.map((emoji) => (
+                            {dynamicEmojis.map((emoji) => (
                               <button
                                 key={emoji}
                                 onClick={() => handleEmojiInsert(emoji)}
@@ -1514,6 +1750,55 @@ const ChatBKPage: React.FC = () => {
           callDuration={callDuration}
           hasRemoteStream={hasRemoteStream}
         />
+      )}
+
+      {/* Pinned Topics Modal */}
+      {showPinnedModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-end z-50">
+          <div className="bg-white w-full sm:w-96 rounded-t-lg sm:rounded-lg sm:max-h-96 overflow-y-auto shadow-xl">
+            <div className="sticky top-0 bg-white border-b border-gray-200 p-4 flex justify-between items-center rounded-t-lg">
+              <h3 className="font-semibold text-gray-900">📌 Riwayat Sesi</h3>
+              <button
+                onClick={() => setShowPinnedModal(false)}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="divide-y divide-gray-200">
+              {pinnedTopics.map((pinnedTopic) => (
+                <div key={pinnedTopic.id} className="relative group">
+                  <button
+                    onClick={() => {
+                      const ref = topicSeparatorRefs.current[pinnedTopic.id]
+                      if (ref) {
+                        setShowPinnedModal(false)
+                        setTimeout(() => {
+                          ref.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                        }, 100)
+                      }
+                    }}
+                    className="w-full text-left p-4 hover:bg-blue-50 transition-colors"
+                  >
+                    <div className="text-sm font-medium text-gray-900 truncate">
+                      {pinnedTopic.topic}
+                    </div>
+                    <div className="text-xs text-gray-500 mt-1">
+                      {new Date(pinnedTopic.timestamp).toLocaleTimeString('id-ID', {
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      })}
+                    </div>
+                  </button>
+                  {/* Tooltip */}
+                  <div className="absolute bottom-full left-0 mb-2 px-3 py-2 bg-gray-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-10">
+                    Click untuk ke pin ini
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

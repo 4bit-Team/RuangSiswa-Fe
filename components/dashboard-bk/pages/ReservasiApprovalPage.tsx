@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { Search, CheckCircle, XCircle, Clock, User, Calendar, MessageCircle, MapPin, Loader, AlertCircle, Eye, QrCode } from 'lucide-react';
 import { apiRequest } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
+import { getStatusLabel, getStatusBadgeColor, statusBadgeColor, getTypeColor, getStatusColor, formatDate, typeLabel } from '@/lib/reservasi';
 
 interface Reservasi {
   id: number;
@@ -37,31 +38,6 @@ interface ReservasiCardProps {
 
 // Reservasi Card Component
 const ReservasiCard: React.FC<ReservasiCardProps> = ({ reservasi, onViewDetail, onApprove, onReject, loading }) => {
-  const formatDate = (dateStr: string) => {
-    const date = new Date(dateStr);
-    return date.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'pending':
-        return 'bg-yellow-100 text-yellow-800';
-      case 'approved':
-        return 'bg-green-100 text-green-800';
-      case 'rejected':
-        return 'bg-red-100 text-red-800';
-      case 'in_counseling':
-        return 'bg-blue-100 text-blue-800';
-      case 'completed':
-        return 'bg-purple-100 text-purple-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
-    }
-  };
-
-  const getTypeColor = (type: string) => {
-    return type === 'chat' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700';
-  };
 
   const getInitial = (name: string) => {
     return name
@@ -167,30 +143,6 @@ const DetailModal: React.FC<DetailModalProps> = ({ reservasi, isOpen, onClose, o
 
   if (!isOpen || !reservasi) return null;
 
-  const formatDate = (dateStr: string) => {
-    const date = new Date(dateStr);
-    return date.toLocaleDateString('id-ID', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-    });
-  };
-
-  const typeLabel = {
-    chat: 'Sesi Chat',
-    'tatap-muka': 'Tatap Muka',
-  };
-
-  const statusBadgeColor = {
-    pending: 'bg-yellow-100 text-yellow-800',
-    approved: 'bg-green-100 text-green-800',
-    rejected: 'bg-red-100 text-red-800',
-    in_counseling: 'bg-blue-100 text-blue-800',
-    completed: 'bg-purple-100 text-purple-800',
-    cancelled: 'bg-gray-100 text-gray-800',
-  };
-
   return (
     <>
       <div className="fixed inset-0 bg-black/50 z-40" onClick={onClose} />
@@ -273,7 +225,7 @@ const DetailModal: React.FC<DetailModalProps> = ({ reservasi, isOpen, onClose, o
               <div className="bg-gray-50 rounded-lg p-4">
                 <p className="text-xs text-gray-600 font-medium mb-2">Status</p>
                 <span className={`px-3 py-1 rounded-full text-sm font-medium ${statusBadgeColor[reservasi.status]}`}>
-                  {reservasi.status.charAt(0).toUpperCase() + reservasi.status.slice(1)}
+                  {getStatusLabel(reservasi.status)}
                 </span>
               </div>
             </div>
@@ -380,9 +332,14 @@ const DetailModal: React.FC<DetailModalProps> = ({ reservasi, isOpen, onClose, o
                     </div>
                   )}
                 </div>
+              </div>
+            )}
 
-                {/* Mark Complete Button */}
-                {reservasi.attendanceConfirmed && !reservasi.completedAt && (
+            {/* Mark Complete Button - Outside QR Display */}
+            {(() => {
+              // Untuk chat session: bisa complete langsung jika status approved/in_counseling
+              if (reservasi.type === 'chat' && (reservasi.status === 'approved' || reservasi.status === 'in_counseling') && !reservasi.completedAt) {
+                return (
                   <button
                     onClick={() => onMarkComplete(reservasi.id)}
                     disabled={loading}
@@ -391,33 +348,36 @@ const DetailModal: React.FC<DetailModalProps> = ({ reservasi, isOpen, onClose, o
                     {loading ? <Loader size={18} className="animate-spin" /> : <CheckCircle size={18} />}
                     {loading ? 'Memproses...' : 'Selesaikan Sesi'}
                   </button>
-                )}
+                );
+              }
+              // Untuk tatap-muka: perlu attendance confirmation
+              if (reservasi.type === 'tatap-muka' && (reservasi.status === 'approved' || reservasi.status === 'in_counseling') && reservasi.attendanceConfirmed && !reservasi.completedAt) {
+                return (
+                  <button
+                    onClick={() => onMarkComplete(reservasi.id)}
+                    disabled={loading}
+                    className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-400 text-white py-2.5 rounded-lg font-semibold flex items-center justify-center gap-2 transition"
+                  >
+                    {loading ? <Loader size={18} className="animate-spin" /> : <CheckCircle size={18} />}
+                    {loading ? 'Memproses...' : 'Selesaikan Sesi'}
+                  </button>
+                );
+              }
+              return null;
+            })()}
 
-                {reservasi.completedAt && (
-                  <div className="w-full bg-green-100 text-green-700 py-2.5 rounded-lg font-semibold text-center">
-                    ✅ Sesi Selesai
-                  </div>
-                )}
+            {reservasi.completedAt && (
+              <div className="w-full bg-green-100 text-green-700 py-2.5 rounded-lg font-semibold text-center">
+                Sesi Telah Selesai pada {formatDate(reservasi.completedAt)}
               </div>
             )}
 
-            {reservasi.status !== 'pending' && reservasi.status !== 'approved' && (
-              <button
-                onClick={onClose}
-                className="w-full bg-gray-600 hover:bg-gray-700 text-white py-2.5 rounded-lg font-semibold"
-              >
-                Tutup
-              </button>
-            )}
-
-            {reservasi.status === 'approved' && (
-              <button
-                onClick={onClose}
-                className="w-full mt-3 bg-gray-600 hover:bg-gray-700 text-white py-2.5 rounded-lg font-semibold"
-              >
-                Tutup
-              </button>
-            )}
+            <button
+              onClick={onClose}
+              className="w-full bg-gray-600 hover:bg-gray-700 text-white py-2.5 rounded-lg font-semibold"
+            >
+              Tutup
+            </button>
           </div>
         </div>
       </div>
@@ -549,6 +509,7 @@ const ReservasiApprovalPage: React.FC = () => {
   const pendingCount = reservasiList.filter((r) => r.status === 'pending').length;
   const approvedCount = reservasiList.filter((r) => r.status === 'approved').length;
   const rejectedCount = reservasiList.filter((r) => r.status === 'rejected').length;
+  const completedCount = reservasiList.filter((r) => r.status === 'completed').length;
 
   return (
     <div className="space-y-6">
@@ -590,6 +551,16 @@ const ReservasiApprovalPage: React.FC = () => {
             <h3 className="text-sm text-gray-600">Ditolak</h3>
           </div>
           <p className="text-3xl font-bold text-gray-900">{rejectedCount}</p>
+        </div>
+
+        <div className="bg-white rounded-xl p-6 border border-gray-200">
+          <div className="flex items-center space-x-3 mb-2">
+            <div className="w-10 h-10 bg-purple-600 rounded-lg flex items-center justify-center">
+              <CheckCircle className="text-white" size={20} />
+            </div>
+            <h3 className="text-sm text-gray-600">Selesai</h3>
+          </div>
+          <p className="text-3xl font-bold text-gray-900">{completedCount}</p>
         </div>
       </div>
 
@@ -678,4 +649,4 @@ const ReservasiApprovalPage: React.FC = () => {
   );
 };
 
-export default ReservasiApprovalPage;
+export default ReservasiApprovalPage; 

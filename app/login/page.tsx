@@ -117,7 +117,7 @@ const LoginPage: React.FC = () => {
       } else if (role === "bk") {
         window.location.href = "/home/bk";
       } else if (role === "admin") {
-        window.location.href = "/admin";
+        window.location.href = "/home/admin";
       } else {
         alert("Role tidak dikenali! Login dibatalkan.");
         localStorage.removeItem("token");

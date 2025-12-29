@@ -1,16 +1,16 @@
 'use client'
 
 import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { Home, Users, MessageCircle, FileText, Newspaper, BarChart3, Settings, Menu, X, Calendar, CheckCircle } from 'lucide-react';
 
 interface SidebarProps {
-  activePage: string;
-  setActivePage: (page: string) => void;
+  pathname?: string;
   sidebarOpen: boolean;
   setSidebarOpen: (open: boolean) => void;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ activePage, setActivePage, sidebarOpen, setSidebarOpen }) => {
+const Sidebar: React.FC<SidebarProps> = ({ pathname = '', sidebarOpen, setSidebarOpen }) => {
   const [isMobile, setIsMobile] = useState(true);
 
   useEffect(() => {
@@ -32,15 +32,15 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, setActivePage, sidebarOpe
   }, [isMobile, setSidebarOpen]);
 
   const menuItems = [
-    { id: 'dashboard', icon: Home, label: 'Dashboard' },
-    { id: 'siswa', icon: Users, label: 'Daftar Siswa' },
-    { id: 'chat', icon: MessageCircle, label: 'Chat' },
-    { id: 'persetujuan', icon: CheckCircle, label: 'Persetujuan Reservasi' },
+    { id: 'dashboard', icon: Home, label: 'Dashboard', href: '/home/bk' },
+    { id: 'siswa', icon: Users, label: 'Daftar Siswa', href: '/home/bk/siswa' },
+    { id: 'chat', icon: MessageCircle, label: 'Chat', href: '/home/bk/chat' },
+    { id: 'persetujuan', icon: CheckCircle, label: 'Persetujuan Reservasi', href: '/home/bk/persetujuan' },
     // { id: 'reservasi', icon: Calendar, label: 'Manajemen Reservasi' },
-    { id: 'laporan', icon: FileText, label: 'Laporan' },
-    { id: 'berita', icon: Newspaper, label: 'Berita' },
-    { id: 'statistik', icon: BarChart3, label: 'Statistik' },
-    { id: 'pengaturan', icon: Settings, label: 'Pengaturan' },
+    { id: 'laporan', icon: FileText, label: 'Laporan', href: '/home/bk/laporan' },
+    { id: 'berita', icon: Newspaper, label: 'Berita', href: '/home/bk/berita' },
+    { id: 'statistik', icon: BarChart3, label: 'Statistik', href: '/home/bk/statistik' },
+    { id: 'pengaturan', icon: Settings, label: 'Pengaturan', href: '/home/bk/pengaturan' },
   ];
 
   return (
@@ -84,18 +84,24 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, setActivePage, sidebarOpe
       {/* Navigation */}
       <nav className="flex-1 p-4 space-y-1">
         {menuItems.map((item) => (
-          <button
+          <Link
             key={item.id}
-            onClick={() => setActivePage(item.id)}
-            className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg transition-colors ${
-              activePage === item.id
+            href={item.href}
+            className={`flex items-center space-x-3 px-3 py-2.5 rounded-lg transition-colors ${
+              (item.id === 'dashboard' && (pathname === '/home/bk' || pathname === '/home/bk/')) ||
+              (item.id !== 'dashboard' && pathname === item.href)
                 ? 'bg-indigo-50 text-indigo-600'
                 : 'text-gray-700 hover:bg-gray-100'
             }`}
+            onClick={() => {
+              if (window.innerWidth < 768) {
+                setSidebarOpen(false)
+              }
+            }}
           >
             <item.icon size={20} />
             {sidebarOpen && <span className="text-sm font-medium">{item.label}</span>}
-          </button>
+          </Link>
         ))}
       </nav>
 

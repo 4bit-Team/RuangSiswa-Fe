@@ -19,7 +19,7 @@ export function redirectIfLoggedInFromCookie() {
     } else if (role === "bk") {
       window.location.href = "/home/bk";
     } else if (role === "admin") {
-      window.location.href = "/admin";
+      window.location.href = "/home/admin";
     }
   } catch (err) {
     console.error("Cookie auth_profile tidak valid:", err);

@@ -1,16 +1,16 @@
 'use client'
 
 import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { Home, Users, MessageCircle, FileText, Newspaper, BarChart3, Settings, Menu, X, Calendar, CheckCircle, Clock, AlertTriangle, Trophy } from 'lucide-react';
 
 interface SidebarProps {
-  activePage: string;
-  setActivePage: (page: string) => void;
+  pathname?: string;
   sidebarOpen: boolean;
   setSidebarOpen: (open: boolean) => void;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ activePage, setActivePage, sidebarOpen, setSidebarOpen }) => {
+const Sidebar: React.FC<SidebarProps> = ({ pathname = '', sidebarOpen, setSidebarOpen }) => {
   const [isMobile, setIsMobile] = useState(true);
 
   useEffect(() => {
@@ -32,10 +32,10 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, setActivePage, sidebarOpe
   }, [isMobile, setSidebarOpen]);
 
   const menuItems = [
-    { id: 'dashboard', icon: Home, label: 'Dashboard' },
-    { id: 'kehadiran', icon: CheckCircle, label: 'Kehadiran Kelas' },
-    { id: 'keterlambatan', icon: Clock, label: 'Keterlambatan Masuk' },
-    { id: 'statusBimbingan', icon: Calendar, label: 'Status Bimbingan' },
+    { id: 'dashboard', icon: Home, label: 'Dashboard', href: '/home/kesiswaan' },
+    { id: 'kehadiran', icon: CheckCircle, label: 'Kehadiran Kelas', href: '/home/kesiswaan/kehadiran' },
+    { id: 'keterlambatan', icon: Clock, label: 'Keterlambatan Masuk', href: '/home/kesiswaan/keterlambatan' },
+    { id: 'statusBimbingan', icon: Calendar, label: 'Status Bimbingan', href: '/home/kesiswaan/statusbimbingan' },
   ];
 
   return (
@@ -79,18 +79,23 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, setActivePage, sidebarOpe
       {/* Navigation */}
       <nav className="flex-1 p-4 space-y-1">
         {menuItems.map((item) => (
-          <button
+          <Link
             key={item.id}
-            onClick={() => setActivePage(item.id)}
-            className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg transition-colors ${
-              activePage === item.id
+            href={item.href}
+            className={`flex items-center space-x-3 px-3 py-2.5 rounded-lg transition-colors ${
+              pathname === item.href
                 ? 'bg-blue-50 text-blue-600'
                 : 'text-gray-700 hover:bg-gray-100'
             }`}
+            onClick={() => {
+              if (window.innerWidth < 768) {
+                setSidebarOpen(false)
+              }
+            }}
           >
             {item.icon && <item.icon size={20} />}
             {sidebarOpen && <span className="text-sm font-medium">{item.label}</span>}
-          </button>
+          </Link>
         ))}
       </nav>
 
