@@ -4,7 +4,7 @@ import React, { useState } from 'react'
 import { HelpCircle, Send, X, Loader } from 'lucide-react'
 import { apiRequest } from '@/lib/api'
 
-interface AskQuestionModalProps {
+interface AskQuestionModalBKProps {
   isOpen: boolean
   onClose: () => void
   category?: string
@@ -20,7 +20,7 @@ const categories = [
   { id: 'other', label: 'Lainnya', emoji: '❓' },
 ]
 
-const AskQuestionModal: React.FC<AskQuestionModalProps> = ({
+const AskQuestionModalBK: React.FC<AskQuestionModalBKProps> = ({
   isOpen,
   onClose,
   category = 'personal',
@@ -113,7 +113,7 @@ const AskQuestionModal: React.FC<AskQuestionModalProps> = ({
                   {isSubmitted ? '✓ Pertanyaan Terkirim' : 'Ajukan Pertanyaan'}
                 </h2>
                 <p className="text-blue-100 text-sm">
-                  {isSubmitted ? 'Konselor BK kami akan segera meresponnya' : 'Berbagi pertanyaan atau masalah Anda'}
+                  {isSubmitted ? 'Siswa akan dapat menjawab pertanyaan Anda' : 'Berbagi pertanyaan atau masalah'}
                 </p>
               </div>
             </div>
@@ -163,7 +163,7 @@ const AskQuestionModal: React.FC<AskQuestionModalProps> = ({
                 <textarea
                   value={question}
                   onChange={(e) => setQuestion(e.target.value)}
-                  placeholder="Ceritakan pertanyaan atau masalah Anda dengan detail. Semakin detail, semakin baik kami dapat membantu..."
+                  placeholder="Ceritakan pertanyaan atau masalah Anda dengan detail. Semakin detail, semakin baik siswa dapat memahami..."
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
                   rows={5}
                 />
@@ -176,7 +176,7 @@ const AskQuestionModal: React.FC<AskQuestionModalProps> = ({
                 <h5 className="font-semibold text-blue-900 mb-2">💡 Tips untuk Pertanyaan Terbaik</h5>
                 <ul className="text-sm text-blue-800 space-y-1">
                   <li>✓ Jelaskan situasi dengan detail</li>
-                  <li>✓ Sebutkan perasaan atau kekhawatiran Anda</li>
+                  <li>✓ Sebutkan perasaan atau kekhawatiran</li>
                   <li>✓ Ceritakan apa yang sudah Anda coba</li>
                 </ul>
               </div>
@@ -212,7 +212,7 @@ const AskQuestionModal: React.FC<AskQuestionModalProps> = ({
                 Pertanyaan Anda Telah Terkirim
               </p>
               <p className="text-gray-600 text-sm">
-                Terima kasih telah mengajukan pertanyaan. Tim konselor BK kami akan segera meresponnya.
+                Terima kasih telah mengajukan pertanyaan. Siswa akan segera meresponnya.
               </p>
               <div className="grid grid-cols-2 gap-3 pt-4 text-sm bg-gray-50 rounded-lg p-4">
                 <div className="bg-white p-3 rounded border border-gray-200">
@@ -241,4 +241,4 @@ const AskQuestionModal: React.FC<AskQuestionModalProps> = ({
   )
 }
 
-export default AskQuestionModal
+export default AskQuestionModalBK
