@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useEffect } from 'react';
-import { Clock, Calendar, CheckCircle, AlertCircle, Loader, Video, Users } from 'lucide-react';
+import { Clock, CheckCircle, AlertCircle, Loader, Video, Users, BookOpen, X, Plus, Trash2 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { apiRequest } from '@/lib/api';
 
@@ -13,30 +13,83 @@ interface ScheduleData {
   isActive: boolean;
 }
 
+interface Jurusan {
+  id: number;
+  nama: string;
+  kode: string;
+}
+
+interface BkJurusan {
+  id: number;
+  jurusanId: number;
+  jurusan: Jurusan;
+}
+
 const PengaturanPage: React.FC = () => {
   const { user, token, loading } = useAuth();
   const [selectedSessionType, setSelectedSessionType] = useState<'tatap-muka' | 'chat'>('tatap-muka');
   
-  // Schedule states untuk setiap session type
+  // Schedule states
   const [schedules, setSchedules] = useState<Record<'tatap-muka' | 'chat', ScheduleData>>({
     'tatap-muka': { sessionType: 'tatap-muka', startTime: '08:00', endTime: '16:00', availableDays: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'], isActive: true },
     'chat': { sessionType: 'chat', startTime: '09:00', endTime: '17:00', availableDays: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'], isActive: true },
   });
 
+  // Jurusan states
+  const [allJurusan, setAllJurusan] = useState<Jurusan[]>([]);
+  const [assignedJurusan, setAssignedJurusan] = useState<BkJurusan[]>([]);
+  const [showAddJurusanModal, setShowAddJurusanModal] = useState(false);
+  const [selectedJurusanToAdd, setSelectedJurusanToAdd] = useState<number | null>(null);
+
   const [isLoadingSchedule, setIsLoadingSchedule] = useState(false);
+  const [isLoadingJurusan, setIsLoadingJurusan] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isAddingJurusan, setIsAddingJurusan] = useState(false);
+  const [isRemovingJurusan, setIsRemovingJurusan] = useState<number | null>(null);
   const [hasSchedules, setHasSchedules] = useState<Record<'tatap-muka' | 'chat', boolean>>({ 'tatap-muka': false, 'chat': false });
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
   const daysDisplay = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat'];
 
-  // Load existing schedules on mount
+  // Load data on mount
   useEffect(() => {
     if (!loading && user && token) {
       loadSchedules();
+      loadJurusan();
     }
   }, [loading, user, token]);
+
+  // Load all jurusan from database
+  const loadJurusan = async () => {
+    try {
+      setIsLoadingJurusan(true);
+      const response = await apiRequest('/jurusan', 'GET', undefined, token);
+      if (Array.isArray(response)) {
+        setAllJurusan(response);
+      }
+      // Load assigned jurusan for this BK
+      await loadAssignedJurusan();
+    } catch (error) {
+      console.error('Error loading jurusan:', error);
+      setMessage({ type: 'error', text: 'Gagal memuat data jurusan' });
+    } finally {
+      setIsLoadingJurusan(false);
+    }
+  };
+
+  // Load jurusan assigned to current BK
+  const loadAssignedJurusan = async () => {
+    try {
+      const response = await apiRequest('/bk-jurusan/my-jurusan', 'GET', undefined, token);
+      if (Array.isArray(response)) {
+        setAssignedJurusan(response);
+      }
+    } catch (error) {
+      console.error('Error loading assigned jurusan:', error);
+      setAssignedJurusan([]);
+    }
+  };
 
   const loadSchedules = async () => {
     try {
@@ -63,6 +116,11 @@ const PengaturanPage: React.FC = () => {
   };
 
   const currentSchedule = schedules[selectedSessionType];
+
+  // Get available jurusan (not yet assigned)
+  const availableJurusan = allJurusan.filter(
+    j => !assignedJurusan.some(aj => aj.jurusanId === j.id)
+  );
 
   const handleDayToggle = (day: string) => {
     setSchedules((prev: any) => ({
@@ -99,12 +157,8 @@ const PengaturanPage: React.FC = () => {
       };
 
       if (hasSchedules[selectedSessionType]) {
-        // Update
-        console.log('📝 Updating schedule:', payload);
         await apiRequest(`/bk-schedule/${selectedSessionType}`, 'PUT', payload, token);
       } else {
-        // Create
-        console.log('📝 Creating schedule:', payload);
         await apiRequest(`/bk-schedule/${selectedSessionType}`, 'POST', payload, token);
         setHasSchedules((prev: any) => ({ ...prev, [selectedSessionType]: true }));
       }
@@ -131,6 +185,54 @@ const PengaturanPage: React.FC = () => {
     }));
   };
 
+  // Handle adding a jurusan
+  const handleAddJurusan = async () => {
+    if (!selectedJurusanToAdd || !token) return;
+
+    try {
+      setIsAddingJurusan(true);
+      await apiRequest(`/bk-jurusan/add/${selectedJurusanToAdd}`, 'POST', {}, token);
+      
+      setMessage({ type: 'success', text: 'Jurusan berhasil ditambahkan!' });
+      setShowAddJurusanModal(false);
+      setSelectedJurusanToAdd(null);
+      
+      // Reload assigned jurusan
+      await loadAssignedJurusan();
+      setTimeout(() => setMessage(null), 3000);
+    } catch (error: any) {
+      setMessage({
+        type: 'error',
+        text: error.message || 'Gagal menambahkan jurusan. Coba lagi.',
+      });
+    } finally {
+      setIsAddingJurusan(false);
+    }
+  };
+
+  // Handle removing a jurusan
+  const handleRemoveJurusan = async (jurusanId: number) => {
+    if (!token) return;
+
+    try {
+      setIsRemovingJurusan(jurusanId);
+      await apiRequest(`/bk-jurusan/remove/${jurusanId}`, 'DELETE', undefined, token);
+      
+      setMessage({ type: 'success', text: 'Jurusan berhasil dihapus!' });
+      
+      // Reload assigned jurusan
+      await loadAssignedJurusan();
+      setTimeout(() => setMessage(null), 3000);
+    } catch (error: any) {
+      setMessage({
+        type: 'error',
+        text: error.message || 'Gagal menghapus jurusan. Coba lagi.',
+      });
+    } finally {
+      setIsRemovingJurusan(null);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -143,8 +245,93 @@ const PengaturanPage: React.FC = () => {
     <div className="space-y-6 max-w-4xl">
       {/* Header */}
       <div>
-        <h2 className="text-2xl font-bold text-gray-900">Pengaturan Jadwal Kerja</h2>
-        <p className="text-sm text-gray-600">Kelola jadwal kerja untuk setiap tipe sesi</p>
+        <h2 className="text-2xl font-bold text-gray-900">Pengaturan BK</h2>
+        <p className="text-sm text-gray-600">Kelola jadwal kerja dan daftar jurusan yang Anda tangani</p>
+      </div>
+
+      {/* Message */}
+      {message && (
+        <div
+          className={`p-4 rounded-lg flex items-center gap-3 ${
+            message.type === 'success'
+              ? 'bg-green-50 text-green-800 border border-green-200'
+              : 'bg-red-50 text-red-800 border border-red-200'
+          }`}
+        >
+          {message.type === 'success' ? (
+            <CheckCircle size={20} />
+          ) : (
+            <AlertCircle size={20} />
+          )}
+          <span>{message.text}</span>
+        </div>
+      )}
+
+      {/* Jurusan Management Section */}
+      <div className="bg-white rounded-xl p-6 border border-gray-200">
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-3">
+            <BookOpen className="text-purple-600" size={24} />
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900">Daftar Jurusan</h3>
+              <p className="text-sm text-gray-600">Jurusan yang Anda tangani</p>
+            </div>
+          </div>
+          <button
+            onClick={() => setShowAddJurusanModal(true)}
+            disabled={availableJurusan.length === 0}
+            className="bg-purple-600 hover:bg-purple-700 disabled:bg-gray-400 text-white px-4 py-2 rounded-lg flex items-center gap-2 font-medium transition-colors"
+          >
+            <Plus size={18} />
+            <span>Tambah Jurusan</span>
+          </button>
+        </div>
+
+        {isLoadingJurusan ? (
+          <div className="flex items-center justify-center py-8">
+            <Loader className="animate-spin text-purple-600" size={30} />
+          </div>
+        ) : assignedJurusan.length === 0 ? (
+          <div className="p-6 bg-gray-50 rounded-lg text-center">
+            <BookOpen className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+            <p className="text-gray-600 font-medium mb-2">Belum ada jurusan yang ditambahkan</p>
+            <p className="text-sm text-gray-500">Klik tombol "Tambah Jurusan" untuk menambahkan jurusan yang Anda tangani</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {assignedJurusan.map((bkJurusan) => (
+              <div
+                key={bkJurusan.id}
+                className="p-4 border border-gray-200 rounded-lg hover:shadow-md transition-shadow flex items-center justify-between group"
+              >
+                <div>
+                  <h4 className="font-semibold text-gray-900">{bkJurusan.jurusan.nama}</h4>
+                  <p className="text-sm text-gray-500">Kode: {bkJurusan.jurusan.kode}</p>
+                </div>
+                <button
+                  onClick={() => handleRemoveJurusan(bkJurusan.jurusanId)}
+                  disabled={isRemovingJurusan === bkJurusan.jurusanId}
+                  className="p-2 hover:bg-red-50 rounded-lg text-gray-400 hover:text-red-600 transition-colors disabled:opacity-50"
+                  title="Hapus jurusan"
+                >
+                  {isRemovingJurusan === bkJurusan.jurusanId ? (
+                    <Loader className="animate-spin" size={18} />
+                  ) : (
+                    <Trash2 size={18} />
+                  )}
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {availableJurusan.length === 0 && assignedJurusan.length > 0 && (
+          <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+            <p className="text-sm text-blue-800">
+              ✓ Semua jurusan telah ditambahkan
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Session Type Tabs */}
@@ -189,23 +376,6 @@ const PengaturanPage: React.FC = () => {
           <Clock className="text-blue-600" size={20} />
           Jadwal {selectedSessionType === 'tatap-muka' ? 'Tatap Muka' : 'Chat'}
         </h3>
-
-        {message && (
-          <div
-            className={`mb-4 p-4 rounded-lg flex items-center gap-3 ${
-              message.type === 'success'
-                ? 'bg-green-50 text-green-800 border border-green-200'
-                : 'bg-red-50 text-red-800 border border-red-200'
-            }`}
-          >
-            {message.type === 'success' ? (
-              <CheckCircle size={20} />
-            ) : (
-              <AlertCircle size={20} />
-            )}
-            <span>{message.text}</span>
-          </div>
-        )}
 
         {isLoadingSchedule ? (
           <div className="flex items-center justify-center py-8">
@@ -363,6 +533,99 @@ const PengaturanPage: React.FC = () => {
           ))}
         </div>
       </div>
+
+      {/* Add Jurusan Modal */}
+      {showAddJurusanModal && (
+        <>
+          <div
+            className="fixed inset-0 bg-black bg-opacity-50 z-40 transition-opacity"
+            onClick={() => setShowAddJurusanModal(false)}
+          />
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div
+              className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="bg-gradient-to-r from-purple-500 to-blue-600 text-white p-6 flex items-center justify-between rounded-t-2xl">
+                <div>
+                  <h2 className="text-2xl font-bold">Tambah Jurusan</h2>
+                  <p className="text-purple-100 text-sm mt-1">Pilih jurusan yang ingin Anda tangani</p>
+                </div>
+                <button
+                  onClick={() => setShowAddJurusanModal(false)}
+                  className="p-1 hover:bg-white hover:bg-opacity-20 rounded-lg transition-colors"
+                >
+                  <X size={24} />
+                </button>
+              </div>
+
+              <div className="p-6">
+                {availableJurusan.length === 0 ? (
+                  <div className="text-center py-8">
+                    <BookOpen className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                    <p className="text-gray-600">Semua jurusan telah ditambahkan</p>
+                  </div>
+                ) : (
+                  <>
+                    <div className="space-y-3 mb-6">
+                      {availableJurusan.map((jurusan) => (
+                        <label
+                          key={jurusan.id}
+                          className={`flex items-center gap-3 p-4 border-2 rounded-lg cursor-pointer transition-all ${
+                            selectedJurusanToAdd === jurusan.id
+                              ? 'border-purple-600 bg-purple-50'
+                              : 'border-gray-200 hover:border-purple-300'
+                          }`}
+                        >
+                          <input
+                            type="radio"
+                            name="jurusan"
+                            value={jurusan.id}
+                            checked={selectedJurusanToAdd === jurusan.id}
+                            onChange={() => setSelectedJurusanToAdd(jurusan.id)}
+                            className="w-5 h-5 text-purple-600"
+                          />
+                          <div>
+                            <p className="font-semibold text-gray-900">{jurusan.nama}</p>
+                            <p className="text-sm text-gray-500">Kode: {jurusan.kode}</p>
+                          </div>
+                        </label>
+                      ))}
+                    </div>
+
+                    <div className="flex justify-end gap-3 pt-6 border-t border-gray-200">
+                      <button
+                        type="button"
+                        onClick={() => setShowAddJurusanModal(false)}
+                        className="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 font-medium"
+                      >
+                        Batal
+                      </button>
+                      <button
+                        onClick={handleAddJurusan}
+                        disabled={selectedJurusanToAdd === null || isAddingJurusan}
+                        className="px-6 py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-400 text-white rounded-lg font-medium flex items-center gap-2"
+                      >
+                        {isAddingJurusan ? (
+                          <>
+                            <Loader className="animate-spin" size={16} />
+                            Menambahkan...
+                          </>
+                        ) : (
+                          <>
+                            <Plus size={16} />
+                            Tambah
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 };
