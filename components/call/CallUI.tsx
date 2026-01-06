@@ -1,5 +1,7 @@
+'use client'
+
 import React, { useState, useRef, useEffect } from 'react'
-import { Phone, PhoneOff, Mic, MicOff, Video, VideoOff, AlertCircle } from 'lucide-react'
+import { Phone, PhoneOff, Mic, MicOff, Video, VideoOff, AlertCircle, MoreVertical, Settings } from 'lucide-react'
 
 interface CallUIProps {
   callId: number
@@ -14,6 +16,8 @@ interface CallUIProps {
   hasRemoteStream?: boolean
   localStream?: MediaStream | null
   remoteStream?: MediaStream | null
+  isRemoteMuted?: boolean
+  isRemoteVideoOff?: boolean
 }
 
 const CallUI: React.FC<CallUIProps> = ({
@@ -29,50 +33,101 @@ const CallUI: React.FC<CallUIProps> = ({
   hasRemoteStream = false,
   localStream,
   remoteStream,
+  isRemoteMuted = false,
+  isRemoteVideoOff = false,
 }) => {
   const [isMuted, setIsMuted] = useState(false)
   const [isVideoOn, setIsVideoOn] = useState(callType === 'video')
   const [displayDuration, setDisplayDuration] = useState('00:00')
   const [hasLocalStream, setHasLocalStream] = useState(false)
   const [hasRemote, setHasRemote] = useState(false)
-  const connectionTimeRef = useRef<number | null>(null) // ✅ Track when connection was established
+  const [showSettings, setShowSettings] = useState(false)
+  const [videoDevices, setVideoDevices] = useState<MediaDeviceInfo[]>([])
+  const [audioInputDevices, setAudioInputDevices] = useState<MediaDeviceInfo[]>([])
+  const [audioOutputDevices, setAudioOutputDevices] = useState<MediaDeviceInfo[]>([])
+  const [selectedVideoDevice, setSelectedVideoDevice] = useState<string>('')
+  const [selectedAudioInput, setSelectedAudioInput] = useState<string>('')
+  const [selectedAudioOutput, setSelectedAudioOutput] = useState<string>('')
+  const connectionTimeRef = useRef<number | null>(null)
 
-  // Attach local stream to video element with robust retry logic
+  // Load available devices
   useEffect(() => {
-    if (!localStream) return
+    const loadDevices = async () => {
+      try {
+        const devices = await navigator.mediaDevices.enumerateDevices()
+        setVideoDevices(devices.filter(d => d.kind === 'videoinput'))
+        setAudioInputDevices(devices.filter(d => d.kind === 'audioinput'))
+        setAudioOutputDevices(devices.filter(d => d.kind === 'audiooutput'))
+      } catch (error) {
+        console.error('Error loading devices:', error)
+      }
+    }
+    loadDevices()
+  }, [])
 
-    // ✅ CRITICAL FIX: Keep local stream tracks ALIVE across re-renders
-    // Prevent tracks from becoming state=ended due to re-renders or GC
-    const tracks = localStream.getTracks()
-    tracks.forEach((track: any) => {
-      track.enabled = true  // Force enable
-      console.log(`🔄 [CallUI LocalStream] Track ${track.kind} health check: enabled=${track.enabled}, state=${track.readyState}`)
+  // Attach local stream
+  useEffect(() => {
+    if (!localStream) {
+      console.log('🔄 [CallUI] No local stream yet')
+      return
+    }
+
+    // ✅ CRITICAL: Validate stream has tracks BEFORE attaching
+    const allTracks = localStream.getTracks()
+    const videoTracks = localStream.getVideoTracks()
+    const audioTracks = localStream.getAudioTracks()
+    
+    console.log(`📊 [CallUI Local] Stream validation:`, {
+      totalTracks: allTracks.length,
+      videoTracks: videoTracks.length,
+      audioTracks: audioTracks.length,
+      callType
+    })
+
+    if (allTracks.length === 0) {
+      console.error('❌ [CallUI] CRITICAL: Local stream is EMPTY! No tracks at all!')
+      return
+    }
+
+    // ✅ For video calls, must have video track
+    if (callType === 'video' && videoTracks.length === 0) {
+      console.error('❌ [CallUI] CRITICAL: Video call but stream has NO VIDEO TRACKS!')
+      console.error('   This will show blank local video in PIP')
+      return
+    }
+
+    // Enable all tracks
+    allTracks.forEach((track: any) => {
+      if (track.readyState === 'live') {
+        track.enabled = true
+        console.log(`🔄 [CallUI LocalStream] Track ${track.kind} enabled (state: ${track.readyState})`)
+      } else {
+        console.warn(`⚠️ [CallUI LocalStream] Track ${track.kind} NOT LIVE (state: ${track.readyState})`)
+      }
     })
 
     let retryCount = 0
     const maxRetries = 5
 
     const attemptAttach = () => {
-      console.log(`🔄 Attempt ${retryCount + 1}/${maxRetries} to attach local stream, ref available: ${!!localVideoRef.current}`)
-      
       if (localVideoRef.current && localStream) {
         try {
+          console.log(`📹 [CallUI] Attaching local stream to video element...`)
           localVideoRef.current.srcObject = localStream
-          console.log('✅ Local stream attached successfully')
-          setHasLocalStream(true)  // ✅ Set state immediately after attachment
+          console.log('✅ Local stream attached to video element')
+          setHasLocalStream(true)
           return true
         } catch (error) {
           console.error('❌ Error attaching local stream:', error)
           return false
         }
       }
+      console.warn('⚠️ [CallUI] localVideoRef.current not ready yet')
       return false
     }
 
-    // Try immediately
     if (attemptAttach()) return
 
-    // Retry with exponential backoff
     let timeout: ReturnType<typeof setTimeout>
     const retryWithBackoff = () => {
       retryCount++
@@ -91,110 +146,91 @@ const CallUI: React.FC<CallUIProps> = ({
     return () => clearTimeout(timeout)
   }, [localStream])
 
-  // Attach remote stream to video/audio element with robust retry logic
+  // Attach remote stream
   useEffect(() => {
     if (!remoteStream) {
-      console.log('🔄 [CallUI] No remote stream yet, skipping attachment')
+      console.log('🔄 [CallUI] No remote stream yet')
+      return
+    }
+
+    // ✅ CRITICAL: Validate remote stream has correct tracks BEFORE attaching
+    const allRemoteTracks = remoteStream.getTracks()
+    const remoteVideoTracks = remoteStream.getVideoTracks()
+    const remoteAudioTracks = remoteStream.getAudioTracks()
+
+    console.log(`📊 [CallUI Remote] Stream validation:`, {
+      totalTracks: allRemoteTracks.length,
+      videoTracks: remoteVideoTracks.length,
+      audioTracks: remoteAudioTracks.length,
+      callType
+    })
+
+    if (allRemoteTracks.length === 0) {
+      console.error('❌ [CallUI] CRITICAL: Remote stream is EMPTY! No tracks at all!')
       return
     }
 
     let retryCount = 0
     const maxRetries = 5
 
-    const attemptAttach = () => {
-      // For video calls, attach to video element
+    const attemptVideoAttach = () => {
       if (callType === 'video') {
-        console.log(`🔄 [CallUI Video] Attempt ${retryCount + 1}/${maxRetries} to attach remote stream, ref available: ${!!remoteVideoRef.current}`)
-        
+        // ✅ For video calls, validate video track exists
+        if (remoteVideoTracks.length === 0) {
+          console.error('❌ [CallUI] Video call but remote stream has NO VIDEO TRACKS!')
+          return false
+        }
+
         if (remoteVideoRef.current && remoteStream) {
           try {
+            console.log(`📹 [CallUI] Attaching remote stream to video element...`)
             const videoElement = remoteVideoRef.current as HTMLVideoElement
-            
-            // Log track details BEFORE attaching
-            const audioTracks = remoteStream.getAudioTracks()
-            const videoTracks = remoteStream.getVideoTracks()
-            console.log(`📊 [CallUI Video] Stream tracks BEFORE attach:`, {
-              audioTrackCount: audioTracks.length,
-              audioTracksEnabled: audioTracks.map((t: any) => ({ id: t.id, enabled: t.enabled, muted: t.muted })),
-              videoTrackCount: videoTracks.length,
-              videoTracksEnabled: videoTracks.map((t: any) => ({ id: t.id, enabled: t.enabled, muted: t.muted })),
-            })
-            
-            console.log(`📋 [CallUI Video] Setting srcObject on video element...`)
             videoElement.srcObject = remoteStream
-            videoElement.volume = 1.0  // Ensure volume is max
-            console.log(`✅ [CallUI Video] Remote stream srcObject set, volume: ${videoElement.volume}`)
+            videoElement.volume = 1.0
             
-            // Log track details AFTER attaching
-            console.log(`📊 [CallUI Video] Stream tracks AFTER attach:`, {
-              audioTrackCount: audioTracks.length,
-              audioTracksEnabled: audioTracks.map((t: any) => ({ id: t.id, enabled: t.enabled, muted: t.muted })),
-              videoTrackCount: videoTracks.length,
-              videoTracksEnabled: videoTracks.map((t: any) => ({ id: t.id, enabled: t.enabled, muted: t.muted })),
-            })
-            
-            // Explicitly start playback
-            console.log(`▶️ [CallUI Video] Calling .play() on video element...`)
             const playPromise = videoElement.play()
             if (playPromise !== undefined) {
-              playPromise
-                .then(() => {
-                  console.log('📹 [CallUI Video] Video playback started successfully')
-                })
-                .catch((error) => {
-                  console.error('❌ [CallUI Video] Video playback failed:', error.name, error.message)
-                  // Try forcing play with user gesture context
-                  console.log('⚠️ [CallUI Video] Attempting to resume after user gesture...')
-                })
-            } else {
-              console.log('📹 [CallUI Video] play() returned undefined (old browser)')
+              playPromise.then(() => {
+                console.log('📹 [CallUI Video] Playback started')
+              }).catch((error) => {
+                console.error('❌ [CallUI Video] Playback failed:', error)
+              })
             }
-            
-            console.log('✅ [CallUI Video] Remote stream attached successfully:', {
-              videoTracks: remoteStream.getVideoTracks().length,
-              audioTracks: remoteStream.getAudioTracks().length,
-            })
-            setHasRemote(true)  // ✅ Set state immediately after successful attachment
+            console.log('✅ [CallUI Video] Remote stream attached')
+            setHasRemote(true)
             return true
           } catch (error) {
-            console.error('❌ [CallUI Video] Error attaching remote stream:', error)
+            console.error('❌ [CallUI Video] Error:', error)
             return false
           }
         }
-      } else {
-        // For audio calls, attach to AUDIO element (use remoteAudioRef)
-        console.log(`🔄 [CallUI Audio] Attempt ${retryCount + 1}/${maxRetries} to attach remote audio stream, ref available: ${!!remoteAudioRef?.current}`)
-        
+      } else if (callType === 'audio') {
+        // ✅ For audio calls, use audio element instead
+        if (remoteAudioTracks.length === 0) {
+          console.error('❌ [CallUI] Audio call but remote stream has NO AUDIO TRACKS!')
+          return false
+        }
+
         if (remoteAudioRef?.current && remoteStream) {
           try {
+            console.log(`🔊 [CallUI] Attaching remote stream to audio element...`)
             const audioElement = remoteAudioRef.current as HTMLAudioElement
-            console.log(`📋 [CallUI Audio] Setting srcObject on audio element...`)
             audioElement.srcObject = remoteStream
-            audioElement.volume = 1.0  // Ensure volume is max
-            console.log(`✅ [CallUI Audio] Remote stream srcObject set, volume: ${audioElement.volume}`)
+            audioElement.volume = 1.0
             
-            // Explicitly start playback
-            console.log(`▶️ [CallUI Audio] Calling .play() on audio element...`)
             const playPromise = audioElement.play()
             if (playPromise !== undefined) {
-              playPromise
-                .then(() => {
-                  console.log('🔊 [CallUI Audio] Audio playback started successfully')
-                })
-                .catch((error) => {
-                  console.error('❌ [CallUI Audio] Audio playback failed:', error.name, error.message)
-                })
-            } else {
-              console.log('🔊 [CallUI Audio] play() returned undefined (old browser)')
+              playPromise.then(() => {
+                console.log('🔊 [CallUI Audio] Playback started')
+              }).catch((error) => {
+                console.error('❌ [CallUI Audio] Playback failed:', error)
+              })
             }
-            
-            console.log('✅ [CallUI Audio] Remote audio stream attached successfully:', {
-              audioTracks: remoteStream.getAudioTracks().length,
-            })
-            setHasRemote(true)  // ✅ Set state immediately after successful attachment
+            console.log('✅ [CallUI Audio] Remote audio attached')
+            setHasRemote(true)
             return true
           } catch (error) {
-            console.error('❌ [CallUI Audio] Error attaching remote audio stream:', error)
+            console.error('❌ [CallUI Audio] Error:', error)
             return false
           }
         }
@@ -202,21 +238,18 @@ const CallUI: React.FC<CallUIProps> = ({
       return false
     }
 
-    // Try immediately
-    if (attemptAttach()) return
+    if (attemptVideoAttach()) return
 
-    // Retry with exponential backoff
     let timeout: ReturnType<typeof setTimeout>
     const retryWithBackoff = () => {
       retryCount++
       if (retryCount >= maxRetries) {
-        console.error(`❌ [CallUI] Failed to attach remote stream after ${maxRetries} retries`)
+        console.error(`❌ [CallUI] Failed after ${maxRetries} retries to attach remote stream`)
         return
       }
       const delay = 100 * Math.pow(1.5, retryCount)
-      console.log(`⏱️ [CallUI] Retrying in ${Math.round(delay)}ms... (attempt ${retryCount + 1}/${maxRetries})`)
       timeout = setTimeout(() => {
-        if (!attemptAttach()) {
+        if (!attemptVideoAttach()) {
           retryWithBackoff()
         }
       }, delay)
@@ -226,84 +259,44 @@ const CallUI: React.FC<CallUIProps> = ({
     return () => clearTimeout(timeout)
   }, [remoteStream, callType, remoteAudioRef, remoteVideoRef])
 
-  // Monitor local video playback - update state when video actually plays
+  // Monitor playback
   useEffect(() => {
-    if (!localVideoRef.current) {
-      console.log('⚠️ Local video ref not available')
-      return
-    }
+    if (!localVideoRef.current) return
 
-    const onLoadedMetadata = () => {
-      console.log('📹 Local video metadata loaded')
-      setHasLocalStream(true)
-    }
-
-    const onPlay = () => {
-      console.log('▶️ Local video playing')
-      setHasLocalStream(true)
-    }
-
-    const onError = (e: Event) => {
-      console.error('❌ Local video error:', e)
-      setHasLocalStream(false)
-    }
+    const onLoadedMetadata = () => setHasLocalStream(true)
+    const onPlay = () => setHasLocalStream(true)
 
     const videoElement = localVideoRef.current
     videoElement.addEventListener('loadedmetadata', onLoadedMetadata)
     videoElement.addEventListener('play', onPlay)
-    videoElement.addEventListener('error', onError)
 
     return () => {
       videoElement.removeEventListener('loadedmetadata', onLoadedMetadata)
       videoElement.removeEventListener('play', onPlay)
-      videoElement.removeEventListener('error', onError)
     }
   }, [])
 
-  // Monitor remote video/audio playback - update state when actually plays
+  // Monitor remote playback
   useEffect(() => {
-    if (!remoteVideoRef.current) {
-      console.log('⚠️ Remote element ref not available')
-      return
-    }
+    if (!remoteVideoRef.current) return
 
     const element = remoteVideoRef.current
-    const isAudioElement = element.tagName === 'AUDIO'
-
-    const onLoadedMetadata = () => {
-      console.log(`📹 Remote ${isAudioElement ? 'audio' : 'video'} metadata loaded`)
-      setHasRemote(true)
-    }
-
-    const onPlay = () => {
-      console.log(`▶️ Remote ${isAudioElement ? 'audio' : 'video'} playing`)
-      setHasRemote(true)
-    }
-
-    const onError = (e: Event) => {
-      console.error(`❌ Remote ${isAudioElement ? 'audio' : 'video'} error:`, e)
-      setHasRemote(false)
-    }
-
-    const onCanPlay = () => {
-      console.log(`▶️ Remote ${isAudioElement ? 'audio' : 'video'} can play`)
-      setHasRemote(true)
-    }
+    const onLoadedMetadata = () => setHasRemote(true)
+    const onPlay = () => setHasRemote(true)
+    const onCanPlay = () => setHasRemote(true)
 
     element.addEventListener('loadedmetadata', onLoadedMetadata)
     element.addEventListener('play', onPlay)
-    element.addEventListener('error', onError)
     element.addEventListener('canplay', onCanPlay)
 
     return () => {
       element.removeEventListener('loadedmetadata', onLoadedMetadata)
       element.removeEventListener('play', onPlay)
-      element.removeEventListener('error', onError)
       element.removeEventListener('canplay', onCanPlay)
     }
   }, [callType])
 
-  // ✅ NEW: Monitor and ensure remote track stays enabled
+  // Monitor remote tracks
   useEffect(() => {
     if (!remoteStream) return
 
@@ -311,53 +304,30 @@ const CallUI: React.FC<CallUIProps> = ({
       const audioTracks = remoteStream.getAudioTracks()
       const videoTracks = remoteStream.getVideoTracks()
 
-      // Check and re-enable tracks if they became disabled
       audioTracks.forEach((track) => {
+        // ✅ Only re-enable if track is live but disabled
         if (!track.enabled && track.readyState === 'live') {
-          console.log(`🔊 [CallUI Monitor] Audio track was disabled, re-enabling...`)
+          console.log(`🔊 [CallUI Monitor] Audio track re-enabling (was disabled)`)
           track.enabled = true
+        } else if (track.readyState !== 'live') {
+          console.warn(`⚠️ [CallUI Monitor] Audio track STATE: ${track.readyState} (cannot enable)`)
         }
       })
 
       videoTracks.forEach((track) => {
         if (!track.enabled && track.readyState === 'live') {
-          console.log(`📹 [CallUI Monitor] Video track was disabled, re-enabling...`)
+          console.log(`📹 [CallUI Monitor] Video track re-enabling (was disabled)`)
           track.enabled = true
+        } else if (track.readyState !== 'live') {
+          console.warn(`⚠️ [CallUI Monitor] Video track STATE: ${track.readyState} (cannot enable)`)
         }
       })
-    }, 500) // Check every 500ms
+    }, 500)
 
     return () => clearInterval(interval)
   }, [remoteStream])
 
-  // ✅ NEW: Monitor video element rendering state
-  useEffect(() => {
-    if (callType !== 'video' || !remoteVideoRef.current) return
-
-    const videoElement = remoteVideoRef.current
-    const debugInterval = setInterval(() => {
-      console.log(`📹 [Video Element Debug]`, {
-        canvasWidth: videoElement.videoWidth,
-        canvasHeight: videoElement.videoHeight,
-        displayWidth: videoElement.offsetWidth,
-        displayHeight: videoElement.offsetHeight,
-        readyState: videoElement.readyState,
-        networkState: videoElement.networkState,
-        played: videoElement.played.length > 0,
-        paused: videoElement.paused,
-        srcObject: !!videoElement.srcObject,
-        srcObjectTracks: videoElement.srcObject ? (videoElement.srcObject as any).getTracks().length : 0,
-        className: videoElement.className,
-        display: window.getComputedStyle(videoElement).display,
-        visibility: window.getComputedStyle(videoElement).visibility,
-        opacity: window.getComputedStyle(videoElement).opacity,
-      })
-    }, 2000)
-
-    return () => clearInterval(debugInterval)
-  }, [callType])
-
-  // ✅ FIXED: Monitor local tracks but RESPECT mute state
+  // Monitor local tracks
   useEffect(() => {
     if (!localStream) return
 
@@ -365,63 +335,62 @@ const CallUI: React.FC<CallUIProps> = ({
       const audioTracks = localStream.getAudioTracks()
       const videoTracks = localStream.getVideoTracks()
 
-      // ✅ CRITICAL: Only re-enable if NOT muted by user
-      // If user muted, DO NOT force enable
       audioTracks.forEach((track) => {
-        // Only re-enable if:
-        // 1. Track disabled by accident (readyState is still live)
-        // 2. AND user hasn't muted it
-        if (!track.enabled && track.readyState === 'live' && !isMuted) {
-          console.log(`🔊 [CallUI Local Monitor] Audio track was disabled accidentally, re-enabling...`)
-          track.enabled = true
-        } else if (isMuted && track.enabled) {
-          // If user muted but track is still enabled, disable it
-          console.log(`🔊 [CallUI Local Monitor] User muted but track enabled, disabling...`)
+        // ✅ Enforce mute state
+        if (isMuted && track.enabled) {
+          console.log(`🔊 [Local Monitor] Audio DISABLING (muted by user)`)
           track.enabled = false
+        } else if (!isMuted && !track.enabled && track.readyState === 'live') {
+          console.log(`🔊 [Local Monitor] Audio ENABLING (user unmuted)`)
+          track.enabled = true
+        }
+
+        // ⚠️ Warn if track dies
+        if (track.readyState !== 'live') {
+          console.warn(`⚠️ [Local Monitor] Audio track STATE: ${track.readyState}`)
         }
       })
 
       videoTracks.forEach((track) => {
-        // Only re-enable if:
-        // 1. Track disabled by accident
-        // 2. AND user hasn't turned off video
-        if (!track.enabled && track.readyState === 'live' && isVideoOn) {
-          console.log(`📹 [CallUI Local Monitor] Video track was disabled accidentally, re-enabling...`)
-          track.enabled = true
-        } else if (!isVideoOn && track.enabled) {
-          // If user turned off video but track is still enabled, disable it
-          console.log(`📹 [CallUI Local Monitor] User turned off video but track enabled, disabling...`)
+        // ✅ Enforce video state
+        if (!isVideoOn && track.enabled) {
+          console.log(`📹 [Local Monitor] Video DISABLING (off by user)`)
           track.enabled = false
+        } else if (isVideoOn && !track.enabled && track.readyState === 'live') {
+          console.log(`📹 [Local Monitor] Video ENABLING (user turned on)`)
+          track.enabled = true
+        }
+
+        // ⚠️ Warn if track dies
+        if (track.readyState !== 'live') {
+          console.warn(`⚠️ [Local Monitor] Video track STATE: ${track.readyState}`)
         }
       })
-    }, 500) // Check every 500ms
+    }, 500)
 
     return () => clearInterval(interval)
   }, [localStream, isMuted, isVideoOn])
 
-  // ✅ FIXED: Calculate duration from connection time (same for both sides)
+  // Timer
   useEffect(() => {
     if (!isConnected) return
 
-    // Set connection time on first connection
     if (!connectionTimeRef.current) {
       connectionTimeRef.current = Date.now()
-      console.log('📱 [CallUI] Connection established, starting timer from this moment')
+      console.log('📱 [CallUI] Connection established, timer started')
     }
 
     const interval = setInterval(() => {
-      // Calculate duration from connection time (not from prop which might be different)
       const elapsedMs = Date.now() - (connectionTimeRef.current || Date.now())
       const totalSeconds = Math.floor(elapsedMs / 1000)
       const minutes = Math.floor(totalSeconds / 60)
       const seconds = totalSeconds % 60
-      
+
       const formattedDuration = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
       setDisplayDuration(formattedDuration)
-      
-      // Optional: Also log for debugging (remove later)
+
       if (totalSeconds % 10 === 0 && totalSeconds > 0) {
-        console.log(`⏱️ [CallUI] Call duration: ${formattedDuration}`)
+        console.log(`⏱️ [CallUI] Duration: ${formattedDuration}`)
       }
     }, 1000)
 
@@ -433,7 +402,6 @@ const CallUI: React.FC<CallUIProps> = ({
     setIsMuted(newMutedState)
     if (localStream) {
       const audioTracks = localStream.getAudioTracks()
-      console.log(`🎙️ Toggling audio ${audioTracks.length} tracks to enabled=${!newMutedState}`)
       audioTracks.forEach((track) => {
         track.enabled = !newMutedState
       })
@@ -446,14 +414,13 @@ const CallUI: React.FC<CallUIProps> = ({
     setIsVideoOn(newVideoState)
     if (localStream) {
       const videoTracks = localStream.getVideoTracks()
-      console.log(`📹 Toggling video ${videoTracks.length} tracks to enabled=${newVideoState}`)
       videoTracks.forEach((track) => {
         track.enabled = newVideoState
       })
     }
   }
 
-  // Prevent page unload during call
+  // Prevent page unload
   useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       if (isConnected) {
@@ -472,45 +439,35 @@ const CallUI: React.FC<CallUIProps> = ({
       {/* Video Call UI */}
       {callType === 'video' ? (
         <div className="flex-1 relative bg-black overflow-hidden">
-          {/* Remote Video (Full Screen Background) - ALWAYS in DOM */}
-          <video
-            ref={remoteVideoRef}
-            autoPlay
-            playsInline
-            muted={false}
-            className="absolute inset-0 w-full h-full object-cover bg-black"
-            crossOrigin="anonymous"
-            style={{ display: 'block' }}
-            onLoadedMetadata={() => {
-              console.log('✅ Video metadata loaded, readyState:', remoteVideoRef.current?.readyState)
-            }}
-            onLoadStart={() => {
-              console.log('🔄 Video loadstart event fired')
-            }}
-            onCanPlay={() => {
-              console.log('✅✅ Video CAN PLAY - video should appear now!')
-            }}
-            onPlay={() => {
-              console.log('✅ Video play event fired')
-            }}
-            onTimeUpdate={() => {
-              const video = remoteVideoRef.current
-              if (video && video.currentTime > 0) {
-                console.log(`🎬 Video time updated: ${video.currentTime.toFixed(2)}s, buffered: ${video.buffered.length > 0}`)
-              }
-            }}
-            onError={(e) => {
-              console.error('❌ Video error event:', e)
-              const video = remoteVideoRef.current
-              if (video) {
-                console.error('   Error code:', video.error?.code, video.error?.message)
-              }
-            }}
-          />
-          <div className="absolute inset-0 bg-black/10"></div>
+          {/* Remote Video - when camera is on */}
+          {!isRemoteVideoOff && (
+            <video
+              ref={remoteVideoRef}
+              autoPlay
+              playsInline
+              muted={false}
+              className="absolute inset-0 w-full h-full object-cover bg-black"
+              crossOrigin="anonymous"
+              style={{ display: 'block' }}
+            />
+          )}
 
-          {/* Loading/Waiting State - show if remote video not ready yet */}
-          {!hasRemote && (
+          {/* Camera off state - show name and timer */}
+          {isRemoteVideoOff && (
+            <div className="absolute inset-0 w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-900 via-black to-gray-900">
+              <div className="text-center animate-fade-in">
+                <div className="w-32 h-32 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center mb-8 shadow-2xl">
+                  <VideoOff className="w-16 h-16 text-white" />
+                </div>
+                <h2 className="text-4xl font-bold text-white mb-4">{remoteUserName}</h2>
+                <p className="text-gray-400 text-lg mb-6">Kamera Dimatikan</p>
+                <p className="text-5xl font-mono text-cyan-400 font-bold">{displayDuration}</p>
+              </div>
+            </div>
+          )}
+
+          {/* Loading state */}
+          {!hasRemote && !isRemoteVideoOff && (
             <div className="absolute inset-0 w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-900 via-black to-gray-900">
               <div className="text-center">
                 <div className="inline-block mb-4">
@@ -518,17 +475,20 @@ const CallUI: React.FC<CallUIProps> = ({
                 </div>
                 <p className="text-white font-semibold text-lg">Menghubungkan...</p>
                 <p className="text-gray-400 text-sm mt-2">{remoteUserName}</p>
-                <div className="flex items-center justify-center gap-2 mt-4 text-yellow-500 text-xs">
-                  <AlertCircle className="w-4 h-4" />
-                  <span>Menunggu stream dari pengguna lain</span>
-                </div>
               </div>
             </div>
           )}
 
-          {/* Local Video (Picture in Picture) - ALWAYS in DOM */}
-          <div className="absolute bottom-24 right-6 w-56 h-40 bg-gray-900 rounded-lg overflow-hidden border-4 border-white shadow-2xl">
-            {/* Video element ALWAYS in DOM for attachment */}
+          {/* Mute indicator */}
+          {isRemoteMuted && (
+            <div className="absolute top-20 right-6 bg-red-600/80 text-white px-4 py-2 rounded-lg flex items-center gap-2 backdrop-blur-sm animate-pulse">
+              <MicOff className="w-4 h-4" />
+              <span className="text-sm font-semibold">Lawan Mute</span>
+            </div>
+          )}
+
+          {/* Local Video PIP */}
+          <div className="absolute bottom-28 right-6 w-48 h-36 md:w-56 md:h-40 bg-gray-900 rounded-lg overflow-hidden border-4 border-white shadow-2xl">
             <video
               ref={localVideoRef}
               autoPlay
@@ -538,26 +498,25 @@ const CallUI: React.FC<CallUIProps> = ({
                 localStream && isVideoOn ? 'block' : 'hidden'
               }`}
             />
-            {/* Placeholder shown when video is off or no stream */}
             {!(localStream && isVideoOn) && (
               <div className="absolute inset-0 w-full h-full bg-gradient-to-br from-gray-800 to-gray-900 flex flex-col items-center justify-center p-4">
-                <Video className="w-8 h-8 text-gray-600 mb-2" />
+                <Video className="w-6 h-6 text-gray-600 mb-2" />
                 <p className="text-gray-400 text-xs text-center">
-                  {!isVideoOn ? 'Kamera Dimatikan' : 'Menunggu stream...'}
+                  {!isVideoOn ? 'Kamera Off' : 'Menunggu...'}
                 </p>
               </div>
             )}
           </div>
 
-          {/* Call Info Overlay */}
-          <div className="absolute top-8 left-1/2 transform -translate-x-1/2 text-center text-white z-20 bg-black/40 px-8 py-4 rounded-lg backdrop-blur-sm">
-            <p className="text-2xl font-bold">{remoteUserName}</p>
-            <p className="text-sm text-gray-300 mt-1">Panggilan Video</p>
-            <p className="text-lg font-mono text-cyan-400 mt-2">{displayDuration}</p>
+          {/* Call Info */}
+          <div className="absolute top-4 md:top-8 left-1/2 transform -translate-x-1/2 text-center text-white z-20 bg-black/40 px-6 md:px-8 py-3 md:py-4 rounded-lg backdrop-blur-sm">
+            <p className="text-xl md:text-2xl font-bold">{remoteUserName}</p>
+            <p className="text-xs md:text-sm text-gray-300 mt-1">Panggilan Video</p>
+            <p className="text-lg md:text-xl font-mono text-cyan-400 mt-2">{displayDuration}</p>
           </div>
 
           {/* Connection Status */}
-          <div className="absolute top-8 right-6 bg-black/60 text-white text-xs px-3 py-2 rounded-lg backdrop-blur-sm">
+          <div className="absolute top-4 md:top-8 right-4 md:right-6 bg-black/60 text-white text-xs px-3 py-2 rounded-lg backdrop-blur-sm">
             <p className={isConnected ? 'text-green-400' : 'text-yellow-400'}>
               {isConnected ? '● Terhubung' : '● Menghubungkan'}
             </p>
@@ -566,7 +525,6 @@ const CallUI: React.FC<CallUIProps> = ({
       ) : (
         // Audio Call UI
         <>
-          {/* Hidden audio element for audio call playback - use remoteAudioRef */}
           <audio
             ref={remoteAudioRef}
             autoPlay
@@ -585,16 +543,24 @@ const CallUI: React.FC<CallUIProps> = ({
             </div>
 
             {/* Audio Call Content */}
-            <div className="relative z-10 text-center">
-              <div className="w-40 h-40 bg-white/20 rounded-full flex items-center justify-center mb-8 animate-pulse backdrop-blur-sm">
-                <div className="w-32 h-32 bg-white/30 rounded-full flex items-center justify-center">
-                  <Mic className="w-16 h-16 text-white" />
+            <div className="relative z-10 text-center px-4">
+              <div className="w-32 h-32 md:w-40 md:h-40 bg-white/20 rounded-full flex items-center justify-center mb-6 md:mb-8 animate-pulse backdrop-blur-sm">
+                <div className="w-24 h-24 md:w-32 md:h-32 bg-white/30 rounded-full flex items-center justify-center">
+                  <Mic className="w-12 h-12 md:w-16 md:h-16 text-white" />
                 </div>
               </div>
 
-              <h2 className="text-5xl font-bold text-white mb-4">{remoteUserName}</h2>
-              <p className="text-white/90 text-lg mb-6">Panggilan Suara Berlangsung</p>
-              <p className="text-5xl font-mono text-cyan-300 font-bold tracking-wider">{displayDuration}</p>
+              <h2 className="text-3xl md:text-5xl font-bold text-white mb-3 md:mb-4">{remoteUserName}</h2>
+              <p className="text-white/90 text-base md:text-lg mb-4 md:mb-6">Panggilan Suara Berlangsung</p>
+              <p className="text-4xl md:text-5xl font-mono text-cyan-300 font-bold tracking-wider">{displayDuration}</p>
+
+              {/* Mute indicator for audio */}
+              {isRemoteMuted && (
+                <div className="mt-6 inline-flex items-center gap-2 bg-red-600/80 text-white px-4 py-2 rounded-lg backdrop-blur-sm animate-pulse">
+                  <MicOff className="w-4 h-4" />
+                  <span className="text-sm font-semibold">Lawan Sedang Mute</span>
+                </div>
+              )}
 
               {/* Connection Status */}
               <div className="mt-8">
@@ -608,7 +574,78 @@ const CallUI: React.FC<CallUIProps> = ({
       )}
 
       {/* Control Buttons */}
-      <div className="relative z-30 bg-black/80 backdrop-blur-md p-6 flex items-center justify-center gap-6 border-t border-white/10">
+      <div className="relative z-30 bg-black/80 backdrop-blur-md p-4 md:p-6 flex items-center justify-center gap-4 md:gap-6 border-t border-white/10 flex-wrap">
+        {/* Settings Button */}
+        <button
+          onClick={() => setShowSettings(!showSettings)}
+          className="p-4 rounded-full bg-gray-700 hover:bg-gray-600 transition-all transform hover:scale-110 shadow-lg shadow-gray-700/50 relative"
+          title="Pengaturan"
+          aria-label="Pengaturan"
+        >
+          <MoreVertical className="w-7 h-7 text-white" />
+          
+          {/* Settings Dropdown */}
+          {showSettings && (
+            <div className="absolute bottom-20 left-1/2 transform -translate-x-1/2 bg-gray-900 border border-gray-700 rounded-lg shadow-2xl p-4 w-80 z-50 backdrop-blur-sm">
+              <h3 className="text-white font-semibold mb-4 text-center">Pengaturan Audio & Video</h3>
+              
+              {/* Video Input */}
+              {callType === 'video' && videoDevices.length > 0 && (
+                <div className="mb-4">
+                  <label className="text-white text-sm font-medium block mb-2">Kamera</label>
+                  <select
+                    value={selectedVideoDevice}
+                    onChange={(e) => setSelectedVideoDevice(e.target.value)}
+                    className="w-full bg-gray-800 text-white px-3 py-2 rounded border border-gray-600 text-sm"
+                  >
+                    {videoDevices.map((device) => (
+                      <option key={device.deviceId} value={device.deviceId}>
+                        {device.label || `Kamera ${videoDevices.indexOf(device) + 1}`}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Audio Input */}
+              {audioInputDevices.length > 0 && (
+                <div className="mb-4">
+                  <label className="text-white text-sm font-medium block mb-2">Input Audio</label>
+                  <select
+                    value={selectedAudioInput}
+                    onChange={(e) => setSelectedAudioInput(e.target.value)}
+                    className="w-full bg-gray-800 text-white px-3 py-2 rounded border border-gray-600 text-sm"
+                  >
+                    {audioInputDevices.map((device) => (
+                      <option key={device.deviceId} value={device.deviceId}>
+                        {device.label || `Mikrofon ${audioInputDevices.indexOf(device) + 1}`}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Audio Output */}
+              {audioOutputDevices.length > 0 && (
+                <div className="mb-4">
+                  <label className="text-white text-sm font-medium block mb-2">Output Audio</label>
+                  <select
+                    value={selectedAudioOutput}
+                    onChange={(e) => setSelectedAudioOutput(e.target.value)}
+                    className="w-full bg-gray-800 text-white px-3 py-2 rounded border border-gray-600 text-sm"
+                  >
+                    {audioOutputDevices.map((device) => (
+                      <option key={device.deviceId} value={device.deviceId}>
+                        {device.label || `Speaker ${audioOutputDevices.indexOf(device) + 1}`}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </div>
+          )}
+        </button>
+
         {/* Mute Button */}
         <button
           onClick={toggleMute}

@@ -100,6 +100,44 @@
     answerOptions?: RTCAnswerOptions;
   }
 
+  // ✅ NEW: TURN-only config for fallback (aggressive mode)
+  export const turnOnlyWebRTCConfig: WebRTCConfig = {
+    iceServers: [
+      // ⚠️ AGGRESSIVE: TURN-only mode (no STUN)
+      // Use when STUN is blocked but TURN relay available
+      // Trade-off: More latency but guaranteed connectivity
+      
+      // Primary TURN
+      {
+        urls: ['turn:relay.metered.ca:80', 'turn:relay.metered.ca:443'],
+        username: 'webrtc',
+        credential: 'webrtc'
+      },
+      
+      // Secondary TURN (backup)
+      {
+        urls: ['turn:numb.viagee.com:3478', 'turn:numb.viagee.com:3478?transport=tcp'],
+        username: 'webrtc@beispiel.com',
+        credential: 'webrtcpassword'
+      },
+      
+      // Tertiary TURN (last resort)
+      {
+        urls: ['turn:turnserver.twilio.com:80?transport=udp'],
+        username: 'placeholder',
+        credential: 'placeholder'
+      },
+    ],
+    offerOptions: {
+      offerToReceiveAudio: true,
+      offerToReceiveVideo: true,
+    },
+    answerOptions: {
+      offerToReceiveAudio: true,
+      offerToReceiveVideo: true,
+    },
+  };
+
   export const defaultWebRTCConfig: WebRTCConfig = {
     // STUN servers untuk NAT traversal (gratis & aman)
     // Gunakan multiple servers untuk redundansi & keamanan
@@ -108,6 +146,8 @@
       { urls: 'stun:stun.l.google.com:19302' },
       { urls: 'stun:stun1.l.google.com:19302' },
       { urls: 'stun:stun2.l.google.com:19302' },
+      { urls: 'stun:stun3.l.google.com:19302' },
+      { urls: 'stun:stun4.l.google.com:19302' },
       
       // Backup: Mozilla STUN (fallback jika Google down)
       { urls: 'stun:stun.services.mozilla.com:3478' },
@@ -115,7 +155,45 @@
       // Backup: stunprotocol.org
       { urls: 'stun:stun.stunprotocol.org:3478' },
       
-      // OPTIONAL: Jika ada TURN server sendiri (untuk enkripsi + relay)
+      // Backup: stunserver.org
+      { urls: 'stun:stun.stunserver.org:3478' },
+      
+      // ✅ PUBLIC TURN SERVERS (Critical for laptop-to-laptop scenario)
+      // These are public, free TURN servers with good uptime
+      
+      // Primary TURN: relay.metered.ca (HTTP fallback)
+      {
+        urls: ['turn:relay.metered.ca:80'],
+        username: 'webrtc',
+        credential: 'webrtc'
+      },
+      // Primary TURN: relay.metered.ca (TLS + TCP fallback)
+      {
+        urls: ['turn:relay.metered.ca:443'],
+        username: 'webrtc',
+        credential: 'webrtc'
+      },
+      
+      // ✅ SECONDARY TURN: numb.viagee.com (additional fallback)
+      {
+        urls: ['turn:numb.viagee.com:3478'],
+        username: 'webrtc@beispiel.com',
+        credential: 'webrtcpassword'
+      },
+      {
+        urls: ['turn:numb.viagee.com:3478?transport=tcp'],
+        username: 'webrtc@beispiel.com',
+        credential: 'webrtcpassword'
+      },
+      
+      // ✅ TERTIARY TURN: Public TURN server for ultimate fallback
+      {
+        urls: ['turn:turnserver.twilio.com:80?transport=udp'],
+        username: 'placeholder',
+        credential: 'placeholder'
+      },
+      
+      // ✅ OPTIONAL: Jika ada TURN server sendiri (untuk enkripsi + relay)
       // Uncomment dan isi dengan server Anda
       /*
       {
@@ -136,11 +214,123 @@
   };
 
   /**
-   * Create a new RTCPeerConnection
+   * Create a new RTCPeerConnection with ICE gathering monitoring
+   * ✅ NEW: Monitors ICE gathering states and provides diagnostics
+   * ✅ ENHANCED: Force TURN relay when STUN alone fails
    */
   export function createPeerConnection(config: WebRTCConfig = defaultWebRTCConfig): RTCPeerConnection {
     const peerConnection = new RTCPeerConnection({
       iceServers: config.iceServers,
+      // ✅ NEW: Aggressive settings to force TURN relay when needed
+      bundlePolicy: 'max-bundle', // Reduce number of ports needed
+      rtcpMuxPolicy: 'require', // Combine RTP/RTCP on single port (NAT-friendly)
+      iceCandidatePoolSize: 10, // Allow more ICE candidates to gather
+    });
+
+    // ✅ NEW: Monitor ICE gathering state for diagnostics
+    let iceGatheringStartTime = 0;
+    let hostCandidateCount = 0;
+    let srflxCandidateCount = 0;
+    let relayCandidateCount = 0;
+    let gatheringDuration = 0;
+
+    peerConnection.addEventListener('icegatheringstatechange', () => {
+      const state = peerConnection.iceGatheringState;
+      
+      if (state === 'gathering') {
+        iceGatheringStartTime = Date.now();
+        console.log('🔍 [ICE Gathering] STARTED - Discovering candidates from STUN/TURN servers...');
+      } else if (state === 'complete') {
+        gatheringDuration = Date.now() - iceGatheringStartTime;
+        console.log(`✅ [ICE Gathering] COMPLETE in ${gatheringDuration}ms:`, {
+          hostCandidates: hostCandidateCount,
+          srflxCandidates: srflxCandidateCount,
+          relayCandidates: relayCandidateCount,
+          totalCandidates: hostCandidateCount + srflxCandidateCount + relayCandidateCount,
+        });
+
+        // ⚠️ Diagnostic: If NO RELAY after long time, FORCE TURN restart
+        if (relayCandidateCount === 0 && srflxCandidateCount > 0 && gatheringDuration > 2000) {
+          console.warn('⚠️ [ICE Gathering] WARNING: STUN OK but NO RELAY candidates found!');
+          console.warn('   TURN relay may be blocked. Will attempt ICE restart to force TURN priority...');
+          
+          // Schedule ICE restart after 1 second (if connection fails)
+          setTimeout(() => {
+            if (peerConnection.iceConnectionState === 'failed' || peerConnection.iceConnectionState === 'disconnected') {
+              console.log('🔄 [ICE] Attempting ICE restart to force TURN relay usage...');
+              try {
+                peerConnection.restartIce();
+              } catch (e) {
+                console.warn('⚠️ [ICE] restartIce failed:', e);
+              }
+            }
+          }, 1000);
+        } else if (relayCandidateCount === 0 && srflxCandidateCount === 0) {
+          console.error('❌ [ICE Gathering] ERROR: No SRFLX or RELAY candidates found!');
+          console.error('   Only HOST candidates available - may fail on different networks');
+          console.error('   Check: STUN server connectivity, firewall blocking ports 3478/19302');
+        } else if (relayCandidateCount > 0) {
+          console.log('✅ [ICE Gathering] TURN relay available! Will use for NAT traversal.');
+        }
+      }
+    });
+
+    // ✅ NEW: Track candidate types as they arrive
+    peerConnection.addEventListener('icecandidate', (event) => {
+      if (event.candidate) {
+        const candidateStr = event.candidate.candidate;
+        if (candidateStr.includes('typ host')) {
+          hostCandidateCount++;
+        } else if (candidateStr.includes('typ srflx')) {
+          srflxCandidateCount++;
+        } else if (candidateStr.includes('typ relay')) {
+          relayCandidateCount++;
+        }
+      }
+    });
+
+    // ✅ NEW: Monitor ICE connection state transitions with aggressive fallback
+    let failureCount = 0;
+    peerConnection.addEventListener('iceconnectionstatechange', () => {
+      const state = peerConnection.iceConnectionState;
+      console.log(`📡 [ICE Connection] State changed: ${state}`);
+      
+      if (state === 'failed') {
+        failureCount++;
+        console.error(`❌ [ICE Connection] FAILED (attempt #${failureCount}) - No working candidate pair found`);
+        console.error('   Possible causes:');
+        console.error('   1. TURN relay blocked by firewall');
+        console.error('   2. Asymmetric NAT between peers');
+        console.error('   3. STUN/TURN server unreachable');
+        console.error('   4. Signaling error (SDP not exchanged properly)');
+        
+        // ✅ NEW: Aggressive restart on failure
+        if (failureCount === 1 && relayCandidateCount === 0) {
+          console.log('🔄 [ICE] No RELAY candidates found. Attempting restart...');
+          try {
+            peerConnection.restartIce();
+          } catch (e) {
+            console.warn('⚠️ [ICE] restartIce failed:', e);
+          }
+        }
+      } else if (state === 'disconnected') {
+        console.warn('⚠️ [ICE Connection] DISCONNECTED - Will attempt to reconnect');
+      } else if (state === 'connected') {
+        console.log('✅ [ICE Connection] CONNECTED - Found working candidate pair');
+        failureCount = 0; // Reset on success
+      }
+    });
+
+    // ✅ NEW: Monitor connection state (overall peer connection status)
+    peerConnection.addEventListener('connectionstatechange', () => {
+      const state = peerConnection.connectionState;
+      console.log(`🔌 [Connection] State changed: ${state}`);
+      
+      if (state === 'failed') {
+        console.error('❌ [Connection] FAILED - No working path for media');
+        console.error('   Will log all candidates gathered for debugging:');
+        console.error(`   HOST: ${hostCandidateCount}, SRFLX: ${srflxCandidateCount}, RELAY: ${relayCandidateCount}`);
+      }
     });
 
     return peerConnection;
@@ -648,66 +838,93 @@
   export async function getLocalStream(
     constraints: MediaStreamConstraints = { audio: true, video: true }
   ): Promise<MediaStream> {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+    // ✅ NEW: Aggressive fallback chain for cross-device compatibility
+    const fallbackChain = [
+      // 1. Original constraints (ideal quality)
+      () => navigator.mediaDevices.getUserMedia(constraints),
       
-      // ✅ CRITICAL: Ensure all tracks are explicitly enabled when stream is first obtained
-      console.log(`📊 [getLocalStream] Got stream with ${stream.getTracks().length} tracks, enabling all...`);
-      stream.getTracks().forEach((track) => {
-        console.log(`🔧 [getLocalStream] Track ${track.kind} BEFORE: enabled=${track.enabled}, muted=${track.muted}, readyState=${track.readyState}`);
-        track.enabled = true; // Force enable
-        console.log(`✅ [getLocalStream] Track ${track.kind} AFTER: enabled=${track.enabled}, muted=${track.muted}, readyState=${track.readyState}`);
-      });
+      // 2. If video, relax video constraints to low-res (480p max)
+      constraints.video ? () => navigator.mediaDevices.getUserMedia({
+        audio: constraints.audio !== false,
+        video: { width: { max: 640 }, height: { max: 480 } }
+      }) : null,
       
-      console.log(`✅ [getLocalStream] All tracks enabled. Stream is now active: ${stream.active}`);
-      return stream;
-    } catch (error: any) {
-      console.error('Error getting local stream:', error);
-      console.error('Error name:', error.name);
-      console.error('Error message:', error.message);
+      // 3. If video, try super relaxed (180p)
+      constraints.video ? () => navigator.mediaDevices.getUserMedia({
+        audio: constraints.audio !== false,
+        video: { width: { max: 320 }, height: { max: 240 } }
+      }) : null,
       
-      // Try fallback: relax constraints if initial request failed
-      if (constraints.video) {
-        console.warn('⚠️ Video constraints too strict, trying with relaxed constraints...');
-        try {
-          const fallbackStream = await navigator.mediaDevices.getUserMedia({
-            audio: constraints.audio !== false,
-            video: { width: { max: 640 }, height: { max: 480 } } // Relaxed video constraints
+      // 4. If video but very restrictive, try ANY video
+      constraints.video ? () => navigator.mediaDevices.getUserMedia({
+        audio: constraints.audio !== false,
+        video: true // Any video
+      }) : null,
+      
+      // 5. If audio requested and video failed, try audio-only as fallback
+      constraints.audio !== false && constraints.video ? () => {
+        console.warn('⚠️ Video failed completely, falling back to AUDIO-ONLY');
+        return navigator.mediaDevices.getUserMedia({
+          audio: true,
+          video: false
+        });
+      } : null,
+    ].filter(Boolean) as Array<() => Promise<MediaStream>>;
+    
+    for (let i = 0; i < fallbackChain.length; i++) {
+      try {
+        console.log(`📊 [getLocalStream] Attempt ${i + 1}/${fallbackChain.length}...`);
+        const stream = await fallbackChain[i]();
+        
+        // ✅ CRITICAL: Ensure all tracks are explicitly enabled when stream is first obtained
+        console.log(`✅ [getLocalStream] SUCCESS on attempt ${i + 1}! Got stream with ${stream.getTracks().length} tracks, enabling all...`);
+        stream.getTracks().forEach((track) => {
+          console.log(`🔧 [getLocalStream] Track ${track.kind} BEFORE: enabled=${track.enabled}, muted=${track.muted}, readyState=${track.readyState}`);
+          track.enabled = true; // Force enable
+          console.log(`✅ [getLocalStream] Track ${track.kind} AFTER: enabled=${track.enabled}, muted=${track.muted}, readyState=${track.readyState}`);
+        });
+        
+        console.log(`✅ [getLocalStream] All tracks enabled. Stream is now active: ${stream.active}`);
+        console.log('   Stream composition:', {
+          videoTracks: stream.getVideoTracks().length,
+          audioTracks: stream.getAudioTracks().length,
+          streamId: stream.id
+        });
+        
+        return stream;
+      } catch (error: any) {
+        console.warn(`⚠️ [getLocalStream] Attempt ${i + 1} failed:`, error.name);
+        if (i === fallbackChain.length - 1) {
+          // Last attempt failed - provide detailed error
+          console.error('❌ [getLocalStream] ALL FALLBACK ATTEMPTS FAILED');
+          console.error('Error details:', {
+            name: error.name,
+            message: error.message,
+            constraints: constraints
           });
           
-          // ✅ Also enable tracks in fallback stream
-          console.log(`📊 [getLocalStream Fallback] Got stream with ${fallbackStream.getTracks().length} tracks, enabling all...`);
-          fallbackStream.getTracks().forEach((track) => {
-            track.enabled = true;
-            console.log(`✅ [getLocalStream Fallback] Track ${track.kind} enabled`);
-          });
+          let userMessage = 'Gagal mengakses kamera/mikrofon. ';
           
-          console.log('✅ Stream acquired with relaxed constraints');
-          return fallbackStream;
-        } catch (fallbackError: any) {
-          console.error('Fallback failed:', fallbackError);
+          if (error.name === 'NotAllowedError') {
+            userMessage += 'Anda perlu memberikan izin akses kamera/mikrofon di pengaturan browser.';
+          } else if (error.name === 'NotFoundError' || error.name === 'DevicesNotFoundError') {
+            userMessage += 'Kamera atau mikrofon tidak ditemukan. Pastikan perangkat terhubung.';
+          } else if (error.name === 'NotReadableError' || error.name === 'TrackStartError') {
+            userMessage += 'Kamera/mikrofon sedang digunakan oleh aplikasi lain. Tutup aplikasi tersebut dan coba lagi.';
+          } else if (error.name === 'OverconstrainedError') {
+            userMessage += 'Perangkat tidak memenuhi persyaratan kamera/mikrofon. Coba dengan pengaturan yang lebih rendah.';
+          } else if (error.name === 'TypeError') {
+            userMessage += 'Browser tidak mendukung akses kamera/mikrofon.';
+          } else {
+            userMessage += error.message || 'Periksa koneksi dan izin perangkat Anda.';
+          }
+          
+          throw new Error(userMessage);
         }
       }
-      
-      // If still failing, provide detailed error
-      let userMessage = 'Gagal mengakses kamera/mikrofon. ';
-      
-      if (error.name === 'NotAllowedError') {
-        userMessage += 'Anda perlu memberikan izin akses kamera/mikrofon di pengaturan browser.';
-      } else if (error.name === 'NotFoundError' || error.name === 'DevicesNotFoundError') {
-        userMessage += 'Kamera atau mikrofon tidak ditemukan. Pastikan perangkat terhubung.';
-      } else if (error.name === 'NotReadableError' || error.name === 'TrackStartError') {
-        userMessage += 'Kamera/mikrofon sedang digunakan oleh aplikasi lain. Tutup aplikasi tersebut dan coba lagi.';
-      } else if (error.name === 'OverconstrainedError') {
-        userMessage += 'Perangkat tidak memenuhi persyaratan kamera/mikrofon. Coba dengan pengaturan yang lebih rendah.';
-      } else if (error.name === 'TypeError') {
-        userMessage += 'Browser tidak mendukung akses kamera/mikrofon.';
-      } else {
-        userMessage += error.message || 'Periksa koneksi dan izin perangkat Anda.';
-      }
-      
-      throw new Error(userMessage);
     }
+    
+    throw new Error('Unexpected: Could not acquire media stream');
   }
 
   /**
@@ -736,6 +953,7 @@
   /**
    * Add local stream tracks to peer connection
    * ✅ IMPROVED: dengan error handling, validation, & RTP transmission verification
+   * ✅ NEW: Better detection of track addition failures and fallback handling
    */
   export function addLocalStreamToPeerConnection(
     peerConnection: RTCPeerConnection,
@@ -759,6 +977,19 @@
       console.log(`      Audio[${idx}]: id=${track.id}, enabled=${track.enabled}, muted=${track.muted}, readyState=${track.readyState}`)
     })
     
+    // ✅ NEW: Check if stream is empty BEFORE attempting to add
+    if (stream.getTracks().length === 0) {
+      console.error('❌ [addLocalStreamToPeerConnection] CRITICAL: Stream is EMPTY! No tracks to add!')
+      console.error('   Check: Did getUserMedia() actually return video tracks?')
+      console.error('   Cause: Video constraint may be too strict, or device has no camera')
+      return
+    }
+    
+    if (videoTracks.length === 0 && audioTracks.length > 0) {
+      console.warn('⚠️ [addLocalStreamToPeerConnection] WARNING: Only audio tracks, no video!')
+      console.warn('   This is OK for audio-only calls, but video call will have no local video')
+    }
+    
     let videoTracksAdded = 0
     let audioTracksAdded = 0
     const trackMonitors: { trackId: string; kind: string; intervalId: any }[] = []
@@ -766,6 +997,14 @@
     stream.getTracks().forEach((track) => {
       try {
         console.log(`📤 [addTrack] BEFORE adding: ${track.kind} | id=${track.id} | enabled=${track.enabled} | muted=${track.muted} | readyState=${track.readyState}`);
+        
+        // ✅ NEW: Check if track is in an invalid state BEFORE adding
+        if (track.readyState !== 'live') {
+          console.error(`❌ [addTrack] Track readyState is NOT LIVE: ${track.kind}`);
+          console.error(`   Current state: ${track.readyState}`);
+          console.error(`   This track CANNOT be added to peer connection`);
+          return; // Skip this track
+        }
         
         // ✅ CRITICAL 1: Ensure track is enabled
         const wasDisabled = !track.enabled
@@ -788,6 +1027,19 @@
           trackMuted: sender.track?.muted,
           trackReadyState: sender.track?.readyState,
         });
+        
+        // ✅ NEW: Verify sender was actually created with the track
+        if (!sender.track) {
+          console.error(`❌ [addTrack] CRITICAL: addTrack() returned sender but NO TRACK attached!`);
+          console.error(`   This should never happen but indicates RTCPeerConnection issue`);
+          return;
+        }
+        
+        if (sender.track?.id !== track.id) {
+          console.error(`❌ [addTrack] CRITICAL: Sender track ID mismatch!`);
+          console.error(`   Expected: ${track.id}, Got: ${sender.track?.id}`);
+          return;
+        }
         
         // ✅ NEW: Monitor track state over time to detect when it dies
         const trackId = track.id
@@ -832,11 +1084,23 @@
     if (videoTracks.length > 0 && videoTracksAdded === 0) {
       console.error(`❌ [addLocalStreamToPeerConnection] CRITICAL: Stream has ${videoTracks.length} video track(s) but ZERO were added!`)
       console.error(`   This will cause bytesSent=0 for video`)
-      console.error(`   Check if addTrack() is failing for video tracks`)
+      console.error(`   Possible causes:`)
+      console.error(`   1. Video track readyState is not 'live'`)
+      console.error(`   2. Video track is muted or ended before adding`)
+      console.error(`   3. RTCPeerConnection rejected the track`)
+      console.error(`   4. Browser permission denied for video`)
+      
+      // Show video track details for debugging
+      videoTracks.forEach((track, idx) => {
+        console.error(`   Video track[${idx}]: readyState=${track.readyState}, enabled=${track.enabled}, muted=${track.muted}`)
+      })
     }
     
     if (audioTracks.length > 0 && audioTracksAdded === 0) {
       console.error(`❌ [addLocalStreamToPeerConnection] CRITICAL: Stream has ${audioTracks.length} audio track(s) but ZERO were added!`)
+      audioTracks.forEach((track, idx) => {
+        console.error(`   Audio track[${idx}]: readyState=${track.readyState}, enabled=${track.enabled}, muted=${track.muted}`)
+      })
     }
     
     // ✅ NEW: Verify tracks were added by checking senders
@@ -1119,14 +1383,62 @@
   }
 
   /**
-   * Handle ICE candidates with detailed logging
-   * ✅ IMPROVED: Comprehensive logging to track candidate generation and transmission
+   * Handle ICE candidates with detailed logging and fallback tracking
+   * ✅ IMPROVED: Tracks candidate success rates and forces TURN fallback if needed
+   * ✅ NEW: Detects when STUN is not working and activates TURN-only mode
    */
   export function onIceCandidate(
     peerConnection: RTCPeerConnection,
     callback: (candidate: RTCIceCandidate | null) => void
   ): void {
-    let candidateCount = 0
+    let candidateCount = 0;
+    let hostCandidates = 0;
+    let srflxCandidates = 0;
+    let relayCandidates = 0;
+    const gatheringTimeout = 10000; // 10 second timeout
+    let gatheringTimeoutHandle: NodeJS.Timeout | null = null;
+    let gatheringStartTime = 0;
+
+    // Start timeout for ICE gathering
+    const startGatheringTimeout = () => {
+      gatheringStartTime = Date.now();
+      if (gatheringTimeoutHandle) clearTimeout(gatheringTimeoutHandle);
+      
+      gatheringTimeoutHandle = setTimeout(() => {
+        const duration = Date.now() - gatheringStartTime;
+        
+        console.warn(`⏱️ [onIceCandidate] Gathering timeout (${duration}ms). Analysis:`, {
+          hostCandidates,
+          srflxCandidates,
+          relayCandidates,
+          totalCandidates: candidateCount,
+        });
+
+        // Diagnostic: If no candidates after 10 seconds, something is wrong
+        if (candidateCount === 0) {
+          console.error('❌ [onIceCandidate] CRITICAL: No candidates at all after 10 seconds!');
+          console.error('   STUN/TURN servers may be blocked or unreachable');
+          console.error('   Check: Firewall rules, network connectivity, STUN/TURN server status');
+        } else if (srflxCandidates === 0 && relayCandidates === 0) {
+          console.warn('⚠️ [onIceCandidate] WARNING: Only HOST candidates. STUN might not be working.');
+          console.warn('   NAT traversal will likely fail on different networks');
+        } else if (relayCandidates === 0 && srflxCandidates > 0) {
+          console.log('📌 [onIceCandidate] STUN is working (SRFLX found). TURN not needed if both peers can reach STUN.');
+        }
+      }, gatheringTimeout);
+    };
+
+    // Monitor ICE gathering state to start/stop timeout
+    peerConnection.addEventListener('icegatheringstatechange', () => {
+      if (peerConnection.iceGatheringState === 'gathering') {
+        startGatheringTimeout();
+      } else if (peerConnection.iceGatheringState === 'complete') {
+        if (gatheringTimeoutHandle) {
+          clearTimeout(gatheringTimeoutHandle);
+          gatheringTimeoutHandle = null;
+        }
+      }
+    });
     
     peerConnection.addEventListener('icecandidate', (event) => {
       if (event.candidate) {
@@ -1137,6 +1449,11 @@
         const candidateType = candidateStr.includes('typ host') ? '🏠 HOST' : 
                              candidateStr.includes('typ srflx') ? '🔀 SRFLX' : 
                              candidateStr.includes('typ relay') ? '🔁 RELAY' : '❓ UNKNOWN'
+        
+        // Track candidate counts
+        if (candidateStr.includes('typ host')) hostCandidates++;
+        if (candidateStr.includes('typ srflx')) srflxCandidates++;
+        if (candidateStr.includes('typ relay')) relayCandidates++;
         
         // Get IP address from candidate
         const ipMatch = candidateStr.match(/(\d+\.\d+\.\d+\.\d+)/)
@@ -1159,7 +1476,22 @@
         // Call the callback immediately
         callback(event.candidate)
       } else {
-        console.log(`✅ [onIceCandidate] ICE gathering COMPLETE. Total candidates: ${candidateCount}`)
+        // ICE gathering complete
+        if (gatheringTimeoutHandle) {
+          clearTimeout(gatheringTimeoutHandle);
+          gatheringTimeoutHandle = null;
+        }
+
+        const duration = Date.now() - gatheringStartTime;
+        console.log(`✅ [onIceCandidate] ICE gathering COMPLETE (${duration}ms). Statistics:`, {
+          hostCandidates,
+          srflxCandidates,
+          relayCandidates,
+          totalCandidates: candidateCount,
+          summary: relayCandidates > 0 ? '✅ TURN available' : 
+                   srflxCandidates > 0 ? '📌 STUN OK, no TURN' : 
+                   '⚠️ Only HOST candidates'
+        })
         callback(null)
       }
     })

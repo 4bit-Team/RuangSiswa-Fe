@@ -128,6 +128,8 @@ const ChatBKPage: React.FC = () => {
   const [hasRemoteStream, setHasRemoteStream] = useState(false)
   const [localStream, setLocalStream] = useState<MediaStream | null>(null)
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null)
+  const [isRemoteMuted, setIsRemoteMuted] = useState(false)
+  const [isRemoteVideoOff, setIsRemoteVideoOff] = useState(false)
   const peerConnectionRef = useRef<RTCPeerConnection | null>(null)
   const localVideoRef = useRef<HTMLVideoElement | null>(null)
   const remoteVideoRef = useRef<HTMLVideoElement | null>(null)
@@ -418,6 +420,31 @@ const ChatBKPage: React.FC = () => {
       }
     }
   }, [user, token, authLoading])
+
+  // Restore call state from sessionStorage on mount
+  useEffect(() => {
+    const savedCallState = sessionStorage.getItem('activeCallState')
+    if (savedCallState) {
+      try {
+        const callState = JSON.parse(savedCallState)
+        setActiveCall(callState)
+        console.log('✅ [ChatBK] Restored call state from sessionStorage:', callState)
+      } catch (error) {
+        console.error('❌ [ChatBK] Error restoring call state:', error)
+        sessionStorage.removeItem('activeCallState')
+      }
+    }
+  }, [])
+
+  // Save activeCall state to sessionStorage
+  useEffect(() => {
+    if (activeCall) {
+      sessionStorage.setItem('activeCallState', JSON.stringify(activeCall))
+      console.log('💾 [ChatBK] Saved call state to sessionStorage')
+    } else {
+      sessionStorage.removeItem('activeCallState')
+    }
+  }, [activeCall])
 
   // Fetch conversations on mount
   useEffect(() => {
@@ -829,6 +856,27 @@ const ChatBKPage: React.FC = () => {
           videoTracks: (stream as MediaStream).getVideoTracks().length,
           audioTracks: (stream as MediaStream).getAudioTracks().length,
           streamId: (stream as MediaStream).id,
+        })
+        
+        // ✅ NEW: Validate stream IMMEDIATELY after getting it
+        const videoTracks = (stream as MediaStream).getVideoTracks()
+        const audioTracks = (stream as MediaStream).getAudioTracks()
+        
+        if (callType === 'video' && videoTracks.length === 0) {
+          console.error('❌ [ChatBKPage] CRITICAL: Got stream but NO VIDEO TRACKS!')
+          alert('Gagal mendapatkan akses kamera. Pastikan kamera tersambung dan izin diberikan.')
+          throw new Error('Video stream has no video tracks')
+        }
+        
+        if (audioTracks.length === 0) {
+          console.error('❌ [ChatBKPage] CRITICAL: Got stream but NO AUDIO TRACKS!')
+          alert('Gagal mendapatkan akses mikrofon. Pastikan mikrofon tersambung dan izin diberikan.')
+          throw new Error('Stream has no audio tracks')
+        }
+        
+        console.log('✅ [ChatBKPage] Stream validation PASSED:', {
+          hasVideo: videoTracks.length > 0,
+          hasAudio: audioTracks.length > 0,
         })
         
         // ✅ CRITICAL: Store the EXACT same stream reference
@@ -1749,6 +1797,8 @@ const ChatBKPage: React.FC = () => {
           isConnected={isConnected}
           callDuration={callDuration}
           hasRemoteStream={hasRemoteStream}
+          isRemoteMuted={isRemoteMuted}
+          isRemoteVideoOff={isRemoteVideoOff}
         />
       )}
 

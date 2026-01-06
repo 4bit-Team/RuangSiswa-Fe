@@ -128,19 +128,94 @@ const DaftarSiswaPage: React.FC = () => {
       const response = await apiRequest(`/users/students/by-jurusan?jurusanIds=${encodeURIComponent(jurusanIdsParam)}`, 'GET', undefined, token);
       
       if (Array.isArray(response)) {
+        // Fetch all reservasi for all students at once
+        const studentIds = response.map((s: any) => s.id);
+        const reservasiMap: { [key: number]: any[] } = {};
+        
+        // Fetch reservasi for each student
+        await Promise.all(
+          studentIds.map(async (id: number) => {
+            try {
+              const reservasiResponse = await apiRequest(`/reservasi/student/${id}`, 'GET', undefined, token);
+              if (Array.isArray(reservasiResponse)) {
+                reservasiMap[id] = reservasiResponse;
+              }
+            } catch (error) {
+              reservasiMap[id] = [];
+            }
+          })
+        );
+
+        // Fetch all student cards for NISN
+        const studentCardMap: { [key: number]: string } = {};
+        
+        await Promise.all(
+          studentIds.map(async (id: number) => {
+            try {
+              const cardResponse = await apiRequest(`/student-card/by-user/${id}`, 'GET', undefined, token);
+              if (cardResponse && cardResponse.extracted_data && cardResponse.extracted_data.nisn) {
+                studentCardMap[id] = cardResponse.extracted_data.nisn;
+              } else {
+                studentCardMap[id] = 'N/A';
+              }
+            } catch (error) {
+              studentCardMap[id] = 'N/A';
+            }
+          })
+        );
+
         // Transform API response to StudentRowProps format
-        const transformedStudents = response.map((student: any, idx: number) => ({
-          id: student.id,
-          name: student.fullName || 'N/A',
-          nisn: student.username || 'N/A',
-          class: student.kelas_lengkap || student.kelas?.nama || 'N/A',
-          status: 'Active' as const,
-          issue: ['Karir', 'Akademik', 'Sosial'][idx % 3] as any,
-          sessions: `${Math.floor(Math.random() * 10) + 1}x`,
-          lastDate: `${Math.floor(Math.random() * 29) + 1} Nov 2025`,
-          initial: (student.fullName || 'A')[0],
-          bgColor: ['bg-indigo-600', 'bg-purple-600', 'bg-blue-600', 'bg-green-600', 'bg-pink-600'][idx % 5],
-        }));
+        const transformedStudents = response.map((student: any, idx: number) => {
+          const reservasi = reservasiMap[student.id] || [];
+          const completedSessions = reservasi.filter((r: any) => r.status === 'completed');
+          
+          // Count sessions
+          const sessionCount = completedSessions.length;
+          
+          // Get last date from most recent completed session
+          let lastDate = 'N/A';
+          if (completedSessions.length > 0) {
+            const lastSession = completedSessions.sort((a: any, b: any) => {
+              const dateA = new Date(a.completedAt || a.preferredDate).getTime();
+              const dateB = new Date(b.completedAt || b.preferredDate).getTime();
+              return dateB - dateA;
+            })[0];
+            const date = new Date(lastSession.completedAt || lastSession.preferredDate);
+            lastDate = `${date.getDate()} ${['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][date.getMonth()]} ${date.getFullYear()}`;
+          }
+          
+          // Get most common issue/masalah
+          let mostCommonIssue: 'Karir' | 'Akademik' | 'Sosial' = 'Akademik';
+          if (completedSessions.length > 0) {
+            const issueMap: { [key: string]: number } = {};
+            completedSessions.forEach((r: any) => {
+              const masalah = r.topic || r.masalah || r.kategori || 'Akademik';
+              issueMap[masalah] = (issueMap[masalah] || 0) + 1;
+            });
+            
+            const topIssue = Object.keys(issueMap).reduce((a, b) => 
+              issueMap[a] > issueMap[b] ? a : b
+            );
+            
+            // Map to standard issue types
+            if (topIssue.toLowerCase().includes('karir')) mostCommonIssue = 'Karir';
+            else if (topIssue.toLowerCase().includes('akademik')) mostCommonIssue = 'Akademik';
+            else if (topIssue.toLowerCase().includes('sosial')) mostCommonIssue = 'Sosial';
+          }
+          
+          return {
+            id: student.id,
+            name: student.username || 'N/A',
+            nisn: studentCardMap[student.id] || 'N/A',
+            class: student.kelas_lengkap || student.kelas?.nama || 'N/A',
+            status: (sessionCount > 0 ? 'Active' : 'Need Attention') as 'Active' | 'Need Attention',
+            issue: mostCommonIssue,
+            sessions: `${sessionCount}x`,
+            lastDate: lastDate,
+            initial: (student.fullName || student.username || 'A')[0].toUpperCase(),
+            bgColor: ['bg-indigo-600', 'bg-purple-600', 'bg-blue-600', 'bg-green-600', 'bg-pink-600'][idx % 5],
+          };
+        });
         setStudents(transformedStudents);
       }
     } catch (error) {
