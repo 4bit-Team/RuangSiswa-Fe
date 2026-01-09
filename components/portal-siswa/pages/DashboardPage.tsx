@@ -140,7 +140,7 @@ const DashboardPage: React.FC<{ setActivePage?: (page: string) => void }> = ({ s
     <>
       <div className="space-y-6">
         <div className="bg-gradient-to-r from-blue-500 to-purple-600 rounded-2xl p-8 text-white">
-          <h2 className="text-2xl font-bold mb-2">Selamat Datang di Portal BK! 👋</h2>
+          <h2 className="text-2xl font-bold mb-2">Selamat Datang di RuangSiswa! 👋</h2>
           <p className="text-blue-50">Tempat yang aman untuk berbagi, berkonsultasi, dan berkembang bersama</p>
         </div>
 

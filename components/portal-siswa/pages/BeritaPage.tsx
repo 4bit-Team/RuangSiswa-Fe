@@ -330,14 +330,6 @@ Waktu adalah aset terberharga. Gunakan dengan bijak!`,
   return (
     <>
       <div className="space-y-6">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-3xl font-bold text-gray-900">Berita & Artikel BK</h2>
-            <p className="text-gray-600 mt-1">Baca artikel dan tips dari konselor BK</p>
-          </div>
-        </div>
-
         {/* Filter Kategori */}
         <div className="space-y-3 bg-white rounded-xl border border-gray-200 p-4">
           <h3 className="text-sm font-semibold text-gray-700">Filter Kategori</h3>

@@ -39,14 +39,9 @@ const Header: React.FC<HeaderProps & { onToggleSidebar?: () => void }> = ({ titl
             </button>
 
             <div>
-              <h1 className="text-lg md:text-2xl font-bold text-gray-900">Bimbingan Konseling</h1>
-              <div className="flex items-center gap-4">
-                <p className="text-sm text-gray-500">Portal Siswa</p>
-                {/* show page-specific title if provided */}
-                {title && <span className="text-sm font-medium text-gray-700">· {title}</span>}
-              </div>
+              <h1 className="text-lg md:text-2xl font-bold text-gray-900">{title || 'Dashboard'}</h1>
               {/* hide subtitle on small screens to reduce crowding */}
-              {subtitle && <p className="hidden md:block text-xs text-gray-400">{subtitle}</p>}
+              {subtitle && <p className="hidden md:block text-sm text-gray-500 mt-1">{subtitle}</p>}
             </div>
           </div>
         </div>

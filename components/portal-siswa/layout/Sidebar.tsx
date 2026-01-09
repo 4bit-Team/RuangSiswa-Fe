@@ -105,8 +105,8 @@ const Sidebar: React.FC<SidebarProps> = ({ pathname = '' }) => {
                 <Heart className="w-5 h-5 text-white" fill="white" />
               </div>
               <div>
-                <h2 className="font-semibold">BK Portal</h2>
-                <p className="text-xs text-gray-500">Sekolah Anda</p>
+                <h2 className="font-semibold">Portal Siswa</h2>
+                <p className="text-xs text-gray-500">SMKN 1 Cibinong</p>
               </div>
             </div>
             <button className="p-2 rounded-md hover:bg-gray-100" onClick={() => setIsOpen(false)} aria-label="Close sidebar">
@@ -114,7 +114,7 @@ const Sidebar: React.FC<SidebarProps> = ({ pathname = '' }) => {
             </button>
           </div>
 
-          {navContent}
+          {navContent}s
         </div>
       </div>
 
@@ -127,8 +127,8 @@ const Sidebar: React.FC<SidebarProps> = ({ pathname = '' }) => {
               <Heart className="w-6 h-6 text-white" fill="white" />
             </div>
             <div>
-              <h1 className="font-bold text-gray-900">BK Portal</h1>
-              <p className="text-xs text-gray-500">Sekolah Anda</p>
+              <h1 className="font-bold text-gray-900">Portal Siswa</h1>
+              <p className="text-xs text-gray-500">SMKN 1 Cibinong</p>
             </div>
           </div>
         </div>

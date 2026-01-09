@@ -166,16 +166,13 @@ const StatusBimbinganPage: React.FC = () => {
   return (
     <div className="pt-16 px-8 space-y-6">
       <div className="bg-white rounded-xl border border-gray-200 p-6">
-        {/* Header */}
-        <div className="bg-gradient-to-r from-purple-500 to-pink-500 rounded-2xl p-8 text-white">
+        {/* Stats Banner */}
+        <div className="bg-gradient-to-r from-purple-500 to-pink-500 rounded-2xl p-6 text-white">
           <div className="flex items-center gap-4">
-            <div className="w-16 h-16 bg-white/20 rounded-xl flex items-center justify-center">
-              <BookOpen className="w-8 h-8" />
+            <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
+              <BookOpen className="w-6 h-6" />
             </div>
-            <div>
-              <h2 className="text-3xl font-bold mb-2">Status Bimbingan</h2>
-              <p className="text-pink-50">Progres dan riwayat sesi bimbingan Anda dengan konselor BK</p>
-            </div>
+            <p className="text-pink-50">Progres dan riwayat sesi bimbingan Anda dengan konselor BK</p>
           </div>
         </div>
 

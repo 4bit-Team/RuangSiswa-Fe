@@ -328,13 +328,8 @@ const KonsultasiPage: React.FC<{ setActivePage?: (page: string) => void }> = ({ 
 
   return (
     <div className="bg-gray-50 min-h-screen py-6">
-      {/* Header */}
+      {/* Content */}
       <div className="max-w-7xl mx-auto px-4 mb-8">
-        <div className="mb-6">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Konsultasi Terbuka</h1>
-          <p className="text-gray-600">Tanya jawab dengan komunitas siswa dan konselor BK</p>
-        </div>
-
         {/* Search & Action */}
         <div className="flex gap-3 mb-6">
           <div className="flex-1 relative">
