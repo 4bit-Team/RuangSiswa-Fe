@@ -70,12 +70,12 @@ const Sidebar: React.FC<SidebarProps> = ({ pathname = '' }) => {
     <>
       <nav className="flex-1 p-4 space-y-1">
         <SidebarItem icon={Home} label="Dashboard" active={pathname === '/home/siswa' || pathname === '/home/siswa/'} href="/home/siswa" onClick={() => setIsOpen(false)} />
-        <SidebarItem icon={User} label="Berita" active={pathname === '/home/siswa/berita'} href="/home/siswa/berita" onClick={() => setIsOpen(false)} />
-        <SidebarItem icon={Heart} label="Konseling" active={pathname === '/home/siswa/konseling'} href="/home/siswa/konseling" onClick={() => setIsOpen(false)} />
-        <SidebarItem icon={MessageCircle} label="Konsultasi" active={pathname === '/home/siswa/konsultasi'} href="/home/siswa/konsultasi" onClick={() => setIsOpen(false)} />
-        <SidebarItem icon={Calendar} label="Reservasi Saya" active={pathname === '/home/siswa/reservasi'} href="/home/siswa/reservasi" onClick={() => setIsOpen(false)} />
-        <SidebarItem icon={MessageSquare} label="Chat BK" active={pathname === '/home/siswa/chat'} href="/home/siswa/chat" onClick={() => setIsOpen(false)} />
-        <SidebarItem icon={User} label="Profil" active={pathname === '/home/siswa/profil'} href="/home/siswa/profil" onClick={() => setIsOpen(false)} />
+        <SidebarItem icon={User} label="Berita" active={pathname.startsWith('/home/siswa/berita')} href="/home/siswa/berita" onClick={() => setIsOpen(false)} />
+        <SidebarItem icon={Heart} label="Konseling" active={pathname.startsWith('/home/siswa/konseling')} href="/home/siswa/konseling" onClick={() => setIsOpen(false)} />
+        <SidebarItem icon={MessageCircle} label="Konsultasi" active={pathname.startsWith('/home/siswa/konsultasi')} href="/home/siswa/konsultasi" onClick={() => setIsOpen(false)} />
+        <SidebarItem icon={Calendar} label="Reservasi Saya" active={pathname.startsWith('/home/siswa/reservasi')} href="/home/siswa/reservasi" onClick={() => setIsOpen(false)} />
+        <SidebarItem icon={MessageSquare} label="Chat BK" active={pathname.startsWith('/home/siswa/chat')} href="/home/siswa/chat" onClick={() => setIsOpen(false)} />
+        <SidebarItem icon={User} label="Profil" active={pathname.startsWith('/home/siswa/profil')} href="/home/siswa/profil" onClick={() => setIsOpen(false)} />
       </nav>
 
       <div className="p-4 border-t border-gray-200">

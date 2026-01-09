@@ -24,11 +24,11 @@ const SiswaLayout: React.FC<LayoutProps> = ({ children }) => {
   const [userProfile, setUserProfile] = useState<any>(null)
   const pathname = usePathname()
 
-  React.useEffect(() => {
-    verifyAuthOrRedirect().then((user) => {
-      if (user) setUserProfile(user)
-    })
-  }, [])
+  // React.useEffect(() => {
+  //   verifyAuthOrRedirect().then((user) => {
+  //     if (user) setUserProfile(user)
+  //   })
+  // }, [])
 
   const header = useMemo(() => {
     // Try exact match first

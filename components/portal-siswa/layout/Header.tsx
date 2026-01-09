@@ -81,9 +81,8 @@ const Header: React.FC<HeaderProps & { onToggleSidebar?: () => void }> = ({ titl
                     </div>
                   </div>
                 </div>
-                <div className="border-t border-gray-100 px-3 py-2 bg-gray-50 flex gap-2">
-                  <a href="/portal-bk/profil" className="flex-1 text-center text-sm py-2 rounded-md hover:bg-gray-100">Lihat Profil</a>
-                  <a href="/portal-bk/profil" className="flex-1 text-center text-sm py-2 rounded-md bg-white border border-gray-200 hover:bg-gray-50">Edit Profil</a>
+                <div className="border-t border-gray-100 px-3 py-1 bg-gray-50 flex gap-2">
+                  <a href="/home/siswa/profil" className="flex-1 text-center text-sm py-2 rounded-md hover:bg-gray-100">Lihat Profil</a>
                 </div>
               </div>
             )}
