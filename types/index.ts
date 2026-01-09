@@ -248,3 +248,50 @@ export interface Schedule {
   initial: string
   bgColor: string
 }
+
+// Laporan BK Interfaces
+export interface LaporanBk {
+  id: number;
+  namaKonseling: string;
+  jurusanId?: number;
+  kelasId?: number;
+  tanggalDiprosesAiBk: string;
+  deskripsiKasusMasalah: string;
+  bentukPenanganganSebelumnya?: string;
+  riwayatSpDanKasus?: string;
+  layananBk?: string;
+  followUpTindakanBk?: string;
+  penahanganGuruBkKonselingProsesPembinaan?: string;
+  pertemuanKe1?: string;
+  pertemuanKe2?: string;
+  pertemuanKe3?: string;
+  hasilPemantauanKeterangan?: string;
+  guruBkYangMenanganiId?: number;
+  statusPerkembanganPesertaDidik?: string;
+  keteranganKetersedianDokumen?: string;
+  jurusan?: { id: number; nama: string };
+  kelas?: { id: number; nama: string };
+  guruBkYangMenanganis?: { id: number; nama: string };
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface LaporanBkFormData {
+  namaKonseling: string;
+  jurusanId?: number;
+  kelasId?: number;
+  tanggalDiprosesAiBk: string;
+  deskripsiKasusMasalah: string;
+  bentukPenanganganSebelumnya?: string;
+  riwayatSpDanKasus?: string;
+  layananBk?: string;
+  followUpTindakanBk?: string;
+  penahanganGuruBkKonselingProsesPembinaan?: string;
+  pertemuanKe1?: string;
+  pertemuanKe2?: string;
+  pertemuanKe3?: string;
+  hasilPemantauanKeterangan?: string;
+  guruBkYangMenanganiId?: number;
+  statusPerkembanganPesertaDidik?: string;
+  keteranganKetersedianDokumen?: string;
+}

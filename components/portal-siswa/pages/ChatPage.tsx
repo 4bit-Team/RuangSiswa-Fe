@@ -112,6 +112,8 @@ const ChatPage: React.FC = () => {
   const [hasRemoteStream, setHasRemoteStream] = useState(false)
   const [localStream, setLocalStream] = useState<MediaStream | null>(null)
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null)
+  const [isRemoteMuted, setIsRemoteMuted] = useState(false)
+  const [isRemoteVideoOff, setIsRemoteVideoOff] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const socketRef = useRef<Socket | null>(null)
   const callSocketRef = useRef<Socket | null>(null)
@@ -477,6 +479,31 @@ const ChatPage: React.FC = () => {
       }
     }
   }, [user, token, authLoading])
+
+  // Restore call state from sessionStorage on mount
+  useEffect(() => {
+    const savedCallState = sessionStorage.getItem('activeCallState')
+    if (savedCallState) {
+      try {
+        const callState = JSON.parse(savedCallState)
+        setActiveCall(callState)
+        console.log('✅ [Chat] Restored call state from sessionStorage:', callState)
+      } catch (error) {
+        console.error('❌ [Chat] Error restoring call state:', error)
+        sessionStorage.removeItem('activeCallState')
+      }
+    }
+  }, [])
+
+  // Save activeCall state to sessionStorage
+  useEffect(() => {
+    if (activeCall) {
+      sessionStorage.setItem('activeCallState', JSON.stringify(activeCall))
+      console.log('💾 [Chat] Saved call state to sessionStorage')
+    } else {
+      sessionStorage.removeItem('activeCallState')
+    }
+  }, [activeCall])
 
   // Fetch conversations on mount
   useEffect(() => {
@@ -893,6 +920,27 @@ const ChatPage: React.FC = () => {
           videoTracks: (stream as MediaStream).getVideoTracks().length,
           audioTracks: (stream as MediaStream).getAudioTracks().length,
           streamId: (stream as MediaStream).id,
+        })
+        
+        // ✅ NEW: Validate stream IMMEDIATELY after getting it
+        const videoTracks = (stream as MediaStream).getVideoTracks()
+        const audioTracks = (stream as MediaStream).getAudioTracks()
+        
+        if (callType === 'video' && videoTracks.length === 0) {
+          console.error('❌ [ChatPage] CRITICAL: Got stream but NO VIDEO TRACKS!')
+          alert('Gagal mendapatkan akses kamera. Pastikan kamera tersambung dan izin diberikan.')
+          throw new Error('Video stream has no video tracks')
+        }
+        
+        if (audioTracks.length === 0) {
+          console.error('❌ [ChatPage] CRITICAL: Got stream but NO AUDIO TRACKS!')
+          alert('Gagal mendapatkan akses mikrofon. Pastikan mikrofon tersambung dan izin diberikan.')
+          throw new Error('Stream has no audio tracks')
+        }
+        
+        console.log('✅ [ChatPage] Stream validation PASSED:', {
+          hasVideo: videoTracks.length > 0,
+          hasAudio: audioTracks.length > 0,
         })
         
         // ✅ CRITICAL: Store the EXACT same stream reference
@@ -1829,6 +1877,8 @@ const ChatPage: React.FC = () => {
           isConnected={isConnected}
           callDuration={callDuration}
           hasRemoteStream={hasRemoteStream}
+          isRemoteMuted={isRemoteMuted}
+          isRemoteVideoOff={isRemoteVideoOff}
         />
       )}
 
