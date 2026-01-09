@@ -136,7 +136,6 @@ const LoginPage: React.FC = () => {
   const features = [
     { icon: <Zap className="w-5 h-5" />, text: "Akses Real-time" },
     { icon: <Shield className="w-5 h-5" />, text: "Keamanan Terjamin" },
-    { icon: <BookOpen className="w-5 h-5" />, text: "14+ Modul Terintegrasi" },
   ];
 
   return (
@@ -167,11 +166,11 @@ const LoginPage: React.FC = () => {
               <h2 className="text-4xl font-bold text-gray-900 leading-tight">
                 Selamat Datang di
                 <span className="block bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-                  Portal Digital SMK
+                  Portal RuangSiswa
                 </span>
               </h2>
               <p className="text-lg text-gray-600 leading-relaxed">
-                Sistem Informasi Pengembangan Kompetensi & Kesejahteraan Siswa yang terintegrasi
+                Sistem terpadu Kesiswaan dan BK untuk memantau kondisi siswa serta menyediakan layanan konseling di sekolah.
               </p>
             </div>
           </div>
