@@ -42,13 +42,16 @@ const CallUI: React.FC<CallUIProps> = ({
   const [hasLocalStream, setHasLocalStream] = useState(false)
   const [hasRemote, setHasRemote] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
+  const [isMirrored, setIsMirrored] = useState(false)
   const [videoDevices, setVideoDevices] = useState<MediaDeviceInfo[]>([])
   const [audioInputDevices, setAudioInputDevices] = useState<MediaDeviceInfo[]>([])
   const [audioOutputDevices, setAudioOutputDevices] = useState<MediaDeviceInfo[]>([])
   const [selectedVideoDevice, setSelectedVideoDevice] = useState<string>('')
   const [selectedAudioInput, setSelectedAudioInput] = useState<string>('')
   const [selectedAudioOutput, setSelectedAudioOutput] = useState<string>('')
+  const [isClosing, setIsClosing] = useState(false)
   const connectionTimeRef = useRef<number | null>(null)
+  const settingsModalRef = useRef<HTMLDivElement>(null)
 
   // Load available devices
   useEffect(() => {
@@ -64,6 +67,20 @@ const CallUI: React.FC<CallUIProps> = ({
     }
     loadDevices()
   }, [])
+
+  // Handle click outside settings modal
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (settingsModalRef.current && !settingsModalRef.current.contains(event.target as Node)) {
+        setShowSettings(false)
+      }
+    }
+
+    if (showSettings) {
+      document.addEventListener('mousedown', handleClickOutside)
+      return () => document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [showSettings])
 
   // Attach local stream
   useEffect(() => {
@@ -420,6 +437,14 @@ const CallUI: React.FC<CallUIProps> = ({
     }
   }
 
+  const handleHangup = () => {
+    setIsClosing(true)
+    // Wait for fade out animation to complete (500ms) then call onHangup
+    setTimeout(() => {
+      onHangup()
+    }, 500)
+  }
+
   // Prevent page unload
   useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
@@ -435,7 +460,9 @@ const CallUI: React.FC<CallUIProps> = ({
   }, [isConnected])
 
   return (
-    <div className="fixed inset-0 bg-black z-50 flex flex-col">
+    <div className={`fixed inset-0 bg-black z-50 flex flex-col transition-opacity duration-500 ${
+      isClosing ? 'opacity-0' : 'opacity-100'
+    }`}>
       {/* Video Call UI */}
       {callType === 'video' ? (
         <div className="flex-1 relative bg-black overflow-hidden">
@@ -497,6 +524,9 @@ const CallUI: React.FC<CallUIProps> = ({
               className={`w-full h-full object-cover ${
                 localStream && isVideoOn ? 'block' : 'hidden'
               }`}
+              style={{
+                transform: isMirrored ? 'scaleX(-1)' : 'scaleX(1)',
+              }}
             />
             {!(localStream && isVideoOn) && (
               <div className="absolute inset-0 w-full h-full bg-gradient-to-br from-gray-800 to-gray-900 flex flex-col items-center justify-center p-4">
@@ -546,7 +576,7 @@ const CallUI: React.FC<CallUIProps> = ({
             <div className="relative z-10 text-center px-4">
               <div className="w-32 h-32 md:w-40 md:h-40 bg-white/20 rounded-full flex items-center justify-center mb-6 md:mb-8 animate-pulse backdrop-blur-sm">
                 <div className="w-24 h-24 md:w-32 md:h-32 bg-white/30 rounded-full flex items-center justify-center">
-                  <Mic className="w-12 h-12 md:w-16 md:h-16 text-white" />
+                  <Mic className="w-12 h-12 md:w-16 md:h-16 text-white flex-shrink-0" />
                 </div>
               </div>
 
@@ -583,67 +613,6 @@ const CallUI: React.FC<CallUIProps> = ({
           aria-label="Pengaturan"
         >
           <MoreVertical className="w-7 h-7 text-white" />
-          
-          {/* Settings Dropdown */}
-          {showSettings && (
-            <div className="absolute bottom-20 left-1/2 transform -translate-x-1/2 bg-gray-900 border border-gray-700 rounded-lg shadow-2xl p-4 w-80 z-50 backdrop-blur-sm">
-              <h3 className="text-white font-semibold mb-4 text-center">Pengaturan Audio & Video</h3>
-              
-              {/* Video Input */}
-              {callType === 'video' && videoDevices.length > 0 && (
-                <div className="mb-4">
-                  <label className="text-white text-sm font-medium block mb-2">Kamera</label>
-                  <select
-                    value={selectedVideoDevice}
-                    onChange={(e) => setSelectedVideoDevice(e.target.value)}
-                    className="w-full bg-gray-800 text-white px-3 py-2 rounded border border-gray-600 text-sm"
-                  >
-                    {videoDevices.map((device) => (
-                      <option key={device.deviceId} value={device.deviceId}>
-                        {device.label || `Kamera ${videoDevices.indexOf(device) + 1}`}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
-
-              {/* Audio Input */}
-              {audioInputDevices.length > 0 && (
-                <div className="mb-4">
-                  <label className="text-white text-sm font-medium block mb-2">Input Audio</label>
-                  <select
-                    value={selectedAudioInput}
-                    onChange={(e) => setSelectedAudioInput(e.target.value)}
-                    className="w-full bg-gray-800 text-white px-3 py-2 rounded border border-gray-600 text-sm"
-                  >
-                    {audioInputDevices.map((device) => (
-                      <option key={device.deviceId} value={device.deviceId}>
-                        {device.label || `Mikrofon ${audioInputDevices.indexOf(device) + 1}`}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
-
-              {/* Audio Output */}
-              {audioOutputDevices.length > 0 && (
-                <div className="mb-4">
-                  <label className="text-white text-sm font-medium block mb-2">Output Audio</label>
-                  <select
-                    value={selectedAudioOutput}
-                    onChange={(e) => setSelectedAudioOutput(e.target.value)}
-                    className="w-full bg-gray-800 text-white px-3 py-2 rounded border border-gray-600 text-sm"
-                  >
-                    {audioOutputDevices.map((device) => (
-                      <option key={device.deviceId} value={device.deviceId}>
-                        {device.label || `Speaker ${audioOutputDevices.indexOf(device) + 1}`}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
-            </div>
-          )}
         </button>
 
         {/* Mute Button */}
@@ -686,7 +655,7 @@ const CallUI: React.FC<CallUIProps> = ({
 
         {/* Hangup Button */}
         <button
-          onClick={onHangup}
+          onClick={handleHangup}
           className="p-4 rounded-full bg-red-600 hover:bg-red-700 transition-all transform hover:scale-110 shadow-lg shadow-red-600/50"
           title="Akhiri Panggilan"
           aria-label="Akhiri Panggilan"
@@ -694,6 +663,104 @@ const CallUI: React.FC<CallUIProps> = ({
           <PhoneOff className="w-7 h-7 text-white" />
         </button>
       </div>
+
+      {/* Settings Modal */}
+      {showSettings && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40 flex items-center justify-center" onClick={() => setShowSettings(false)}>
+          <div
+            ref={settingsModalRef}
+            className="bg-gray-900 border border-gray-700 rounded-lg shadow-2xl p-6 w-full max-w-md mx-4 z-50"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-white font-semibold text-lg">Pengaturan Audio & Video</h3>
+              <button
+                onClick={() => setShowSettings(false)}
+                className="text-gray-400 hover:text-white transition"
+                aria-label="Tutup"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Video Input */}
+            {callType === 'video' && videoDevices.length > 0 && (
+              <div className="mb-5">
+                <label className="text-white text-sm font-medium block mb-2">Kamera</label>
+                <select
+                  value={selectedVideoDevice}
+                  onChange={(e) => setSelectedVideoDevice(e.target.value)}
+                  className="w-full bg-gray-800 text-white px-3 py-2 rounded border border-gray-600 text-sm hover:border-gray-500 transition"
+                >
+                  {videoDevices.map((device) => (
+                    <option key={device.deviceId} value={device.deviceId}>
+                      {device.label || `Kamera ${videoDevices.indexOf(device) + 1}`}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {/* Mirror Camera Toggle */}
+            {callType === 'video' && (
+              <div className="mb-5">
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={isMirrored}
+                    onChange={(e) => setIsMirrored(e.target.checked)}
+                    className="w-4 h-4 rounded border-gray-600 text-blue-600 cursor-pointer"
+                  />
+                  <span className="text-white text-sm font-medium">Cerminkan Kamera Saya</span>
+                </label>
+              </div>
+            )}
+
+            {/* Audio Input */}
+            {audioInputDevices.length > 0 && (
+              <div className="mb-5">
+                <label className="text-white text-sm font-medium block mb-2">Input Audio</label>
+                <select
+                  value={selectedAudioInput}
+                  onChange={(e) => setSelectedAudioInput(e.target.value)}
+                  className="w-full bg-gray-800 text-white px-3 py-2 rounded border border-gray-600 text-sm hover:border-gray-500 transition"
+                >
+                  {audioInputDevices.map((device) => (
+                    <option key={device.deviceId} value={device.deviceId}>
+                      {device.label || `Mikrofon ${audioInputDevices.indexOf(device) + 1}`}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {/* Audio Output */}
+            {audioOutputDevices.length > 0 && (
+              <div className="mb-5">
+                <label className="text-white text-sm font-medium block mb-2">Output Audio</label>
+                <select
+                  value={selectedAudioOutput}
+                  onChange={(e) => setSelectedAudioOutput(e.target.value)}
+                  className="w-full bg-gray-800 text-white px-3 py-2 rounded border border-gray-600 text-sm hover:border-gray-500 transition"
+                >
+                  {audioOutputDevices.map((device) => (
+                    <option key={device.deviceId} value={device.deviceId}>
+                      {device.label || `Speaker ${audioOutputDevices.indexOf(device) + 1}`}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            <button
+              onClick={() => setShowSettings(false)}
+              className="w-full mt-6 bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 rounded transition"
+            >
+              Tutup
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Debug Info (development only) */}
       {process.env.NODE_ENV === 'development' && (

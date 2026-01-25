@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Home, Users, ShieldAlert, Smile, Lock, Menu, X } from 'lucide-react';
+import { Home, Users, ShieldAlert, Smile, Lock, Tag, Menu, X } from 'lucide-react';
 
 interface SidebarProps {
   pathname?: string;
@@ -32,6 +32,7 @@ const Sidebar: React.FC<SidebarProps> = ({ pathname = '', sidebarOpen, setSideba
   const menuItems = [
     { id: 'dashboard', icon: Home, label: 'Dashboard', href: '/home/admin', color: 'indigo' },
     { id: 'users', icon: Users, label: 'User Management', href: '/home/admin/users', color: 'blue' },
+    { id: 'categories', icon: Tag, label: 'Manajemen Kategori', href: '/home/admin/categories', color: 'emerald' },
     { id: 'toxic', icon: ShieldAlert, label: 'Filter Toxic', href: '/home/admin/toxic', color: 'red' },
     { id: 'emoji', icon: Smile, label: 'Emoji Library', href: '/home/admin/emoji', color: 'yellow' },
     { id: 'blocklist', icon: Lock, label: 'Block List ICE', href: '/home/admin/blocklist', color: 'purple' },

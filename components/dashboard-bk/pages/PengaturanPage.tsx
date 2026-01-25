@@ -5,11 +5,16 @@ import { Clock, CheckCircle, AlertCircle, Loader, Video, Users, BookOpen, X, Plu
 import { useAuth } from '@/hooks/useAuth';
 import { apiRequest } from '@/lib/api';
 
-interface ScheduleData {
-  sessionType: 'tatap-muka' | 'chat';
+interface DaySchedule {
+  day: string;
   startTime: string;
   endTime: string;
-  availableDays: string[];
+  isActive: boolean;
+}
+
+interface ScheduleData {
+  sessionType: 'tatap-muka' | 'chat';
+  daySchedules: DaySchedule[];
   isActive: boolean;
 }
 
@@ -28,11 +33,32 @@ interface BkJurusan {
 const PengaturanPage: React.FC = () => {
   const { user, token, loading } = useAuth();
   const [selectedSessionType, setSelectedSessionType] = useState<'tatap-muka' | 'chat'>('tatap-muka');
+  const [selectedDay, setSelectedDay] = useState<string>('Monday');
   
   // Schedule states
   const [schedules, setSchedules] = useState<Record<'tatap-muka' | 'chat', ScheduleData>>({
-    'tatap-muka': { sessionType: 'tatap-muka', startTime: '08:00', endTime: '16:00', availableDays: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'], isActive: true },
-    'chat': { sessionType: 'chat', startTime: '09:00', endTime: '17:00', availableDays: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'], isActive: true },
+    'tatap-muka': { 
+      sessionType: 'tatap-muka', 
+      daySchedules: [
+        { day: 'Monday', startTime: '08:00', endTime: '16:00', isActive: true },
+        { day: 'Tuesday', startTime: '08:00', endTime: '16:00', isActive: true },
+        { day: 'Wednesday', startTime: '08:00', endTime: '16:00', isActive: true },
+        { day: 'Thursday', startTime: '08:00', endTime: '16:00', isActive: true },
+        { day: 'Friday', startTime: '08:00', endTime: '16:00', isActive: true },
+      ], 
+      isActive: true 
+    },
+    'chat': { 
+      sessionType: 'chat', 
+      daySchedules: [
+        { day: 'Monday', startTime: '09:00', endTime: '17:00', isActive: true },
+        { day: 'Tuesday', startTime: '09:00', endTime: '17:00', isActive: true },
+        { day: 'Wednesday', startTime: '09:00', endTime: '17:00', isActive: true },
+        { day: 'Thursday', startTime: '09:00', endTime: '17:00', isActive: true },
+        { day: 'Friday', startTime: '09:00', endTime: '17:00', isActive: true },
+      ], 
+      isActive: true 
+    },
   });
 
   // Jurusan states
@@ -116,6 +142,7 @@ const PengaturanPage: React.FC = () => {
   };
 
   const currentSchedule = schedules[selectedSessionType];
+  const currentDaySchedule = currentSchedule.daySchedules.find(ds => ds.day === selectedDay);
 
   // Get available jurusan (not yet assigned)
   const availableJurusan = allJurusan.filter(
@@ -127,9 +154,9 @@ const PengaturanPage: React.FC = () => {
       ...prev,
       [selectedSessionType]: {
         ...prev[selectedSessionType],
-        availableDays: prev[selectedSessionType].availableDays.includes(day)
-          ? prev[selectedSessionType].availableDays.filter((d: string) => d !== day)
-          : [...prev[selectedSessionType].availableDays, day],
+        daySchedules: prev[selectedSessionType].daySchedules.map((ds: DaySchedule) =>
+          ds.day === day ? { ...ds, isActive: !ds.isActive } : ds
+        ),
       },
     }));
   };
@@ -142,7 +169,8 @@ const PengaturanPage: React.FC = () => {
       return;
     }
 
-    if (currentSchedule.availableDays.length === 0) {
+    const activeDays = currentSchedule.daySchedules.filter(ds => ds.isActive);
+    if (activeDays.length === 0) {
       setMessage({ type: 'error', text: 'Pilih minimal satu hari yang tersedia.' });
       return;
     }
@@ -150,10 +178,8 @@ const PengaturanPage: React.FC = () => {
     try {
       setIsSaving(true);
       const payload = {
-        startTime: currentSchedule.startTime,
-        endTime: currentSchedule.endTime,
-        availableDays: currentSchedule.availableDays,
         sessionType: selectedSessionType,
+        daySchedules: activeDays,
       };
 
       if (hasSchedules[selectedSessionType]) {
@@ -176,11 +202,16 @@ const PengaturanPage: React.FC = () => {
   };
 
   const handleTimeChange = (field: 'startTime' | 'endTime', value: string) => {
+    if (!currentDaySchedule) return;
     setSchedules((prev: any) => ({
       ...prev,
       [selectedSessionType]: {
         ...prev[selectedSessionType],
-        [field]: value,
+        daySchedules: prev[selectedSessionType].daySchedules.map((ds: DaySchedule) =>
+          ds.day === selectedDay
+            ? { ...ds, [field]: value }
+            : ds
+        ),
       },
     }));
   };
@@ -383,85 +414,122 @@ const PengaturanPage: React.FC = () => {
           </div>
         ) : (
           <form onSubmit={handleSaveSchedule}>
-            {/* Time Inputs */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Jam Mulai</label>
-                <input
-                  type="time"
-                  value={currentSchedule.startTime}
-                  onChange={(e) => handleTimeChange('startTime', e.target.value)}
-                  required
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Jam Selesai</label>
-                <input
-                  type="time"
-                  value={currentSchedule.endTime}
-                  onChange={(e) => handleTimeChange('endTime', e.target.value)}
-                  required
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
+            {/* Day Selection */}
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gray-700 mb-3">Pilih Hari</label>
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                {days.map((day, idx) => {
+                  const daySchedule = currentSchedule.daySchedules.find(ds => ds.day === day);
+                  return (
+                    <button
+                      key={day}
+                      type="button"
+                      onClick={() => setSelectedDay(day)}
+                      className={`p-3 border-2 rounded-lg transition-all ${
+                        selectedDay === day
+                          ? 'border-blue-600 bg-blue-50'
+                          : daySchedule?.isActive
+                          ? 'border-green-400 bg-green-50 hover:border-blue-600'
+                          : 'border-gray-300 bg-gray-50 hover:border-blue-600'
+                      }`}
+                    >
+                      <p className="font-semibold text-sm text-gray-900">{daysDisplay[idx]}</p>
+                      {daySchedule?.isActive && (
+                        <p className="text-xs text-green-700">{daySchedule.startTime} - {daySchedule.endTime}</p>
+                      )}
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
-            {/* Available Days */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-3">Hari Tersedia</label>
-              <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-                {days.map((day, idx) => (
-                  <label
-                    key={day}
-                    className={`flex items-center gap-2 p-3 border-2 rounded-lg cursor-pointer transition-all ${
-                      currentSchedule.availableDays.includes(day)
-                        ? 'border-blue-600 bg-blue-50'
-                        : 'border-gray-300 bg-white'
-                    }`}
-                  >
+            {/* Time Inputs for Selected Day */}
+            {currentDaySchedule && (
+              <>
+                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-4 mb-6 border border-blue-200">
+                  <h4 className="font-semibold text-gray-900 mb-3">
+                    Jadwal untuk {daysDisplay[days.indexOf(selectedDay)]}
+                  </h4>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Jam Mulai</label>
+                      <input
+                        type="time"
+                        value={currentDaySchedule.startTime}
+                        onChange={(e) => handleTimeChange('startTime', e.target.value)}
+                        required
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Jam Selesai</label>
+                      <input
+                        type="time"
+                        value={currentDaySchedule.endTime}
+                        onChange={(e) => handleTimeChange('endTime', e.target.value)}
+                        required
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                  </div>
+
+                  <label className="flex items-center gap-2 cursor-pointer">
                     <input
                       type="checkbox"
-                      checked={currentSchedule.availableDays.includes(day)}
-                      onChange={() => handleDayToggle(day)}
-                      className="w-5 h-5 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
+                      checked={currentDaySchedule.isActive}
+                      onChange={() => handleDayToggle(selectedDay)}
+                      className="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
                     />
-                    <span
-                      className={`text-sm font-medium ${
-                        currentSchedule.availableDays.includes(day)
-                          ? 'text-blue-900'
-                          : 'text-gray-700'
-                      }`}
-                    >
-                      {daysDisplay[idx]}
+                    <span className="text-sm font-medium text-gray-700">
+                      Hari ini tersedia untuk konseling
                     </span>
                   </label>
+                </div>
+              </>
+            )}
+
+            {/* All Days Overview */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-3">Daftar Hari Kerja</label>
+              <div className="space-y-2">
+                {currentSchedule.daySchedules.map((daySchedule) => (
+                  <div
+                    key={daySchedule.day}
+                    className={`p-3 rounded-lg border flex items-center justify-between ${
+                      daySchedule.isActive
+                        ? 'bg-green-50 border-green-300'
+                        : 'bg-gray-50 border-gray-300'
+                    }`}
+                  >
+                    <div>
+                      <p className="font-medium text-gray-900">
+                        {daysDisplay[days.indexOf(daySchedule.day)]}
+                      </p>
+                      {daySchedule.isActive && (
+                        <p className="text-sm text-gray-600">
+                          {daySchedule.startTime} - {daySchedule.endTime}
+                        </p>
+                      )}
+                    </div>
+                    <span
+                      className={`text-xs font-bold px-3 py-1 rounded-full ${
+                        daySchedule.isActive
+                          ? 'bg-green-200 text-green-800'
+                          : 'bg-gray-200 text-gray-800'
+                      }`}
+                    >
+                      {daySchedule.isActive ? '✓ Aktif' : '✗ Nonaktif'}
+                    </span>
+                  </div>
                 ))}
               </div>
 
-              {currentSchedule.availableDays.length === 0 && (
+              {currentSchedule.daySchedules.filter(ds => ds.isActive).length === 0 && (
                 <p className="text-sm text-red-600 mt-2">
                   ⚠️ Pilih minimal satu hari yang tersedia
                 </p>
               )}
-            </div>
-
-            {/* Summary */}
-            <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
-              <h4 className="font-semibold text-gray-900 mb-2">Ringkasan Jadwal:</h4>
-              <ul className="text-sm text-gray-700 space-y-1">
-                <li>
-                  • <strong>Jam Kerja:</strong> {currentSchedule.startTime} - {currentSchedule.endTime}
-                </li>
-                <li>
-                  • <strong>Hari Tersedia:</strong>{' '}
-                  {currentSchedule.availableDays.length > 0
-                    ? currentSchedule.availableDays
-                        .map((day, i) => daysDisplay[days.indexOf(day)])
-                        .join(', ')
-                    : 'Belum dipilih'}
-                </li>
-              </ul>
             </div>
 
             {/* Buttons */}
@@ -526,7 +594,10 @@ const PengaturanPage: React.FC = () => {
               </div>
               {hasSchedules[type] && (
                 <p className="text-sm text-gray-600">
-                  {schedules[type].startTime} - {schedules[type].endTime} ({schedules[type].availableDays.length} hari)
+                  {schedules[type].daySchedules.filter(ds => ds.isActive).length > 0
+                    ? `${schedules[type].daySchedules.find(ds => ds.isActive)?.startTime} - ${schedules[type].daySchedules.find(ds => ds.isActive)?.endTime} (${schedules[type].daySchedules.filter(ds => ds.isActive).length} hari aktif)`
+                    : 'Tidak ada hari yang diatur'
+                  }
                 </p>
               )}
             </div>

@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { HelpCircle, Send, X, Loader } from 'lucide-react'
 import { apiRequest } from '@/lib/api'
 
@@ -11,29 +11,52 @@ interface AskQuestionModalProps {
   onSubmit?: (data: any) => void
 }
 
-const categories = [
-  { id: 'personal', label: 'Masalah Pribadi', emoji: '💭' },
-  { id: 'academic', label: 'Akademik & Belajar', emoji: '📚' },
-  { id: 'social', label: 'Sosial & Pertemanan', emoji: '👥' },
-  { id: 'career', label: 'Karir & Masa Depan', emoji: '🎯' },
-  { id: 'family', label: 'Keluarga', emoji: '👨‍👩‍👧' },
-  { id: 'other', label: 'Lainnya', emoji: '❓' },
-]
+interface Category {
+  id: number
+  name: string
+  description?: string
+  isActive: boolean
+}
 
 const AskQuestionModal: React.FC<AskQuestionModalProps> = ({
   isOpen,
   onClose,
-  category = 'personal',
+  category,
   onSubmit,
 }) => {
   const [question, setQuestion] = useState('')
-  const [selectedCategory, setSelectedCategory] = useState(category)
+  const [categories, setCategories] = useState<Category[]>([])
+  const [selectedCategory, setSelectedCategory] = useState<number | null>(null)
   const [isSubmitted, setIsSubmitted] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [loadingCategories, setLoadingCategories] = useState(false)
   const [error, setError] = useState('')
 
+  // Fetch categories on mount or when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      const fetchCategories = async () => {
+        try {
+          setLoadingCategories(true)
+          const token = localStorage.getItem('token')
+          const response = await apiRequest('/consultation-category', 'GET', undefined, token)
+          const categoryList = Array.isArray(response) ? response : response?.data || []
+          setCategories(categoryList)
+          if (categoryList.length > 0 && !selectedCategory) {
+            setSelectedCategory(categoryList[0].id)
+          }
+        } catch (err) {
+          console.error('Error fetching categories:', err)
+        } finally {
+          setLoadingCategories(false)
+        }
+      }
+      fetchCategories()
+    }
+  }, [isOpen])
+
   const handleSubmit = async () => {
-    if (question.trim()) {
+    if (question.trim() && selectedCategory) {
       try {
         setLoading(true)
         setError('')
@@ -45,7 +68,7 @@ const AskQuestionModal: React.FC<AskQuestionModalProps> = ({
           {
             title: question.split('\n')[0] || question.substring(0, 100),
             content: question,
-            category: selectedCategory,
+            categoryId: selectedCategory,
           },
           token
         )
@@ -85,8 +108,6 @@ const AskQuestionModal: React.FC<AskQuestionModalProps> = ({
   }, [isOpen])
 
   if (!isOpen) return null
-
-  const categoryLabel = categories.find((c) => c.id === selectedCategory)?.label || 'Umum'
 
   return (
     <>
@@ -138,22 +159,29 @@ const AskQuestionModal: React.FC<AskQuestionModalProps> = ({
                 <label className="block text-sm font-medium text-gray-700 mb-3">
                   Kategori Pertanyaan
                 </label>
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                  {categories.map((cat) => (
-                    <button
-                      key={cat.id}
-                      onClick={() => setSelectedCategory(cat.id)}
-                      className={`p-3 rounded-lg transition-all duration-200 text-sm font-medium text-center ${
-                        selectedCategory === cat.id
-                          ? 'bg-blue-600 text-white shadow-md ring-2 ring-blue-300'
-                          : 'bg-gray-50 text-gray-700 border border-gray-200 hover:border-gray-300 hover:bg-gray-100'
-                      }`}
-                    >
-                      <span className="text-lg block mb-1">{cat.emoji}</span>
-                      {cat.label}
-                    </button>
-                  ))}
-                </div>
+                {loadingCategories ? (
+                  <div className="flex items-center justify-center py-6">
+                    <Loader className="w-5 h-5 animate-spin text-blue-600" />
+                  </div>
+                ) : categories.length > 0 ? (
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                    {categories.map((cat) => (
+                      <button
+                        key={cat.id}
+                        onClick={() => setSelectedCategory(cat.id)}
+                        className={`p-3 rounded-lg transition-all duration-200 text-sm font-medium text-center ${
+                          selectedCategory === cat.id
+                            ? 'bg-blue-600 text-white shadow-md ring-2 ring-blue-300'
+                            : 'bg-gray-50 text-gray-700 border border-gray-200 hover:border-gray-300 hover:bg-gray-100'
+                        }`}
+                      >
+                        {cat.name}
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-500 text-center py-4">Kategori tidak tersedia</p>
+                )}
               </div>
 
               <div>
@@ -218,7 +246,7 @@ const AskQuestionModal: React.FC<AskQuestionModalProps> = ({
                 <div className="bg-white p-3 rounded border border-gray-200">
                   <p className="text-gray-600 font-medium text-xs">Kategori</p>
                   <p className="text-blue-600 font-semibold">
-                    {categoryLabel}
+                    {categories.find(c => c.id === selectedCategory)?.name || 'N/A'}
                   </p>
                 </div>
                 <div className="bg-white p-3 rounded border border-gray-200">

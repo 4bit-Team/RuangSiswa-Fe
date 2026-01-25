@@ -1,7 +1,9 @@
 'use client'
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Calendar, Users, FileText, BarChart3 } from 'lucide-react';
+import { apiRequest } from '@/lib/api';
+import { authStorage } from '@/lib/authStorage';
 
 // Interfaces
 interface MetricCardProps {
@@ -10,6 +12,22 @@ interface MetricCardProps {
   value: string | number;
   trend: string;
   trendUp: boolean;
+}
+
+interface DashboardStatistics {
+  keyMetrics: {
+    avgKonselingPerMonth: { value: number; trend: string; trendUp: boolean };
+    siswaAktif: { value: number; trend: string; trendUp: boolean };
+    laporanDibuat: { value: number; trend: string; trendUp: boolean };
+  };
+  trends: {
+    konselingBulanan: Array<{ month: string; value: number }>;
+    kepuasanBulanan: Array<{ month: string; value: number }>;
+  };
+  distribution: {
+    perKelas: Array<{ class: string; active: number; total: number }>;
+  };
+  performance: Array<{ label: string; value: number; color: string }>;
 }
 
 // Key Metric Card
@@ -29,6 +47,88 @@ const MetricCard: React.FC<MetricCardProps> = ({ icon: Icon, label, value, trend
 );
 
 const StatistikPage: React.FC = () => {
+  const [statistics, setStatistics] = useState<DashboardStatistics | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchStatistics = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        
+        const token = authStorage.getToken();
+        
+        if (!token) {
+          throw new Error('Token tidak ditemukan. Silakan login kembali.');
+        }
+
+        console.log('Fetching statistics with token:', token.substring(0, 20) + '...');
+        
+        const response = await apiRequest('/statistics/dashboard', 'GET', undefined, token);
+        console.log('Statistics response:', response);
+        
+        // Response langsung berisi data, bukan response.data
+        if (response && typeof response === 'object') {
+          setStatistics(response);
+        } else {
+          throw new Error('Response format tidak valid');
+        }
+      } catch (err) {
+        console.error('Error fetching statistics:', err);
+        const errorMessage = err instanceof Error ? err.message : 'Gagal memuat statistik';
+        setError(errorMessage);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchStatistics();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <div className="text-center py-12">
+          <p className="text-gray-600">Memuat statistik...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !statistics) {
+    return (
+      <div className="space-y-6">
+        <div className="text-center py-12">
+          <p className="text-red-600 mb-4">{error || 'Gagal memuat data statistik'}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+          >
+            Coba Lagi
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Validasi struktur data
+  if (!statistics.keyMetrics || !statistics.trends || !statistics.distribution || !statistics.performance) {
+    return (
+      <div className="space-y-6">
+        <div className="text-center py-12">
+          <p className="text-red-600 mb-4">Format data statistik tidak sesuai</p>
+          <details className="mt-4 text-left max-w-md mx-auto bg-gray-100 p-4 rounded">
+            <summary className="cursor-pointer font-semibold">Debug Info</summary>
+            <pre className="mt-2 text-xs overflow-auto">{JSON.stringify(statistics, null, 2)}</pre>
+          </details>
+        </div>
+      </div>
+    );
+  }
+
+  const { keyMetrics, trends, distribution, performance } = statistics;
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -38,34 +138,27 @@ const StatistikPage: React.FC = () => {
       </div>
 
       {/* Key Metrics */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <MetricCard 
           icon={Calendar} 
           label="Avg. Konseling/Bulan" 
-          value="54" 
-          trend="+12% dari bulan lalu"
-          trendUp={true}
+          value={keyMetrics.avgKonselingPerMonth.value} 
+          trend={keyMetrics.avgKonselingPerMonth.trend}
+          trendUp={keyMetrics.avgKonselingPerMonth.trendUp}
         />
         <MetricCard 
           icon={Users} 
           label="Siswa Aktif" 
-          value="156" 
-          trend="+8% dari bulan lalu"
-          trendUp={true}
+          value={keyMetrics.siswaAktif.value} 
+          trend={keyMetrics.siswaAktif.trend}
+          trendUp={keyMetrics.siswaAktif.trendUp}
         />
         <MetricCard 
           icon={FileText} 
           label="Laporan Dibuat" 
-          value="248" 
-          trend="+15% dari bulan lalu"
-          trendUp={true}
-        />
-        <MetricCard 
-          icon={BarChart3} 
-          label="Success Rate" 
-          value="89%" 
-          trend="+5% dari bulan lalu"
-          trendUp={true}
+          value={keyMetrics.laporanDibuat.value} 
+          trend={keyMetrics.laporanDibuat.trend}
+          trendUp={keyMetrics.laporanDibuat.trendUp}
         />
       </div>
 
@@ -78,30 +171,17 @@ const StatistikPage: React.FC = () => {
           {/* Bar Chart */}
           <div className="mb-24">
             <div className="flex items-end justify-between space-x-1.5">
-              {[
-                { height: 30, label: 'Jan', color: 'from-blue-500 to-blue-400' },
-                { height: 35, label: 'Feb', color: 'from-blue-600 to-blue-500' },
-                { height: 32, label: 'Mar', color: 'from-blue-500 to-blue-400' },
-                { height: 38, label: 'Apr', color: 'from-indigo-600 to-indigo-500' },
-                { height: 45, label: 'Mei', color: 'from-indigo-600 to-indigo-500' },
-                { height: 42, label: 'Jun', color: 'from-indigo-600 to-indigo-500' },
-                { height: 50, label: 'Jul', color: 'from-purple-600 to-purple-500' },
-                { height: 48, label: 'Agu', color: 'from-purple-600 to-purple-500' },
-                { height: 55, label: 'Sep', color: 'from-pink-600 to-pink-500' },
-                { height: 58, label: 'Okt', color: 'from-pink-600 to-pink-500' },
-                { height: 62, label: 'Nov', color: 'from-red-600 to-red-500' },
-                { height: 73, label: 'Des', color: 'from-red-600 to-red-500' },
-              ].map((item, i) => (
+              {trends.konselingBulanan.map((item, i) => (
                 <div key={i} className="flex-1 flex flex-col items-center group">
                   <div 
-                    className={`w-full bg-gradient-to-t ${item.color} rounded-t-lg transition-all duration-300 hover:opacity-90 cursor-pointer relative group`}
-                    style={{ height: `${item.height}%` }}
+                    className={`w-full bg-gradient-to-t from-red-600 to-red-500 rounded-t-lg transition-all duration-300 hover:opacity-90 cursor-pointer relative group`}
+                    style={{ height: `${(item.value / 100) * 100}%` }}
                   >
                     <span className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-gray-900 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
-                      {Math.round(item.height * 2)} siswa
+                      {item.value} sesi
                     </span>
                   </div>
-                  <span className="text-xs text-gray-600 mt-3 font-medium">{item.label}</span>
+                  <span className="text-xs text-gray-600 mt-3 font-medium">{item.month}</span>
                 </div>
               ))}
             </div>
@@ -138,7 +218,7 @@ const StatistikPage: React.FC = () => {
               
               {/* Line 1: Konseling (Blue - Solid) */}
               <polyline 
-                points="100,130 200,110 300,125 400,95 500,60 600,75 700,40 800,55 900,25 1000,20 1100,10 1200,5"
+                points={generateLinePoints(trends.konselingBulanan)} 
                 fill="none" 
                 stroke="#3b82f6" 
                 strokeWidth="3"
@@ -148,23 +228,13 @@ const StatistikPage: React.FC = () => {
               
               {/* Line 2: Kepuasan (Green - Dashed) */}
               <polyline 
-                points="100,80 200,78 300,82 400,72 500,65 600,70 700,62 800,66 900,58 1000,62 1100,68 1200,72"
+                points={generateLinePoints(trends.kepuasanBulanan)} 
                 fill="none" 
                 stroke="#10b981" 
                 strokeWidth="3"
                 strokeLinecap="round"
                 strokeLinejoin="round"
                 strokeDasharray="8,4"
-              />
-              
-              {/* Line 3: Penyelesaian (Orange - Solid) */}
-              <polyline 
-                points="100,110 200,98 300,108 400,82 500,65 600,72 700,55 800,62 900,42 1000,48 1100,55 1200,62"
-                fill="none" 
-                stroke="#f59e0b" 
-                strokeWidth="3"
-                strokeLinecap="round"
-                strokeLinejoin="round"
               />
               
               {/* X-axis labels */}
@@ -196,25 +266,20 @@ const StatistikPage: React.FC = () => {
               </div>
               <span className="text-sm text-gray-600">Kepuasan Siswa</span>
             </div>
-            <div className="flex items-center space-x-2">
-              <div className="w-4 h-1 bg-amber-500 rounded"></div>
-              <span className="text-sm text-gray-600">Penyelesaian Kasus</span>
-            </div>
+            {/* NOTE: Penyelesaian Kasus per bulan - dihapus sementara menunggu tracking feature */}
           </div>
 
           {/* Legend */}
-          <div className="grid grid-cols-3 gap-6 pt-6 border-t border-gray-100">
+          <div className="grid grid-cols-2 gap-6 pt-6 border-t border-gray-100">
             <div className="text-center">
-              <p className="text-2xl font-bold text-blue-600">648</p>
+              <p className="text-2xl font-bold text-blue-600">{trends.konselingBulanan.reduce((sum, item) => sum + item.value, 0)}</p>
               <p className="text-xs text-gray-600 mt-1">Total Konseling</p>
             </div>
             <div className="text-center">
-              <p className="text-2xl font-bold text-green-600">89%</p>
+              <p className="text-2xl font-bold text-green-600">
+                {Math.round(trends.kepuasanBulanan.reduce((sum, item) => sum + item.value, 0) / trends.kepuasanBulanan.length)}%
+              </p>
               <p className="text-xs text-gray-600 mt-1">Kepuasan Siswa</p>
-            </div>
-            <div className="text-center">
-              <p className="text-2xl font-bold text-amber-600">92%</p>
-              <p className="text-xs text-gray-600 mt-1">Penyelesaian Kasus</p>
             </div>
           </div>
         </div>
@@ -222,82 +287,9 @@ const StatistikPage: React.FC = () => {
         {/* Category Distribution - Enhanced Pie Chart */}
         <div className="bg-white rounded-xl p-6 border border-gray-200">
           <h3 className="text-lg font-semibold text-gray-900 mb-6">Distribusi Kategori Konseling</h3>
-          <div className="flex items-center justify-center mb-8">
-            <div className="relative w-56 h-56">
-              {/* Donut Chart using SVG */}
-              <svg viewBox="0 0 100 100" className="w-full h-full transform -rotate-90">
-                {/* Background circle */}
-                <circle cx="50" cy="50" r="40" fill="none" stroke="#f3f4f6" strokeWidth="20"/>
-                
-                {/* Akademik - 35% (pink) */}
-                <circle cx="50" cy="50" r="40" fill="none" stroke="#ec4899" strokeWidth="20" 
-                  strokeDasharray="87.96 251.33" strokeDashoffset="0" strokeLinecap="round"/>
-                
-                {/* Sosial - 28% (green) */}
-                <circle cx="50" cy="50" r="40" fill="none" stroke="#10b981" strokeWidth="20" 
-                  strokeDasharray="70.37 251.33" strokeDashoffset="-87.96" strokeLinecap="round"/>
-                
-                {/* Karir - 22% (orange) */}
-                <circle cx="50" cy="50" r="40" fill="none" stroke="#f97316" strokeWidth="20" 
-                  strokeDasharray="55.29 251.33" strokeDashoffset="-158.33" strokeLinecap="round"/>
-                
-                {/* Keluarga - 15% (purple) */}
-                <circle cx="50" cy="50" r="40" fill="none" stroke="#a855f7" strokeWidth="20" 
-                  strokeDasharray="37.70 251.33" strokeDashoffset="-213.62" strokeLinecap="round"/>
-              </svg>
-              {/* Center text */}
-              <div className="absolute inset-0 flex items-center justify-center flex-col">
-                <p className="text-2xl font-bold text-gray-900">226</p>
-                <p className="text-xs text-gray-600">Kasus</p>
-              </div>
-            </div>
-          </div>
-          
-          {/* Legend with percentages */}
-          <div className="space-y-3">
-            <div className="flex items-center justify-between p-3 bg-pink-50 rounded-lg hover:bg-pink-100 transition-colors cursor-pointer">
-              <div className="flex items-center space-x-3">
-                <div className="w-3 h-3 bg-pink-500 rounded-full"></div>
-                <span className="text-sm font-medium text-gray-700">Akademik</span>
-              </div>
-              <div className="flex items-center space-x-2">
-                <span className="text-sm font-bold text-gray-900">79</span>
-                <span className="text-xs text-pink-600 font-semibold">35%</span>
-              </div>
-            </div>
-            
-            <div className="flex items-center justify-between p-3 bg-green-50 rounded-lg hover:bg-green-100 transition-colors cursor-pointer">
-              <div className="flex items-center space-x-3">
-                <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                <span className="text-sm font-medium text-gray-700">Sosial</span>
-              </div>
-              <div className="flex items-center space-x-2">
-                <span className="text-sm font-bold text-gray-900">63</span>
-                <span className="text-xs text-green-600 font-semibold">28%</span>
-              </div>
-            </div>
-            
-            <div className="flex items-center justify-between p-3 bg-orange-50 rounded-lg hover:bg-orange-100 transition-colors cursor-pointer">
-              <div className="flex items-center space-x-3">
-                <div className="w-3 h-3 bg-orange-500 rounded-full"></div>
-                <span className="text-sm font-medium text-gray-700">Karir</span>
-              </div>
-              <div className="flex items-center space-x-2">
-                <span className="text-sm font-bold text-gray-900">50</span>
-                <span className="text-xs text-orange-600 font-semibold">22%</span>
-              </div>
-            </div>
-            
-            <div className="flex items-center justify-between p-3 bg-purple-50 rounded-lg hover:bg-purple-100 transition-colors cursor-pointer">
-              <div className="flex items-center space-x-3">
-                <div className="w-3 h-3 bg-purple-500 rounded-full"></div>
-                <span className="text-sm font-medium text-gray-700">Keluarga</span>
-              </div>
-              <div className="flex items-center space-x-2">
-                <span className="text-sm font-bold text-gray-900">34</span>
-                <span className="text-xs text-purple-600 font-semibold">15%</span>
-              </div>
-            </div>
+          {/* NOTE: Distribusi kategori konseling - menunggu implementasi tracking kategori di reservasi */}
+          <div className="flex items-center justify-center py-12">
+            <p className="text-gray-500">Fitur sedang dalam pengembangan</p>
           </div>
         </div>
       </div>
@@ -308,11 +300,7 @@ const StatistikPage: React.FC = () => {
         <div className="bg-white rounded-xl p-6 border border-gray-200">
           <h3 className="text-lg font-semibold text-gray-900 mb-6">Distribusi per Kelas</h3>
           <div className="space-y-4">
-            {[
-              { class: 'X', active: 45, total: 100 },
-              { class: 'XI', active: 65, total: 130 },
-              { class: 'XII', active: 46, total: 120 }
-            ].map((item, i) => (
+            {distribution.perKelas.map((item, i) => (
               <div key={i}>
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-sm font-medium text-gray-700">Kelas {item.class}</span>
@@ -320,7 +308,7 @@ const StatistikPage: React.FC = () => {
                 </div>
                 <div className="w-full bg-gray-200 rounded-full h-3">
                   <div className="bg-gradient-to-r from-indigo-600 to-purple-600 h-3 rounded-full transition-all" 
-                    style={{ width: `${(item.active / item.total) * 100}%` }}></div>
+                    style={{ width: `${item.total > 0 ? (item.active / item.total) * 100 : 0}%` }}></div>
                 </div>
               </div>
             ))}
@@ -331,12 +319,7 @@ const StatistikPage: React.FC = () => {
         <div className="bg-white rounded-xl p-6 border border-gray-200">
           <h3 className="text-lg font-semibold text-gray-900 mb-6">Metrik Performa</h3>
           <div className="space-y-4">
-            {[
-              { label: 'Response Time', value: 92, color: 'bg-indigo-600' },
-              { label: 'Satisfaction', value: 88, color: 'bg-purple-600' },
-              { label: 'Completion', value: 89, color: 'bg-pink-600' },
-              { label: 'Follow-up', value: 85, color: 'bg-blue-600' }
-            ].map((metric, i) => (
+            {performance.map((metric, i) => (
               <div key={i}>
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-sm font-medium text-gray-700">{metric.label}</span>
@@ -354,5 +337,22 @@ const StatistikPage: React.FC = () => {
     </div>
   );
 };
+
+// Helper function to generate SVG line points
+function generateLinePoints(data: Array<{ month: string; value: number }>): string {
+  const maxValue = Math.max(...data.map(d => d.value)) || 100;
+  const startX = 100;
+  const endX = 1200;
+  const height = 140;
+  const points: string[] = [];
+
+  data.forEach((item, index) => {
+    const x = startX + (index / (data.length - 1)) * (endX - startX);
+    const y = height - (item.value / maxValue) * 120;
+    points.push(`${x},${y}`);
+  });
+
+  return points.join(' ');
+}
 
 export default StatistikPage;
