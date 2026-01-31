@@ -164,7 +164,7 @@ const DashboardBKPage: React.FC = () => {
       </div>
 
       {/* Quick Actions */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <QuickActionButton 
           icon={Plus} 
           label="Buat Janji Baru" 
@@ -189,7 +189,7 @@ const DashboardBKPage: React.FC = () => {
           color="bg-green-600"
           onClick={() => setOpenModal('schedule')}
         />
-      </div>
+      </div> */}
 
       {/* Charts and Lists */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

@@ -38,24 +38,18 @@ const AppointmentScheduleModal: React.FC<AppointmentScheduleModalProps> = ({
   const { user, token } = useAuth()
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1)
   const [loadingCounselors, setLoadingCounselors] = useState(false)
+  const [loadingCategories, setLoadingCategories] = useState(false)
   const [availableCounselors, setAvailableCounselors] = useState<Counselor[]>([])
-  const [selectedTopic, setSelectedTopic] = useState<string>('')
+  const [counselingCategories, setCounselingCategories] = useState<any[]>([])
+  const [selectedTopic, setSelectedTopic] = useState<{ id: number; name: string } | null>(null)
   const [formData, setFormData] = useState({
     sessionType: '',
     counselorId: null as number | null,
     date: '',
     time: '',
     notes: '',
+    topicId: null as number | null,
   })
-
-  // Note Bugar: Hardcode Topics untuk "Konseling Lainnya"
-  const otherCounselingTopics = [
-    { id: 'sosial', label: 'Masalah Sosial', description: 'Kesulitan berteman, hubungan sosial, dll' },
-    { id: 'keluarga', label: 'Masalah Keluarga', description: 'Konflik keluarga, masalah di rumah' },
-    { id: 'bullying', label: 'Penanganan Bullying', description: 'Bullying atau intimidasi dari teman' },
-    { id: 'kesehatan-mental', label: 'Kesehatan Mental', description: 'Stres, cemas, atau masalah kesehatan mental' },
-    { id: 'motivasi', label: 'Motivasi & Rencana', description: 'Motivasi diri, rencana masa depan' },
-  ]
 
   // Note Bugar: Hardcoded time slots (8 Pagi Sampai 3 Siang)
   const timeSlots = [
@@ -63,17 +57,48 @@ const AppointmentScheduleModal: React.FC<AppointmentScheduleModalProps> = ({
     '09:00',
     '10:00',
     '11:00',
-    '12:00',
+    // '12:00',
     '13:00',
     '14:00',
-    '15:00',
+    // '15:00',
   ]
+
+  // Fetch counseling categories on modal open
+  useEffect(() => {
+    if (isOpen && counselingType === 'Konseling Lainnya' && token) {
+      fetchCounselingCategories()
+    }
+  }, [isOpen, token, counselingType])
+
+  const fetchCounselingCategories = async () => {
+    setLoadingCategories(true)
+    try {
+      const response = await apiRequest(
+        '/counseling-category',
+        'GET',
+        undefined,
+        token
+      )
+      console.log('✅ Counseling categories response:', response)
+      
+      if (Array.isArray(response)) {
+        setCounselingCategories(response)
+      } else if (response?.data && Array.isArray(response.data)) {
+        setCounselingCategories(response.data)
+      }
+    } catch (error) {
+      console.error('❌ Error fetching counseling categories:', error)
+      setCounselingCategories([])
+    } finally {
+      setLoadingCategories(false)
+    }
+  }
 
   useEffect(() => {
     if (!isOpen) {
       setStep(1)
-      setSelectedTopic('')
-      setFormData({ sessionType: '', counselorId: null, date: '', time: '', notes: '' })
+      setSelectedTopic(null)
+      setFormData({ sessionType: '', counselorId: null, date: '', time: '', notes: '', topicId: null })
       setAvailableCounselors([])
     }
   }, [isOpen])
@@ -153,25 +178,25 @@ const AppointmentScheduleModal: React.FC<AppointmentScheduleModalProps> = ({
 
   const handleConfirm = () => {
     const selectedCounselor = availableCounselors.find((c) => c.id === formData.counselorId)
-    const topicToSend = counselingType === 'Konseling Lainnya' ? selectedTopic : counselingType
+    const topicName = selectedTopic?.name || counselingType
 
     onConfirm?.({
       ...formData,
       counselorName: selectedCounselor?.fullName || 'Unknown',
       counselingType,
-      topic: topicToSend,
+      topic: topicName,
     })
     setStep(1)
-    setSelectedTopic('')
-    setFormData({ sessionType: '', counselorId: null, date: '', time: '', notes: '' })
+    setSelectedTopic(null)
+    setFormData({ sessionType: '', counselorId: null, date: '', time: '', notes: '', topicId: null })
     setAvailableCounselors([])
     onClose()
   }
 
   const handleClose = () => {
     setStep(1)
-    setSelectedTopic('')
-    setFormData({ sessionType: '', counselorId: null, date: '', time: '', notes: '' })
+    setSelectedTopic(null)
+    setFormData({ sessionType: '', counselorId: null, date: '', time: '', notes: '', topicId: null })
     setAvailableCounselors([])
     onClose()
   }
@@ -291,25 +316,39 @@ const AppointmentScheduleModal: React.FC<AppointmentScheduleModalProps> = ({
               {step === 2 && counselingType === 'Konseling Lainnya' && (
                 <div className="space-y-4">
                   <h3 className="font-semibold text-gray-900 mb-3">Pilih Topik Konseling</h3>
-                  <div className="space-y-3">
-                    {otherCounselingTopics.map((topic) => (
-                      <button
-                        key={topic.id}
-                        onClick={() => {
-                          setSelectedTopic(topic.label)
-                          setStep(3)
-                        }}
-                        className={`w-full p-4 rounded-lg border-2 transition-all text-left ${
-                          selectedTopic === topic.label
-                            ? 'border-orange-500 bg-orange-50'
-                            : 'border-gray-200 hover:border-orange-300'
-                        }`}
-                      >
-                        <p className="font-semibold text-gray-900">{topic.label}</p>
-                        <p className="text-sm text-gray-600">{topic.description}</p>
-                      </button>
-                    ))}
-                  </div>
+                  {loadingCategories ? (
+                    <div className="flex items-center justify-center py-8">
+                      <Loader className="w-5 h-5 animate-spin text-indigo-500 mr-2" />
+                      <span className="text-gray-600">Memuat topik konseling...</span>
+                    </div>
+                  ) : counselingCategories.length === 0 ? (
+                    <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                      <p className="text-yellow-800">Tidak ada topik konseling tersedia</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {counselingCategories.map((category: any) => (
+                        <button
+                          key={category.id}
+                          onClick={() => {
+                            setSelectedTopic({ id: category.id, name: category.name })
+                            setFormData({ ...formData, topicId: category.id })
+                            setStep(3)
+                          }}
+                          className={`w-full p-4 rounded-lg border-2 transition-all text-left ${
+                            selectedTopic?.id === category.id
+                              ? 'border-orange-500 bg-orange-50'
+                              : 'border-gray-200 hover:border-orange-300'
+                          }`}
+                        >
+                          <p className="font-semibold text-gray-900">{category.name}</p>
+                          {category.description && (
+                            <p className="text-sm text-gray-600">{category.description}</p>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -371,7 +410,7 @@ const AppointmentScheduleModal: React.FC<AppointmentScheduleModalProps> = ({
                                   disabled={counselor.booked}
                                   className={`p-4 rounded-lg transition-all duration-300 border-2 relative ${
                                     counselor.booked
-                                      ? 'bg-gray-100 border-gray-300 opacity-60 cursor-not-allowed'
+                                      ? 'bg-gray-300 border-gray-400 opacity-75 cursor-not-allowed'
                                       : formData.counselorId === counselor.id
                                       ? 'bg-indigo-50 border-indigo-500 ring-2 ring-indigo-300'
                                       : 'bg-gray-50 border-gray-200 hover:border-indigo-300'
@@ -379,19 +418,23 @@ const AppointmentScheduleModal: React.FC<AppointmentScheduleModalProps> = ({
                                 >
                                   <div className="flex items-center gap-2 mb-2">
                                     <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white flex-shrink-0 ${
-                                      counselor.booked ? 'bg-gray-400' : 'bg-indigo-500'
+                                      counselor.booked ? 'bg-gray-500' : 'bg-indigo-500'
                                     }`}>
                                       <User className="w-4 h-4" />
                                     </div>
-                                    <span className="font-medium text-sm text-gray-900">
+                                    <span className={`font-medium text-sm ${
+                                      counselor.booked ? 'text-gray-600' : 'text-gray-900'
+                                    }`}>
                                       {counselor.fullName}
                                     </span>
                                   </div>
                                   {counselor.specialty && (
-                                    <p className="text-xs text-gray-600">{counselor.specialty}</p>
+                                    <p className={`text-xs ${
+                                      counselor.booked ? 'text-gray-500' : 'text-gray-600'
+                                    }`}>{counselor.specialty}</p>
                                   )}
                                   {counselor.booked && (
-                                    <div className="absolute top-2 right-2 bg-red-500 text-white text-xs font-bold px-2 py-1 rounded">
+                                    <div className="absolute top-2 right-2 bg-red-600 text-white text-xs font-bold px-2.5 py-1 rounded-full">
                                       Penuh
                                     </div>
                                   )}
@@ -464,7 +507,7 @@ const AppointmentScheduleModal: React.FC<AppointmentScheduleModalProps> = ({
                                   disabled={counselor.booked}
                                   className={`p-4 rounded-lg transition-all duration-300 border-2 relative ${
                                     counselor.booked
-                                      ? 'bg-gray-100 border-gray-300 opacity-60 cursor-not-allowed'
+                                      ? 'bg-gray-300 border-gray-400 opacity-75 cursor-not-allowed'
                                       : formData.counselorId === counselor.id
                                       ? 'bg-indigo-50 border-indigo-500 ring-2 ring-indigo-300'
                                       : 'bg-gray-50 border-gray-200 hover:border-indigo-300'
@@ -472,19 +515,23 @@ const AppointmentScheduleModal: React.FC<AppointmentScheduleModalProps> = ({
                                 >
                                   <div className="flex items-center gap-2 mb-2">
                                     <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white flex-shrink-0 ${
-                                      counselor.booked ? 'bg-gray-400' : 'bg-indigo-500'
+                                      counselor.booked ? 'bg-gray-500' : 'bg-indigo-500'
                                     }`}>
                                       <User className="w-4 h-4" />
                                     </div>
-                                    <span className="font-medium text-sm text-gray-900">
+                                    <span className={`font-medium text-sm ${
+                                      counselor.booked ? 'text-gray-600' : 'text-gray-900'
+                                    }`}>
                                       {counselor.fullName}
                                     </span>
                                   </div>
                                   {counselor.specialty && (
-                                    <p className="text-xs text-gray-600">{counselor.specialty}</p>
+                                    <p className={`text-xs ${
+                                      counselor.booked ? 'text-gray-500' : 'text-gray-600'
+                                    }`}>{counselor.specialty}</p>
                                   )}
                                   {counselor.booked && (
-                                    <div className="absolute top-2 right-2 bg-red-500 text-white text-xs font-bold px-2 py-1 rounded">
+                                    <div className="absolute top-2 right-2 bg-red-600 text-white text-xs font-bold px-2.5 py-1 rounded-full">
                                       Penuh
                                     </div>
                                   )}
@@ -516,7 +563,7 @@ const AppointmentScheduleModal: React.FC<AppointmentScheduleModalProps> = ({
                           <div className="w-5 h-5 text-orange-500 flex-shrink-0 mt-0.5 font-semibold">🎯</div>
                           <div>
                             <p className="text-sm text-gray-600">Topik</p>
-                            <p className="font-semibold text-gray-900">{selectedTopic}</p>
+                            <p className="font-semibold text-gray-900">{selectedTopic.name}</p>
                           </div>
                         </div>
                       )}
@@ -643,7 +690,7 @@ const AppointmentScheduleModal: React.FC<AppointmentScheduleModalProps> = ({
                           <div className="w-5 h-5 text-orange-500 flex-shrink-0 mt-0.5 font-semibold">🎯</div>
                           <div>
                             <p className="text-sm text-gray-600">Topik</p>
-                            <p className="font-semibold text-gray-900">{selectedTopic}</p>
+                            <p className="font-semibold text-gray-900">{selectedTopic.name}</p>
                           </div>
                         </div>
                       )}

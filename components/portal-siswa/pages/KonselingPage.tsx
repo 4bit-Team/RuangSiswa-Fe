@@ -1,516 +1,246 @@
-'use client'
+"use client"
 
 import React, { useState, useEffect } from 'react'
-import {
-  ChevronRight,
-  Search,
-  Heart,
-  MessageCircle,
-  Calendar,
-  Users,
-  BookOpen,
-  Lightbulb,
-  ChevronDown,
-  TrendingUp,
-  Clock,
-  Eye,
-  Share2,
-  Award,
-  Filter,
-  Plus,
-  Loader,
-} from 'lucide-react'
-import { CategoryCardProps, QuestionItemProps } from '@types'
-import AskQuestionModal from '../modals/AskQuestionModal'
-import Link from 'next/link'
-import { apiRequest } from '@/lib/api'
+import { Heart, MessageSquare, Shield, Clock, Calendar, Users, MessageCircle, AlertCircle, CheckCircle } from 'lucide-react'
+import { CounselingCardProps } from '@types'
+import AppointmentScheduleModal from '../modals/AppointmentScheduleModal'
+import { useAuth } from '@hooks/useAuth'
+import { apiRequest } from '@lib/api'
+import { getStatusLabel, getStatusBadgeColor, statusBadgeColor, getTypeColor, getStatusColor, formatDate, typeLabel } from '@/lib/reservasi';
 
+interface Reservasi {
+  id: number
+  counselorId: number
+  counselor?: { id: number; username: string; fullName?: string }
+  preferredDate: string
+  preferredTime: string
+  type: 'chat' | 'tatap-muka'
+  topic: string
+  status: 'pending' | 'approved' | 'rejected' | 'completed' | 'cancelled'
+}
 
-const CategoryCard: React.FC<CategoryCardProps & { gradient?: string; onOpen?: () => void }> = ({ icon: Icon, title, description, articles, gradient, onOpen }) => {
-  const [modalOpen, setModalOpen] = React.useState(false);
+const CounselingCard: React.FC<CounselingCardProps & { onBooking?: (type: string) => void; handleSubmitReservasi: (data: any) => void }> = ({
+  icon: Icon,
+  title,
+  description,
+  duration,
+  color,
+  badge,
+  onBooking,
+  handleSubmitReservasi,
+}) => {
+  const [modalOpen, setModalOpen] = useState(false)
 
   return (
     <>
-      <button 
-        onClick={() => setModalOpen(true)}
-        className="bg-white border border-gray-200 rounded-xl p-6 text-left hover:shadow-lg transition-all duration-200 hover:-translate-y-1 flex items-start gap-4"
-      >
-        <div className={`w-14 h-14 ${gradient ?? 'bg-gray-200'} rounded-xl flex items-center justify-center shadow-md flex-shrink-0`}>
-          <Icon className="w-6 h-6 text-white" />
+      <div className="bg-white rounded-xl border border-gray-200 p-6 hover:shadow-lg transition-shadow">
+        <div className="relative">
+          <div className={`w-12 h-12 ${color} rounded-xl flex items-center justify-center mb-4`}>
+            <Icon className="w-6 h-6 text-white" />
+          </div>
+          {badge && (
+            <span className="absolute top-0 right-0 bg-orange-100 text-orange-700 px-2 py-1 rounded-full text-xs font-medium">{badge}</span>
+          )}
         </div>
-        <div className="flex-1">
-          <h3 className="font-semibold text-gray-900 mb-1">{title}</h3>
-          <p className="text-sm text-gray-600 mb-3">{description}</p>
-          <span className="text-xs text-gray-500">{articles} artikel</span>
+        <h4 className="font-bold text-gray-900 mb-2">{title}</h4>
+        <p className="text-sm text-gray-600 mb-4">{description}</p>
+        <div className="flex items-center gap-2 text-gray-500 text-sm mb-4">
+          <Clock className="w-4 h-4" />
+          <span>{duration}</span>
         </div>
-        <ChevronRight className="w-5 h-5 text-gray-300" />
-      </button>
-      {onOpen && <AskQuestionModal isOpen={modalOpen} onClose={() => setModalOpen(false)} />}
-    </>
-  );
-};
+        <button
+          onClick={() => setModalOpen(true)}
+          className="w-full bg-gradient-to-r from-blue-500 to-purple-600 text-white py-2 rounded-lg font-medium hover:opacity-90 transition-opacity duration-200 hover:shadow-lg"
+        >
+          Buat Janji
+        </button>
+      </div>
 
-interface PostCardProps {
-  id: string
-  title: string
-  category: string
-  author: string
-  avatar: string
-  timestamp: string
-  content: string
-  votes: number
-  answers: number
-  views: number
-  isVerified?: boolean
-  categoryColor?: string
-  onClick?: () => void
+      <AppointmentScheduleModal
+        isOpen={modalOpen}
+        onClose={() => setModalOpen(false)}
+        counselingType={title}
+        onConfirm={(data) => {
+          console.log('Booking confirmed:', data)
+          handleSubmitReservasi(data)
+          setModalOpen(false)
+        }}
+      />
+    </>
+  )
 }
 
-const PostCard: React.FC<PostCardProps> = ({
-  id,
-  title,
-  category,
-  author,
-  avatar,
-  timestamp,
-  content,
-  votes,
-  answers,
-  views,
-  isVerified,
-  categoryColor = 'bg-blue-50',
-  onClick
-}) => {
-  const [isUpvoted, setIsUpvoted] = useState(false);
-  const [voteCount, setVoteCount] = useState(votes);
+const KonselingPage: React.FC = () => {
+  const { user, token } = useAuth()
+  const [reservasiList, setReservasiList] = useState<Reservasi[]>([])
+  const [successMessage, setSuccessMessage] = useState<string>('')
+  const [errorMessage, setErrorMessage] = useState<string>('')
+  const [loading, setLoading] = useState(false)
 
-  const handleVote = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (!isUpvoted) {
-      setVoteCount(voteCount + 1);
-      setIsUpvoted(true);
-    } else {
-      setVoteCount(voteCount - 1);
-      setIsUpvoted(false);
-    }
-  };
-
-  return (
-    <div
-      className="w-full bg-white border border-gray-200 rounded-lg p-4 hover:border-gray-300 hover:shadow-md transition-all duration-200 text-left"
-    >
-      <div className="flex gap-4">
-        {/* Vote Section */}
-        <div className="flex flex-col items-center gap-2 py-1">
-          <button
-            onClick={handleVote}
-            className={`p-1.5 rounded hover:bg-gray-100 transition-colors ${
-              isUpvoted ? 'text-orange-500 bg-orange-50' : 'text-gray-400 hover:text-gray-600'
-            }`}
-          >
-            <ChevronRight className="w-5 h-5 transform -rotate-90" />
-          </button>
-          <span className={`text-sm font-semibold ${isUpvoted ? 'text-orange-500' : 'text-gray-600'}`}>
-            {voteCount}
-          </span>
-        </div>
-
-        {/* Content Section */}
-        <div className="flex-1 min-w-0">
-          {/* Category & Author */}
-          <div className="flex items-center gap-2 mb-2 flex-wrap">
-            <span className={`inline-block ${categoryColor} text-xs font-semibold px-2.5 py-0.5 rounded-full`}>
-              {category}
-            </span>
-            <span className="text-xs text-gray-500">
-              dibuat oleh <span className="font-medium text-gray-700">{author}</span>
-            </span>
-            {isVerified && (
-              <div title="Jawaban terverifikasi" className="flex items-center">
-                <Award className="w-3.5 h-3.5 text-green-500" />
-              </div>
-            )}
-            <span className="text-xs text-gray-400 ml-auto">{timestamp}</span>
-          </div>
-
-          {/* Title */}
-          <h3 className="font-semibold text-gray-900 mb-2 leading-snug line-clamp-2 group-hover:text-blue-600">
-            {title}
-          </h3>
-
-          {/* Preview */}
-          <p className="text-sm text-gray-600 mb-3 line-clamp-2">
-            {content}
-          </p>
-
-          {/* Stats */}
-          <div className="flex items-center gap-4 text-xs text-gray-500">
-            <div className="flex items-center gap-1">
-              <MessageCircle className="w-4 h-4" />
-              <span>{answers} jawaban</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <Eye className="w-4 h-4" />
-              <span>{views} dilihat</span>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-const KonsultasiPage: React.FC<{ setActivePage?: (page: string) => void }> = ({ setActivePage }) => {
-  const [sortBy, setSortBy] = useState<'trending' | 'newest' | 'unanswered'>('trending');
-  const [filterCategory, setFilterCategory] = useState<string>('all');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [showModal, setShowModal] = useState(false);
-  const [posts, setPosts] = useState<PostCardProps[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-
-  // Mock data
-  const categories = [
-    { id: 'all', label: 'Semua', icon: BookOpen, color: 'bg-blue-50' },
-    { id: 'personal', label: 'Pribadi', icon: Heart, color: 'bg-pink-50' },
-    { id: 'academic', label: 'Akademik', icon: BookOpen, color: 'bg-cyan-50' },
-    { id: 'social', label: 'Sosial', icon: Users, color: 'bg-emerald-50' },
-    { id: 'development', label: 'Pengembangan', icon: Lightbulb, color: 'bg-violet-50' },
-  ];
-
-  const categoryMap = {
-    personal: 'Pribadi',
-    academic: 'Akademik',
-    social: 'Sosial',
-    development: 'Pengembangan',
-  };
-
-  const categoryColorMap = {
-    personal: 'bg-pink-50',
-    academic: 'bg-cyan-50',
-    social: 'bg-emerald-50',
-    development: 'bg-violet-50',
-  };
-
-  // Fetch data dari API
   useEffect(() => {
-    const fetchConsultations = async () => {
-      try {
-        setLoading(true);
-        const category = filterCategory !== 'all' ? filterCategory : undefined;
-        const params = new URLSearchParams({
-          sort: sortBy,
-          page: page.toString(),
-          limit: '10',
-          ...(category && { category }),
-          ...(searchQuery && { search: searchQuery }),
-        });
+    if (user && token) {
+      fetchMyReservasi()
+    }
+  }, [user, token])
 
-        const token = localStorage.getItem('token');
-        const data = await apiRequest(
-          `/v1/konsultasi?${params}`,
-          'GET',
-          undefined,
-          token
-        );
+  const fetchMyReservasi = async () => {
+    try {
+      console.log('📥 Fetching user reservasi...')
+      const response = await apiRequest('/reservasi/student/my-reservations', 'GET', undefined, token)
+      console.log('✅ Reservasi loaded:', response)
+      setReservasiList(response || [])
+    } catch (error: any) {
+      console.error('❌ Error fetching reservasi:', error)
+    }
+  }
 
-        const transformedPosts = data.data.map((item: any) => {
-          const category = item.category as keyof typeof categoryMap;
-          return {
-            id: item.id,
-            title: item.title,
-            category: categoryMap[category] || item.category,
-            author: item.author?.name || 'Anonymous',
-            avatar: (item.author?.name || 'A').substring(0, 2).toUpperCase(),
-            timestamp: formatDate(item.createdAt),
-            content: item.content,
-            votes: item.votes,
-            answers: item.answerCount,
-            views: item.views,
-            categoryColor: categoryColorMap[category] || 'bg-gray-50',
-            isVerified: false,
-          };
-        });
+  const handleSubmitReservasi = async (formData: any) => {
+    setLoading(true)
+    setErrorMessage('')
+    setSuccessMessage('')
 
-        setPosts(transformedPosts);
-        setTotalPages(data.pagination.pages);
-      } catch (error) {
-        console.error('Error fetching consultations:', error);
-        setPosts([]);
-      } finally {
-        setLoading(false);
+    try {
+      const payload = {
+        studentId: user?.id,
+        counselorId: formData.counselorId,
+        preferredDate: new Date(formData.date).toISOString(),
+        preferredTime: formData.time,
+        type: formData.sessionType === 'tatap-muka' ? 'tatap-muka' : 'chat',
+        topic: formData.topic || formData.counselingType,
+        notes: formData.notes,
       }
-    };
 
-    fetchConsultations();
-  }, [sortBy, filterCategory, searchQuery, page]);
+      console.log('📤 Submitting reservasi:', payload)
+      const response = await apiRequest('/reservasi', 'POST', payload, token)
+      console.log('✅ Reservasi created:', response)
 
-  const formatDate = (date: string) => {
-    const now = new Date();
-    const postDate = new Date(date);
-    const diffMs = now.getTime() - postDate.getTime();
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMs / 3600000);
-    const diffDays = Math.floor(diffMs / 86400000);
+      setSuccessMessage('Reservasi berhasil dibuat! Menunggu konfirmasi dari konselor.')
 
-    if (diffMins < 1) return 'baru saja';
-    if (diffMins < 60) return `${diffMins} menit lalu`;
-    if (diffHours < 24) return `${diffHours} jam lalu`;
-    if (diffDays < 7) return `${diffDays} hari lalu`;
-    return postDate.toLocaleDateString('id-ID');
-  };
+      // Refresh list
+      await fetchMyReservasi()
 
-  const posts_old: PostCardProps[] = [
-    {
-      id: '1',
-      title: 'Bagaimana cara mengatasi rasa cemas saat menghadapi ujian?',
-      category: 'Akademik',
-      author: 'Siswa A',
-      avatar: 'SA',
-      timestamp: '2 jam lalu',
-      content: 'Saya selalu merasa cemas dan gugup sebelum ujian dimulai. Hati berdetak cepat, tangan gemetar, dan sulit fokus. Apa yang harus saya lakukan?',
-      votes: 24,
-      answers: 8,
-      views: 156,
-      categoryColor: 'bg-cyan-50',
-    },
-    {
-      id: '2',
-      title: 'Tips meningkatkan kepercayaan diri dalam presentasi',
-      category: 'Pengembangan',
-      author: 'Siswa B',
-      avatar: 'SB',
-      timestamp: '5 jam lalu',
-      content: 'Saya sangat gugup saat harus presentasi di depan kelas. Bagaimana cara mengatasi rasa takut dan percaya diri saat presentasi?',
-      votes: 18,
-      answers: 12,
-      views: 203,
-      categoryColor: 'bg-violet-50',
-      isVerified: true,
-    },
-    {
-      id: '3',
-      title: 'Apa yang harus dilakukan jika mengalami konflik dengan teman?',
-      category: 'Sosial',
-      author: 'Siswa C',
-      avatar: 'SC',
-      timestamp: '8 jam lalu',
-      content: 'Saya sedang mengalami masalah dengan salah satu teman dekat saya. Kami punya perbedaan pendapat yang cukup serius...',
-      votes: 15,
-      answers: 6,
-      views: 98,
-      categoryColor: 'bg-emerald-50',
-    },
-    {
-      id: '4',
-      title: 'Cara mengelola waktu antara belajar dan kegiatan lain',
-      category: 'Akademik',
-      author: 'Siswa D',
-      avatar: 'SD',
-      timestamp: '1 hari lalu',
-      content: 'Saya merasa jam sekolah sangat panjang dan ketika pulang sudah lelah. Tapi masih ada PR dan kegiatan organisasi. Bagaimana cara mengatur waktu?',
-      votes: 32,
-      answers: 10,
-      views: 287,
-      categoryColor: 'bg-cyan-50',
-    },
-  ];
-
-  const filteredPosts = posts.filter(post => {
-    const matchesSearch = post.title.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesCategory = filterCategory === 'all' || post.category.toLowerCase() === filterCategory;
-    return matchesSearch && matchesCategory;
-  });
-
-  const sortedPosts = posts;
+      // Clear success message after 3 seconds
+      setTimeout(() => setSuccessMessage(''), 3000)
+    } catch (error: any) {
+      console.error('❌ Error creating reservasi:', error)
+      setErrorMessage(error?.message || 'Gagal membuat reservasi')
+    } finally {
+      setLoading(false)
+    }
+  }
 
   return (
-    <div className="bg-gray-50 min-h-screen py-6">
-      {/* Content */}
-      <div className="max-w-7xl mx-auto px-4 mb-8">
-        {/* Search & Action */}
-        <div className="flex gap-3 mb-6">
-          <div className="flex-1 relative">
-            <input
-              type="text"
-              placeholder="Cari pertanyaan..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
-            <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-          </div>
-          <button
-            onClick={() => setShowModal(true)}
-            className="flex items-center gap-2 px-4 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors"
-          >
-            <Plus className="w-5 h-5" />
-            Tanya
-          </button>
+    <div className="pt-16 px-8 space-y-6">
+      {/* Alert Messages */}
+      {successMessage && (
+        <div className="bg-green-50 border border-green-200 rounded-lg p-4 flex items-center gap-3">
+          <CheckCircle className="w-5 h-5 text-green-600" />
+          <p className="text-green-800">{successMessage}</p>
+        </div>
+      )}
+
+      {errorMessage && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-center gap-3">
+          <AlertCircle className="w-5 h-5 text-red-600" />
+          <p className="text-red-800">{errorMessage}</p>
+        </div>
+      )}
+
+      <div className="bg-white rounded-xl border border-gray-200 p-6">
+        <h3 className="font-bold text-gray-900 mb-2">Layanan Konseling</h3>
+        <p className="text-gray-600 mb-6">Pilih jenis konseling yang sesuai dengan kebutuhan Anda</p>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+          <CounselingCard
+            icon={Heart}
+            title="Konseling Umum"
+            description="Sesi one-on-one dengan konselor untuk membahas masalah Umum, emosional, atau sosial"
+            duration="45-60 menit"
+            color="bg-pink-500"
+            handleSubmitReservasi={handleSubmitReservasi}
+          />
+          {/* <CounselingCard
+            icon={MessageCircle}
+            title="Konseling Akademik"
+            description="Bantuan untuk mengatasi kesulitan belajar, motivasi akademik, dan perencanaan studi"
+            duration="30-45 menit"
+            color="bg-blue-500"
+            handleSubmitReservasi={handleSubmitReservasi}
+          />
+          <CounselingCard
+            icon={Calendar}
+            title="Konseling Karir"
+            description="Bimbingan untuk eksplorasi minat, bakat, dan perencanaan karir masa depan"
+            duration="60 menit"
+            color="bg-purple-500"
+            handleSubmitReservasi={handleSubmitReservasi}
+          /> */}
+          <CounselingCard
+            icon={Users}
+            title="Konseling Kelompok"
+            description="Sesi bersama siswa lain untuk membahas topik tertentu dan saling mendukung"
+            duration="90 menit"
+            color="bg-green-500"
+            badge="Terbatas"
+            handleSubmitReservasi={handleSubmitReservasi}
+          />
+          {/* <CounselingCard
+            icon={MessageSquare}
+            title="Konseling Lainnya"
+            description="Konsultasi untuk masalah sosial, keluarga, atau topik khusus lainnya"
+            duration="Disesuaikan"
+            color="bg-orange-500"
+            handleSubmitReservasi={handleSubmitReservasi}
+          /> */}
         </div>
 
-        {/* Category Filter */}
-        <div className="flex gap-2 overflow-x-auto pb-2">
-          {categories.map(cat => (
-            <button
-              key={cat.id}
-              onClick={() => setFilterCategory(cat.id)}
-              className={`px-4 py-2 rounded-full font-medium whitespace-nowrap transition-all ${
-                filterCategory === cat.id
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-white border border-gray-300 text-gray-700 hover:border-gray-400'
-              }`}
-            >
-              {cat.label}
-            </button>
-          ))}
+        <div className="bg-green-50 rounded-xl p-4">
+          <div className="flex gap-3">
+            <Shield className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="font-semibold text-green-900 mb-1">Kerahasiaan Terjamin</p>
+              <p className="text-sm text-green-700">
+                Semua informasi dan percakapan Anda dengan konselor BK bersifat rahasia dan dilindungi sesuai dengan kebijakan privasi sekolah.
+              </p>
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-4">
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-          {/* Posts Feed */}
-          <div className="lg:col-span-3 space-y-4">
-            {/* Sort Options */}
-            <div className="flex items-center gap-2 mb-4">
-              <Filter className="w-4 h-4 text-gray-500" />
-              <select
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value as any)}
-                className="px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="trending">Trending</option>
-                <option value="newest">Terbaru</option>
-                <option value="unanswered">Belum Terjawab</option>
-              </select>
-            </div>
+      {/* Reservasi Saya */}
+      <div className="bg-white rounded-xl border border-gray-200 p-6">
+        <h3 className="font-bold text-gray-900 mb-2">Reservasi Saya</h3>
+        <p className="text-gray-600 mb-6">Daftar reservasi konseling Anda</p>
 
-            {/* Posts */}
-            <div className="space-y-3">
-              {loading ? (
-                <div className="flex items-center justify-center py-12">
-                  <div className="flex flex-col items-center gap-3">
-                    <Loader className="w-8 h-8 text-blue-600 animate-spin" />
-                    <p className="text-gray-600">Memuat pertanyaan...</p>
+        {reservasiList.length === 0 ? (
+          <div className="bg-gray-50 rounded-lg p-6 text-center">
+            <p className="text-gray-600">Belum ada reservasi</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {reservasiList.map((res) => (
+              <div key={res.id} className="bg-white rounded-lg p-4 border border-gray-200 flex items-center justify-between">
+                <div className="flex items-center gap-4 flex-1">
+                  <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                    <Heart className="w-5 h-5 text-blue-600" />
+                  </div>
+                  <div className="flex-1">
+                    <h5 className="font-semibold text-gray-900">{res.topic}</h5>
+                    <p className="text-sm text-gray-600">{typeLabel[res.type]} • {res.counselor?.username || res.counselor?.fullName || 'Konselor'} • {formatDate(res.preferredDate)} • {res.preferredTime}</p>
                   </div>
                 </div>
-              ) : sortedPosts.length > 0 ? (
-                sortedPosts.map(post => (
-                  <Link key={post.id} href={`/home/siswa/konsultasi/${post.id}`}>
-                    <PostCard
-                      {...post}
-                      onClick={() => {
-                        // Navigate handled by Link
-                      }}
-                    />
-                  </Link>
-                ))
-              ) : (
-                <div className="text-center py-12 bg-white rounded-lg border border-gray-200">
-                  <p className="text-gray-600">Tidak ada pertanyaan yang cocok</p>
-                </div>
-              )}
-            </div>
-
-            {/* Pagination */}
-            {totalPages > 1 && (
-              <div className="flex justify-center gap-2 mt-6">
-                <button
-                  onClick={() => setPage(Math.max(1, page - 1))}
-                  disabled={page === 1}
-                  className="px-3 py-2 border border-gray-300 rounded-lg disabled:opacity-50 hover:bg-gray-50"
-                >
-                  Sebelumnya
-                </button>
-                <div className="flex items-center gap-2">
-                  {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
-                    <button
-                      key={p}
-                      onClick={() => setPage(p)}
-                      className={`px-3 py-2 rounded-lg ${
-                        page === p
-                          ? 'bg-blue-600 text-white'
-                          : 'border border-gray-300 hover:bg-gray-50'
-                      }`}
-                    >
-                      {p}
-                    </button>
-                  ))}
-                </div>
-                <button
-                  onClick={() => setPage(Math.min(totalPages, page + 1))}
-                  disabled={page === totalPages}
-                  className="px-3 py-2 border border-gray-300 rounded-lg disabled:opacity-50 hover:bg-gray-50"
-                >
-                  Berikutnya
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* Sidebar */}
-          <div className="space-y-4">
-            {/* Info Box */}
-            <div className="bg-white border border-gray-200 rounded-lg p-5">
-              <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                <Lightbulb className="w-5 h-5 text-amber-500" />
-                Tips Bertanya
-              </h3>
-              <ul className="space-y-2 text-sm text-gray-600">
-                <li>• Jelaskan masalah secara detail</li>
-                <li>• Pilih kategori yang tepat</li>
-                <li>• Hormati jawaban dari konselor</li>
-                <li>• Gunakan bahasa yang sopan</li>
-              </ul>
-            </div>
-
-            {/* Stats */}
-            <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-5">
-              <h3 className="font-semibold text-gray-900 mb-4">Statistik</h3>
-              <div className="space-y-3">
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-600">Pertanyaan</span>
-                  <span className="font-semibold text-blue-600">{posts.length}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-600">Terjawab</span>
-                  <span className="font-semibold text-green-600">
-                    {posts.filter(p => p.answers > 0).length}
-                  </span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-600">Total Lihat</span>
-                  <span className="font-semibold text-purple-600">
-                    {posts.reduce((sum, p) => sum + p.views, 0)}
+                <div className="flex items-center gap-3">
+                  <span className={`text-xs px-3 py-1 rounded-full font-medium ${getStatusBadgeColor(res.status)}`}>
+                    {getStatusLabel(res.status)}
                   </span>
                 </div>
               </div>
-            </div>
-
-            {/* Help Box */}
-            <div className="bg-green-50 border border-green-200 rounded-lg p-5">
-              <h3 className="font-semibold text-gray-900 mb-2">Butuh Bantuan Langsung?</h3>
-              <p className="text-sm text-gray-600 mb-4">Chat dengan konselor BK kami atau buat reservasi konseling</p>
-              <div className="space-y-2">
-                <button className="w-full px-3 py-2 text-sm bg-white border border-green-300 text-green-700 rounded-lg hover:bg-green-50 transition-colors font-medium">
-                  Chat BK
-                </button>
-                <button className="w-full px-3 py-2 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium">
-                  Reservasi Konseling
-                </button>
-              </div>
-            </div>
+            ))}
           </div>
-        </div>
+        )}
       </div>
-
-      {/* Modal */}
-      <AskQuestionModal isOpen={showModal} onClose={() => setShowModal(false)} />
     </div>
-  );
-};
+  )
+}
 
-export default KonsultasiPage;
+export default KonselingPage

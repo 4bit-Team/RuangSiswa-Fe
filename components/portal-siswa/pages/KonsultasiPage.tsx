@@ -1,10 +1,10 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import {
   ChevronRight,
   Search,
-  Heart,
   MessageCircle,
   Calendar,
   Users,
@@ -15,40 +15,24 @@ import {
   Clock,
   Eye,
   Share2,
-  Award,
   Filter,
   Plus,
   Loader,
+  Bookmark,
+  Award
 } from 'lucide-react'
 import { CategoryCardProps, QuestionItemProps } from '@types'
 import AskQuestionModal from '../modals/AskQuestionModal'
 import Link from 'next/link'
 import { apiRequest } from '@/lib/api'
+import { generateSlug } from '@/lib/slugify'
 
-
-const CategoryCard: React.FC<CategoryCardProps & { gradient?: string; onOpen?: () => void }> = ({ icon: Icon, title, description, articles, gradient, onOpen }) => {
-  const [modalOpen, setModalOpen] = React.useState(false);
-
-  return (
-    <>
-      <button 
-        onClick={() => setModalOpen(true)}
-        className="bg-white border border-gray-200 rounded-xl p-6 text-left hover:shadow-lg transition-all duration-200 hover:-translate-y-1 flex items-start gap-4"
-      >
-        <div className={`w-14 h-14 ${gradient ?? 'bg-gray-200'} rounded-xl flex items-center justify-center shadow-md flex-shrink-0`}>
-          <Icon className="w-6 h-6 text-white" />
-        </div>
-        <div className="flex-1">
-          <h3 className="font-semibold text-gray-900 mb-1">{title}</h3>
-          <p className="text-sm text-gray-600 mb-3">{description}</p>
-          <span className="text-xs text-gray-500">{articles} artikel</span>
-        </div>
-        <ChevronRight className="w-5 h-5 text-gray-300" />
-      </button>
-      {onOpen && <AskQuestionModal isOpen={modalOpen} onClose={() => setModalOpen(false)} />}
-    </>
-  );
-};
+interface Category {
+  id: number
+  name: string
+  description?: string
+  isActive: boolean
+}
 
 interface PostCardProps {
   id: string
@@ -165,37 +149,35 @@ const PostCard: React.FC<PostCardProps> = ({
 };
 
 const KonsultasiPage: React.FC<{ setActivePage?: (page: string) => void }> = ({ setActivePage }) => {
-  const [sortBy, setSortBy] = useState<'trending' | 'newest' | 'unanswered'>('trending');
-  const [filterCategory, setFilterCategory] = useState<string>('all');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [showModal, setShowModal] = useState(false);
-  const [posts, setPosts] = useState<PostCardProps[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
+  const router = useRouter()
+  const [sortBy, setSortBy] = useState<'trending' | 'newest' | 'unanswered'>('trending')
+  const [filterCategory, setFilterCategory] = useState<string>('all')
+  const [searchQuery, setSearchQuery] = useState('')
+  const [showModal, setShowModal] = useState(false)
+  const [posts, setPosts] = useState<PostCardProps[]>([])
+  const [loading, setLoading] = useState(true)
+  const [page, setPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const [categories, setCategories] = useState<Category[]>([])
+  const [loadingCategories, setLoadingCategories] = useState(true)
 
-  // Mock data
-  const categories = [
-    { id: 'all', label: 'Semua', icon: BookOpen, color: 'bg-blue-50' },
-    { id: 'personal', label: 'Pribadi', icon: Heart, color: 'bg-pink-50' },
-    { id: 'academic', label: 'Akademik', icon: BookOpen, color: 'bg-cyan-50' },
-    { id: 'social', label: 'Sosial', icon: Users, color: 'bg-emerald-50' },
-    { id: 'development', label: 'Pengembangan', icon: Lightbulb, color: 'bg-violet-50' },
-  ];
-
-  const categoryMap = {
-    personal: 'Pribadi',
-    academic: 'Akademik',
-    social: 'Sosial',
-    development: 'Pengembangan',
-  };
-
-  const categoryColorMap = {
-    personal: 'bg-pink-50',
-    academic: 'bg-cyan-50',
-    social: 'bg-emerald-50',
-    development: 'bg-violet-50',
-  };
+  // Fetch categories on mount
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        setLoadingCategories(true)
+        const token = localStorage.getItem('token')
+        const response = await apiRequest('/consultation-category', 'GET', undefined, token)
+        const categoryList = Array.isArray(response) ? response : response?.data || []
+        setCategories(categoryList)
+      } catch (error) {
+        console.error('Error fetching categories:', error)
+      } finally {
+        setLoadingCategories(false)
+      }
+    }
+    fetchCategories()
+  }, [])
 
   // Fetch data dari API
   useEffect(() => {
@@ -220,11 +202,11 @@ const KonsultasiPage: React.FC<{ setActivePage?: (page: string) => void }> = ({ 
         );
 
         const transformedPosts = data.data.map((item: any) => {
-          const category = item.category as keyof typeof categoryMap;
+          const category = categories.find(c => c.id === item.categoryId);
           return {
             id: item.id,
             title: item.title,
-            category: categoryMap[category] || item.category,
+            category: category?.name || 'Umum',
             author: item.author?.name || 'Anonymous',
             avatar: (item.author?.name || 'A').substring(0, 2).toUpperCase(),
             timestamp: formatDate(item.createdAt),
@@ -232,7 +214,7 @@ const KonsultasiPage: React.FC<{ setActivePage?: (page: string) => void }> = ({ 
             votes: item.votes,
             answers: item.answerCount,
             views: item.views,
-            categoryColor: categoryColorMap[category] || 'bg-gray-50',
+            categoryColor: 'bg-blue-50',
             isVerified: false,
           };
         });
@@ -247,8 +229,10 @@ const KonsultasiPage: React.FC<{ setActivePage?: (page: string) => void }> = ({ 
       }
     };
 
-    fetchConsultations();
-  }, [sortBy, filterCategory, searchQuery, page]);
+    if (!loadingCategories) {
+      fetchConsultations();
+    }
+  }, [sortBy, filterCategory, searchQuery, page, loadingCategories, categories]);
 
   const formatDate = (date: string) => {
     const now = new Date();
@@ -333,6 +317,20 @@ const KonsultasiPage: React.FC<{ setActivePage?: (page: string) => void }> = ({ 
     <div className="bg-gray-50 min-h-screen py-6">
       {/* Content */}
       <div className="max-w-7xl mx-auto px-4 mb-8">
+        <div className="mb-6 flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">Konsultasi Terbuka</h1>
+            <p className="text-gray-600">Tanya jawab dengan komunitas siswa dan konselor BK</p>
+          </div>
+          <button
+            onClick={() => router.push('/home/siswa/konsultasi/bookmarks')}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+          >
+            <Bookmark className="w-5 h-5" />
+            Bookmark Saya
+          </button>
+        </div>
+
         {/* Search & Action */}
         <div className="flex gap-3 mb-6">
           <div className="flex-1 relative">
@@ -356,17 +354,27 @@ const KonsultasiPage: React.FC<{ setActivePage?: (page: string) => void }> = ({ 
 
         {/* Category Filter */}
         <div className="flex gap-2 overflow-x-auto pb-2">
+          <button
+            onClick={() => setFilterCategory('all')}
+            className={`px-4 py-2 rounded-full font-medium whitespace-nowrap transition-all ${
+              filterCategory === 'all'
+                ? 'bg-blue-600 text-white'
+                : 'bg-white border border-gray-300 text-gray-700 hover:border-gray-400'
+            }`}
+          >
+            Semua
+          </button>
           {categories.map(cat => (
             <button
               key={cat.id}
-              onClick={() => setFilterCategory(cat.id)}
+              onClick={() => setFilterCategory(cat.id.toString())}
               className={`px-4 py-2 rounded-full font-medium whitespace-nowrap transition-all ${
-                filterCategory === cat.id
+                filterCategory === cat.id.toString()
                   ? 'bg-blue-600 text-white'
                   : 'bg-white border border-gray-300 text-gray-700 hover:border-gray-400'
               }`}
             >
-              {cat.label}
+              {cat.name}
             </button>
           ))}
         </div>
@@ -402,7 +410,7 @@ const KonsultasiPage: React.FC<{ setActivePage?: (page: string) => void }> = ({ 
                 </div>
               ) : sortedPosts.length > 0 ? (
                 sortedPosts.map(post => (
-                  <Link key={post.id} href={`/home/siswa/konsultasi/${post.id}`}>
+                  <Link key={post.id} href={`/home/siswa/konsultasi/${generateSlug(post.title)}`}>
                     <PostCard
                       {...post}
                       onClick={() => {

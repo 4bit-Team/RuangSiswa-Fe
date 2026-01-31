@@ -1,10 +1,10 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import {
   ChevronRight,
   Search,
-  Heart,
   MessageCircle,
   Calendar,
   Users,
@@ -15,23 +15,30 @@ import {
   Clock,
   Eye,
   Share2,
-  Award,
   Filter,
   Plus,
   Loader,
+  Bookmark,
+  Award,
 } from 'lucide-react'
 import { CategoryCardProps, QuestionItemProps } from '@types'
-import AskQuestionModalBK from '../modals/AskQuestionModalBK'
+import AskQuestionModalBk from '../modals/AskQuestionModalBK'
 import Link from 'next/link'
 import { apiRequest } from '@/lib/api'
+import { generateSlug } from '@/lib/slugify'
 
+interface Category {
+  id: number
+  name: string
+  description?: string
+  isActive: boolean
+}
 
 interface PostCardProps {
   id: string
   title: string
   category: string
   author: string
-  authorClass?: string
   avatar: string
   timestamp: string
   content: string
@@ -48,7 +55,6 @@ const PostCard: React.FC<PostCardProps> = ({
   title,
   category,
   author,
-  authorClass,
   avatar,
   timestamp,
   content,
@@ -63,7 +69,6 @@ const PostCard: React.FC<PostCardProps> = ({
   const [voteCount, setVoteCount] = useState(votes);
 
   const handleVote = (e: React.MouseEvent) => {
-    e.preventDefault();
     e.stopPropagation();
     if (!isUpvoted) {
       setVoteCount(voteCount + 1);
@@ -75,7 +80,8 @@ const PostCard: React.FC<PostCardProps> = ({
   };
 
   return (
-    <div
+    <button
+      onClick={onClick}
       className="w-full bg-white border border-gray-200 rounded-lg p-4 hover:border-gray-300 hover:shadow-md transition-all duration-200 text-left"
     >
       <div className="flex gap-4">
@@ -102,8 +108,7 @@ const PostCard: React.FC<PostCardProps> = ({
               {category}
             </span>
             <span className="text-xs text-gray-500">
-              dari <span className="font-medium text-gray-700">{author}</span>
-              {authorClass && <span className="text-gray-600 ml-1">({authorClass})</span>}
+              dibuat oleh <span className="font-medium text-gray-700">{author}</span>
             </span>
             {isVerified && (
               <div title="Jawaban terverifikasi" className="flex items-center">
@@ -136,41 +141,40 @@ const PostCard: React.FC<PostCardProps> = ({
           </div>
         </div>
       </div>
-    </div>
+    </button>
   );
 };
 
 const KonsultasiPageBK: React.FC<{ setActivePage?: (page: string) => void }> = ({ setActivePage }) => {
-  const [sortBy, setSortBy] = useState<'trending' | 'newest' | 'unanswered'>('trending');
-  const [filterCategory, setFilterCategory] = useState<string>('all');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [showModal, setShowModal] = useState(false);
-  const [posts, setPosts] = useState<PostCardProps[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
+  const router = useRouter()
+  const [sortBy, setSortBy] = useState<'trending' | 'newest' | 'unanswered'>('trending')
+  const [filterCategory, setFilterCategory] = useState<string>('all')
+  const [searchQuery, setSearchQuery] = useState('')
+  const [showModal, setShowModal] = useState(false)
+  const [posts, setPosts] = useState<PostCardProps[]>([])
+  const [loading, setLoading] = useState(true)
+  const [page, setPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const [categories, setCategories] = useState<Category[]>([])
+  const [loadingCategories, setLoadingCategories] = useState(true)
 
-  const categories = [
-    { id: 'all', label: 'Semua', icon: BookOpen, color: 'bg-blue-50' },
-    { id: 'personal', label: 'Pribadi', icon: Heart, color: 'bg-pink-50' },
-    { id: 'academic', label: 'Akademik', icon: BookOpen, color: 'bg-cyan-50' },
-    { id: 'social', label: 'Sosial', icon: Users, color: 'bg-emerald-50' },
-    { id: 'development', label: 'Pengembangan', icon: Lightbulb, color: 'bg-violet-50' },
-  ];
-
-  const categoryMap = {
-    personal: 'Pribadi',
-    academic: 'Akademik',
-    social: 'Sosial',
-    development: 'Pengembangan',
-  };
-
-  const categoryColorMap = {
-    personal: 'bg-pink-50',
-    academic: 'bg-cyan-50',
-    social: 'bg-emerald-50',
-    development: 'bg-violet-50',
-  };
+  // Fetch categories on mount
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        setLoadingCategories(true)
+        const token = localStorage.getItem('token')
+        const response = await apiRequest('/consultation-category', 'GET', undefined, token)
+        const categoryList = Array.isArray(response) ? response : response?.data || []
+        setCategories(categoryList)
+      } catch (error) {
+        console.error('Error fetching categories:', error)
+      } finally {
+        setLoadingCategories(false)
+      }
+    }
+    fetchCategories()
+  }, [])
 
   // Fetch data dari API
   useEffect(() => {
@@ -195,20 +199,19 @@ const KonsultasiPageBK: React.FC<{ setActivePage?: (page: string) => void }> = (
         );
 
         const transformedPosts = data.data.map((item: any) => {
-          const category = item.category as keyof typeof categoryMap;
+          const category = categories.find(c => c.id === item.categoryId);
           return {
             id: item.id,
             title: item.title,
-            category: categoryMap[category] || item.category,
+            category: category?.name || 'Umum',
             author: item.author?.name || 'Anonymous',
-            authorClass: item.author?.studentCard?.class?.name || '',
             avatar: (item.author?.name || 'A').substring(0, 2).toUpperCase(),
             timestamp: formatDate(item.createdAt),
             content: item.content,
             votes: item.votes,
             answers: item.answerCount,
             views: item.views,
-            categoryColor: categoryColorMap[category] || 'bg-gray-50',
+            categoryColor: 'bg-blue-50',
             isVerified: false,
           };
         });
@@ -223,8 +226,10 @@ const KonsultasiPageBK: React.FC<{ setActivePage?: (page: string) => void }> = (
       }
     };
 
-    fetchConsultations();
-  }, [sortBy, filterCategory, searchQuery, page]);
+    if (!loadingCategories) {
+      fetchConsultations();
+    }
+  }, [sortBy, filterCategory, searchQuery, page, loadingCategories, categories]);
 
   const formatDate = (date: string) => {
     const now = new Date();
@@ -241,15 +246,86 @@ const KonsultasiPageBK: React.FC<{ setActivePage?: (page: string) => void }> = (
     return postDate.toLocaleDateString('id-ID');
   };
 
+  const posts_old: PostCardProps[] = [
+    {
+      id: '1',
+      title: 'Bagaimana cara mengatasi rasa cemas saat menghadapi ujian?',
+      category: 'Akademik',
+      author: 'Siswa A',
+      avatar: 'SA',
+      timestamp: '2 jam lalu',
+      content: 'Saya selalu merasa cemas dan gugup sebelum ujian dimulai. Hati berdetak cepat, tangan gemetar, dan sulit fokus. Apa yang harus saya lakukan?',
+      votes: 24,
+      answers: 8,
+      views: 156,
+      categoryColor: 'bg-cyan-50',
+    },
+    {
+      id: '2',
+      title: 'Tips meningkatkan kepercayaan diri dalam presentasi',
+      category: 'Pengembangan',
+      author: 'Siswa B',
+      avatar: 'SB',
+      timestamp: '5 jam lalu',
+      content: 'Saya sangat gugup saat harus presentasi di depan kelas. Bagaimana cara mengatasi rasa takut dan percaya diri saat presentasi?',
+      votes: 18,
+      answers: 12,
+      views: 203,
+      categoryColor: 'bg-violet-50',
+      isVerified: true,
+    },
+    {
+      id: '3',
+      title: 'Apa yang harus dilakukan jika mengalami konflik dengan teman?',
+      category: 'Sosial',
+      author: 'Siswa C',
+      avatar: 'SC',
+      timestamp: '8 jam lalu',
+      content: 'Saya sedang mengalami masalah dengan salah satu teman dekat saya. Kami punya perbedaan pendapat yang cukup serius...',
+      votes: 15,
+      answers: 6,
+      views: 98,
+      categoryColor: 'bg-emerald-50',
+    },
+    {
+      id: '4',
+      title: 'Cara mengelola waktu antara belajar dan kegiatan lain',
+      category: 'Akademik',
+      author: 'Siswa D',
+      avatar: 'SD',
+      timestamp: '1 hari lalu',
+      content: 'Saya merasa jam sekolah sangat panjang dan ketika pulang sudah lelah. Tapi masih ada PR dan kegiatan organisasi. Bagaimana cara mengatur waktu?',
+      votes: 32,
+      answers: 10,
+      views: 287,
+      categoryColor: 'bg-cyan-50',
+    },
+  ];
+
+  const filteredPosts = posts.filter(post => {
+    const matchesSearch = post.title.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesCategory = filterCategory === 'all' || post.category.toLowerCase() === filterCategory;
+    return matchesSearch && matchesCategory;
+  });
+
   const sortedPosts = posts;
 
   return (
     <div className="bg-gray-50 min-h-screen py-6">
       {/* Header */}
       <div className="max-w-7xl mx-auto px-4 mb-8">
-        <div className="mb-6">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Konsultasi Siswa</h1>
-          <p className="text-gray-600">Lihat dan berikan jawaban untuk pertanyaan siswa</p>
+        <div className="mb-6 flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">Konsultasi Terbuka</h1>
+            <p className="text-gray-600">Tanya jawab dengan komunitas siswa dan konselor BK</p>
+          </div>
+          <button
+            onClick={() => router.push('/home/bk/konsultasi/bookmarks')}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+          >
+            <Bookmark className="w-5 h-5" />
+            Bookmark Saya
+          </button>
         </div>
 
         {/* Search & Action */}
@@ -264,21 +340,38 @@ const KonsultasiPageBK: React.FC<{ setActivePage?: (page: string) => void }> = (
             />
             <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
           </div>
+          <button
+            onClick={() => setShowModal(true)}
+            className="flex items-center gap-2 px-4 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors"
+          >
+            <Plus className="w-5 h-5" />
+            Tanya
+          </button>
         </div>
 
         {/* Category Filter */}
         <div className="flex gap-2 overflow-x-auto pb-2">
+          <button
+            onClick={() => setFilterCategory('all')}
+            className={`px-4 py-2 rounded-full font-medium whitespace-nowrap transition-all ${
+              filterCategory === 'all'
+                ? 'bg-blue-600 text-white'
+                : 'bg-white border border-gray-300 text-gray-700 hover:border-gray-400'
+            }`}
+          >
+            Semua
+          </button>
           {categories.map(cat => (
             <button
               key={cat.id}
-              onClick={() => setFilterCategory(cat.id)}
+              onClick={() => setFilterCategory(cat.id.toString())}
               className={`px-4 py-2 rounded-full font-medium whitespace-nowrap transition-all ${
-                filterCategory === cat.id
+                filterCategory === cat.id.toString()
                   ? 'bg-blue-600 text-white'
                   : 'bg-white border border-gray-300 text-gray-700 hover:border-gray-400'
               }`}
             >
-              {cat.label}
+              {cat.name}
             </button>
           ))}
         </div>
@@ -314,13 +407,8 @@ const KonsultasiPageBK: React.FC<{ setActivePage?: (page: string) => void }> = (
                 </div>
               ) : sortedPosts.length > 0 ? (
                 sortedPosts.map(post => (
-                  <Link key={post.id} href={`/home/bk/konsultasi/${post.id}`}>
-                    <PostCard
-                      {...post}
-                      onClick={() => {
-                        // Navigate handled by Link
-                      }}
-                    />
+                  <Link key={post.id} href={`/home/bk/konsultasi/${generateSlug(post.title)}`}>
+                    <PostCard {...post} />
                   </Link>
                 ))
               ) : (
@@ -372,13 +460,13 @@ const KonsultasiPageBK: React.FC<{ setActivePage?: (page: string) => void }> = (
             <div className="bg-white border border-gray-200 rounded-lg p-5">
               <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
                 <Lightbulb className="w-5 h-5 text-amber-500" />
-                Tips Menjawab
+                Tips Bertanya
               </h3>
               <ul className="space-y-2 text-sm text-gray-600">
-                <li>• Berikan jawaban yang jelas dan detail</li>
-                <li>• Dengarkan dengan empati</li>
-                <li>• Berikan saran yang konstruktif</li>
-                <li>• Gunakan bahasa yang mendukung</li>
+                <li>• Jelaskan masalah secara detail</li>
+                <li>• Pilih kategori yang tepat</li>
+                <li>• Hormati jawaban dari konselor</li>
+                <li>• Gunakan bahasa yang sopan</li>
               </ul>
             </div>
 
@@ -404,9 +492,26 @@ const KonsultasiPageBK: React.FC<{ setActivePage?: (page: string) => void }> = (
                 </div>
               </div>
             </div>
+
+            {/* Help Box */}
+            <div className="bg-green-50 border border-green-200 rounded-lg p-5">
+              <h3 className="font-semibold text-gray-900 mb-2">Butuh Bantuan Langsung?</h3>
+              <p className="text-sm text-gray-600 mb-4">Chat dengan konselor BK kami atau buat reservasi konseling</p>
+              <div className="space-y-2">
+                <button className="w-full px-3 py-2 text-sm bg-white border border-green-300 text-green-700 rounded-lg hover:bg-green-50 transition-colors font-medium">
+                  Chat BK
+                </button>
+                <button className="w-full px-3 py-2 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium">
+                  Reservasi Konseling
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
+
+      {/* Modal */}
+      <AskQuestionModalBk isOpen={showModal} onClose={() => setShowModal(false)} />
     </div>
   );
 };

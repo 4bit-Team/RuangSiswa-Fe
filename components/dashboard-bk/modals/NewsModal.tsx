@@ -1,20 +1,21 @@
 'use client'
 
 import React, { useState, useEffect, Suspense } from 'react'
-import { X, Loader } from 'lucide-react'
+import { X, Loader, Plus, ChevronDown } from 'lucide-react'
 import dynamic from 'next/dynamic'
+import { apiRequest } from '@/lib/api'
+import { authStorage } from '@/lib/authStorage'
 
 // Lazy load CKEditor to avoid window reference error during SSR
 const CKEditorComponent = dynamic(
   async () => {
     const { CKEditor } = await import('@ckeditor/ckeditor5-react')
-    // Import ClassicEditor and ensure its default export is correctly handled
-    const ClassicEditor = await import('@ckeditor/ckeditor5-build-classic').then(module => module.default)
+    const ClassicEditor = (await import('@ckeditor/ckeditor5-build-classic')).default
     
     return {
       default: ({ value, onChange }: { value: string; onChange: (data: string) => void }) => (
         <CKEditor
-          editor={ClassicEditor as any}
+          editor={ClassicEditor}
           data={value}
           onChange={(_: any, editor: any) => onChange(editor.getData())}
           config={{
@@ -26,11 +27,34 @@ const CKEditorComponent = dynamic(
             ],
             heading: {
               options: [
-                { model: 'paragraph', title: 'Paragraph', class: 'ck-heading_paragraph' },
-                { model: 'heading1', view: 'h1', title: 'Heading 1', class: 'ck-heading_h1' },
-                { model: 'heading2', view: 'h2', title: 'Heading 2', class: 'ck-heading_h2' },
-                { model: 'heading3', view: 'h3', title: 'Heading 3', class: 'ck-heading_h3' },
+                { model: 'paragraph', title: 'Paragraph' },
+                { model: 'heading1', view: 'h1', title: 'Heading 1' },
+                { model: 'heading2', view: 'h2', title: 'Heading 2' },
+                { model: 'heading3', view: 'h3', title: 'Heading 3' },
               ]
+            },
+            htmlSupport: {
+              allow: [
+                {
+                  name: 'iframe',
+                  attributes: {
+                    allow: true,
+                    allowfullscreen: true,
+                    frameborder: true,
+                    height: true,
+                    src: true,
+                    width: true,
+                    style: true,
+                  },
+                },
+              ],
+            },
+            htmlEmbed: {
+              showPreviews: true,
+            },
+            paste: {
+              preventDropFilesEditing: false,
+              allowPasteFromOtherSources: true,
             },
           }}
         />
@@ -50,6 +74,13 @@ interface NewsModalProps {
   onImageUpload?: (file: File) => Promise<{ url: string }>
 }
 
+interface Category {
+  id: number
+  name: string
+  description?: string
+  isActive: boolean
+}
+
 const NewsModal: React.FC<NewsModalProps> = ({ 
   isOpen, 
   onClose, 
@@ -64,51 +95,100 @@ const NewsModal: React.FC<NewsModalProps> = ({
     summary: '',
     content: '',
     imageUrl: '',
-    categories: [] as string[],
+    categoryIds: [] as number[],
     status: 'draft' as 'draft' | 'published' | 'scheduled',
     scheduledDate: '',
   })
 
   const [uploading, setUploading] = useState(false)
   const [submitting, setSubmitting] = useState(false)
-
-  const categories = [
-    'Akademik',
-    'Kesehatan Mental',
-    'Karir',
-    'Pengembangan Diri',
-    'Sosial',
-    'Pengumuman',
-  ]
+  const [categories, setCategories] = useState<Category[]>([])
+  const [loadingCategories, setLoadingCategories] = useState(false)
+  const [showAddCategory, setShowAddCategory] = useState(false)
+  const [newCategoryName, setNewCategoryName] = useState('')
+  const [creatingCategory, setCreatingCategory] = useState(false)
+  const [displayCount, setDisplayCount] = useState(6)
+  const [categoryMessage, setCategoryMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
   // Initialize form data when modal opens or initialData changes
   useEffect(() => {
     if (isOpen) {
+      loadCategories()
       if (initialData) {
         setFormData({
           title: initialData.title || '',
           summary: initialData.summary || '',
           content: initialData.content || '',
           imageUrl: initialData.imageUrl || '',
-          categories: initialData.categories || [],
+          categoryIds: Array.isArray(initialData.categoryIds) ? initialData.categoryIds : (initialData.categories || []),
           status: initialData.status || 'draft',
           scheduledDate: initialData.scheduledDate 
             ? new Date(initialData.scheduledDate).toISOString().slice(0, 16) 
             : '',
         })
       } else {
-        setFormData({
-          title: '',
-          summary: '',
-          content: '',
-          imageUrl: '',
-          categories: [],
-          status: 'draft',
-          scheduledDate: '',
-        })
+        resetFormData()
       }
     }
   }, [isOpen, initialData])
+
+  const resetFormData = () => {
+    setFormData({
+      title: '',
+      summary: '',
+      content: '',
+      imageUrl: '',
+      categoryIds: [],
+      status: 'draft',
+      scheduledDate: '',
+    })
+    setDisplayCount(6)
+    setCategoryMessage(null)
+  }
+
+  // Load categories from API
+  const loadCategories = async () => {
+    try {
+      setLoadingCategories(true)
+      const token = authStorage.getToken()
+      const response = await apiRequest('/news-category', 'GET', undefined, token)
+      setCategories(Array.isArray(response) ? response : [])
+    } catch (error) {
+      console.error('Failed to load categories:', error)
+    } finally {
+      setLoadingCategories(false)
+    }
+  }
+
+  // Create new category
+  const handleCreateCategory = async () => {
+    if (!newCategoryName.trim()) {
+      setCategoryMessage({ type: 'error', text: 'Nama kategori tidak boleh kosong' })
+      return
+    }
+
+    try {
+      setCreatingCategory(true)
+      const token = authStorage.getToken()
+      const newCategory = await apiRequest('/news-category', 'POST', {
+        name: newCategoryName,
+      }, token)
+      
+      setCategories([...categories, newCategory])
+      setFormData(prev => ({
+        ...prev,
+        categoryIds: [...prev.categoryIds, newCategory.id]
+      }))
+      setNewCategoryName('')
+      setShowAddCategory(false)
+      setCategoryMessage({ type: 'success', text: 'Kategori berhasil ditambahkan' })
+      setTimeout(() => setCategoryMessage(null), 2000)
+    } catch (error: any) {
+      setCategoryMessage({ type: 'error', text: error?.message || 'Gagal membuat kategori' })
+    } finally {
+      setCreatingCategory(false)
+    }
+  }
 
   const handleImageUpload = async (file: File) => {
     if (!onImageUpload) return
@@ -130,12 +210,12 @@ const NewsModal: React.FC<NewsModalProps> = ({
     }
   }
 
-  const handleCategoryToggle = (category: string) => {
+  const handleCategoryToggle = (categoryId: number) => {
     setFormData((prev) => ({
       ...prev,
-      categories: prev.categories.includes(category)
-        ? prev.categories.filter((c) => c !== category)
-        : [...prev.categories, category],
+      categoryIds: prev.categoryIds.includes(categoryId)
+        ? prev.categoryIds.filter((id) => id !== categoryId)
+        : [...prev.categoryIds, categoryId],
     }))
   }
 
@@ -246,22 +326,107 @@ const NewsModal: React.FC<NewsModalProps> = ({
 
                 {/* Kategori */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Kategori * (Pilih minimal 1)
-                  </label>
-                  <div className="grid grid-cols-2 gap-2">
-                    {categories.map((cat) => (
-                      <label key={cat} className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={formData.categories.includes(cat)}
-                          onChange={() => handleCategoryToggle(cat)}
-                          className="w-4 h-4 rounded"
-                        />
-                        <span className="text-sm text-gray-700">{cat}</span>
-                      </label>
-                    ))}
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="block text-sm font-medium text-gray-700">
+                      Kategori * (Pilih minimal 1)
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setShowAddCategory(!showAddCategory)}
+                      className="text-blue-600 hover:text-blue-700 text-sm font-medium flex items-center gap-1"
+                    >
+                      <Plus size={16} />
+                      Tambah Kategori
+                    </button>
                   </div>
+
+                  {/* Add Category Form */}
+                  {showAddCategory && (
+                    <div className="mb-3 p-3 bg-blue-50 rounded-lg border border-blue-200 space-y-2">
+                      <input
+                        type="text"
+                        value={newCategoryName}
+                        onChange={(e) => setNewCategoryName(e.target.value)}
+                        placeholder="Nama kategori baru..."
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                      />
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={handleCreateCategory}
+                          disabled={creatingCategory}
+                          className="flex-1 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2"
+                        >
+                          {creatingCategory ? (
+                            <>
+                              <Loader size={14} className="animate-spin" />
+                              Membuat...
+                            </>
+                          ) : (
+                            'Buat Kategori'
+                          )}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowAddCategory(false)
+                            setNewCategoryName('')
+                            setCategoryMessage(null)
+                          }}
+                          className="flex-1 px-3 py-1.5 border border-gray-300 hover:bg-gray-50 rounded-lg text-sm font-medium transition-colors"
+                        >
+                          Batal
+                        </button>
+                      </div>
+                      {categoryMessage && (
+                        <div className={`text-sm px-3 py-2 rounded ${
+                          categoryMessage.type === 'success'
+                            ? 'bg-green-100 text-green-700'
+                            : 'bg-red-100 text-red-700'
+                        }`}>
+                          {categoryMessage.text}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Categories List */}
+                  {loadingCategories ? (
+                    <div className="flex items-center justify-center py-4">
+                      <Loader className="animate-spin text-blue-600" size={20} />
+                    </div>
+                  ) : categories.length === 0 ? (
+                    <div className="p-3 bg-yellow-50 rounded-lg border border-yellow-200 text-yellow-700 text-sm">
+                      Belum ada kategori. Klik "Tambah Kategori" untuk membuat kategori baru.
+                    </div>
+                  ) : (
+                    <>
+                      <div className="grid grid-cols-2 gap-2">
+                        {categories.slice(0, displayCount).map((cat) => (
+                          <label key={cat.id} className="flex items-center gap-2 cursor-pointer p-2 hover:bg-gray-50 rounded">
+                            <input
+                              type="checkbox"
+                              checked={formData.categoryIds.includes(cat.id)}
+                              onChange={() => handleCategoryToggle(cat.id)}
+                              className="w-4 h-4 rounded"
+                            />
+                            <span className="text-sm text-gray-700">{cat.name}</span>
+                          </label>
+                        ))}
+                      </div>
+
+                      {displayCount < categories.length && (
+                        <button
+                          type="button"
+                          onClick={() => setDisplayCount(prev => prev + 6)}
+                          className="mt-2 w-full py-2 text-blue-600 hover:bg-blue-50 rounded-lg font-medium text-sm flex items-center justify-center gap-2 border border-blue-200"
+                        >
+                          <ChevronDown size={16} />
+                          Tampilkan Lebih Banyak ({categories.length - displayCount} lainnya)
+                        </button>
+                      )}
+                    </>
+                  )}
                 </div>
 
                 {/* Konten */}
@@ -406,12 +571,15 @@ const NewsModal: React.FC<NewsModalProps> = ({
 
                 {/* Categories */}
                 <div className="flex flex-wrap gap-2">
-                  {formData.categories.length > 0 ? (
-                    formData.categories.map((cat) => (
-                      <span key={cat} className="px-3 py-1 bg-purple-100 text-purple-700 text-xs font-semibold rounded-full">
-                        {cat}
-                      </span>
-                    ))
+                  {formData.categoryIds.length > 0 ? (
+                    formData.categoryIds.map((catId) => {
+                      const cat = categories.find(c => c.id === catId)
+                      return cat ? (
+                        <span key={catId} className="px-3 py-1 bg-purple-100 text-purple-700 text-xs font-semibold rounded-full">
+                          {cat.name}
+                        </span>
+                      ) : null
+                    })
                   ) : (
                     <span className="text-xs text-gray-400">Pilih kategori</span>
                   )}

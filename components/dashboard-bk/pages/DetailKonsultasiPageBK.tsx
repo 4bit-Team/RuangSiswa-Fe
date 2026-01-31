@@ -4,13 +4,10 @@ import React, { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import {
   ArrowLeft,
-  Heart,
   MessageCircle,
   Share2,
-  Award,
   Flag,
   Eye,
-  Clock,
   ThumbsUp,
   CheckCircle,
   Send,
@@ -20,6 +17,14 @@ import {
   User,
 } from 'lucide-react'
 import { apiRequest } from '@/lib/api'
+import { extractSlug } from '@/lib/slugify'
+
+interface Category {
+  id: number
+  name: string
+  description?: string
+  isActive: boolean
+}
 
 interface Answer {
   id: string
@@ -42,17 +47,25 @@ interface DetailKonsultasiPageBKProps {
 const DetailKonsultasiPageBK: React.FC<DetailKonsultasiPageBKProps> = ({ onBack }) => {
   const params = useParams()
   const router = useRouter()
-  const questionId = params.id as string
+  const slug = params.slug as string
+  
+  console.log('=== DetailKonsultasiPageBK Debug ===')
+  console.log('params:', params)
+  console.log('slug from params:', slug)
   
   const [question, setQuestion] = useState<any>(null)
   const [answers, setAnswers] = useState<Answer[]>([])
   const [loading, setLoading] = useState(true)
+  const [categories, setCategories] = useState<Category[]>([])
   const [submitting, setSubmitting] = useState(false)
   const [answerText, setAnswerText] = useState('')
   const [sortByHelpful, setSortByHelpful] = useState(true)
   const [showMoreAnswers, setShowMoreAnswers] = useState(false)
-  const [likedAnswers, setLikedAnswers] = useState<Set<string>>(new Set())
+  const [votedAnswers, setVotedAnswers] = useState<Map<string, 1 | -1>>(new Map())
   const [filteredAnswers, setFilteredAnswers] = useState<'all' | 'verified' | 'bk'>('all')
+  const [isBookmarked, setIsBookmarked] = useState(false)
+  const [bookmarkLoading, setBookmarkLoading] = useState(false)
+  const [shareModalOpen, setShareModalOpen] = useState(false)
 
   const categoryMap = {
     personal: 'Pribadi',
@@ -61,24 +74,42 @@ const DetailKonsultasiPageBK: React.FC<DetailKonsultasiPageBKProps> = ({ onBack 
     development: 'Pengembangan',
   }
 
+  // Fetch categories on mount
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        const token = localStorage.getItem('token')
+        const response = await apiRequest('/consultation-category', 'GET', undefined, token)
+        const categoryList = Array.isArray(response) ? response : response?.data || []
+        setCategories(categoryList)
+      } catch (error) {
+        console.error('Error fetching categories:', error)
+      }
+    }
+    fetchCategories()
+  }, [])
+
   // Fetch question detail dan answers
   useEffect(() => {
     const fetchDetail = async () => {
       try {
         setLoading(true)
         const token = localStorage.getItem('token')
+        console.log('Fetching slug:', slug)
         const data = await apiRequest(
-          `/v1/konsultasi/${questionId}`,
+          `/v1/konsultasi/slug/${slug}`,
           'GET',
           undefined,
           token
         )
 
-        const questionCategory = data.question.category as keyof typeof categoryMap
+        console.log('Response data:', data)
+
+        const category = categories.find(c => c.id === data.question.categoryId)
         setQuestion({
           id: data.question.id,
           title: data.question.title,
-          category: categoryMap[questionCategory] || data.question.category,
+          category: category?.name || 'Umum',
           author: data.question.author?.name || 'Anonymous',
           authorClass: data.question.author?.studentCard?.class?.name || 'N/A',
           authorId: data.question.authorId,
@@ -86,7 +117,7 @@ const DetailKonsultasiPageBK: React.FC<DetailKonsultasiPageBKProps> = ({ onBack 
           timestamp: formatDate(data.question.createdAt),
           content: data.question.content,
           views: data.question.views,
-          likes: data.question.votes,
+          votes: data.question.votes,
           answers: data.question.answerCount,
           bookmarks: 0,
         })
@@ -105,17 +136,26 @@ const DetailKonsultasiPageBK: React.FC<DetailKonsultasiPageBKProps> = ({ onBack 
         }))
 
         setAnswers(transformedAnswers)
+        
+        // Check if bookmarked
+        const isBookmarkedRes = await apiRequest(
+          `/v1/konsultasi/${data.question.id}/is-bookmarked`,
+          'GET',
+          undefined,
+          token
+        )
+        setIsBookmarked(isBookmarkedRes?.isBookmarked || false)
+        setLoading(false)
       } catch (error) {
         console.error('Error fetching question:', error)
-      } finally {
         setLoading(false)
       }
     }
 
-    if (questionId) {
+    if (slug) {
       fetchDetail()
     }
-  }, [questionId])
+  }, [slug])
 
   const formatDate = (date: string) => {
     const now = new Date()
@@ -146,13 +186,130 @@ const DetailKonsultasiPageBK: React.FC<DetailKonsultasiPageBKProps> = ({ onBack 
   const visibleAnswers = showMoreAnswers ? sortedAnswers : sortedAnswers.slice(0, 3)
 
   const handleLike = (answerId: string) => {
-    const newLiked = new Set(likedAnswers)
-    if (newLiked.has(answerId)) {
-      newLiked.delete(answerId)
+    const newVoted = new Map(votedAnswers)
+    if (newVoted.has(answerId)) {
+      newVoted.delete(answerId)
     } else {
-      newLiked.add(answerId)
+      newVoted.set(answerId, 1)
     }
-    setLikedAnswers(newLiked)
+    setVotedAnswers(newVoted)
+  }
+
+  const handleVoteAnswer = async (answerId: string, voteValue: 1 | -1) => {
+    if (!question) return
+    
+    try {
+      const token = localStorage.getItem('token')
+      await apiRequest(
+        `/v1/konsultasi/${question.id}/answers/${answerId}/vote`,
+        'POST',
+        { vote: voteValue },
+        token
+      )
+      
+      setVotedAnswers(prev => {
+        const newMap = new Map(prev)
+        if (newMap.get(answerId) === voteValue) {
+          newMap.delete(answerId)
+        } else {
+          newMap.set(answerId, voteValue)
+        }
+        return newMap
+      })
+    } catch (error) {
+      console.error('Error voting answer:', error)
+      alert('Gagal memberikan vote')
+    }
+  }
+
+  const handleShare = async () => {
+    const shareUrl = `${window.location.origin}${window.location.pathname}`
+    const shareText = `${question?.title} - RuangSiswa Konsultasi`
+    
+    // Check if on mobile (Android/iOS)
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
+    
+    if (isMobile && navigator.share) {
+      // Use native share on mobile
+      try {
+        await navigator.share({
+          title: question?.title,
+          text: shareText,
+          url: shareUrl,
+        })
+      } catch (error) {
+        console.log('Share cancelled')
+      }
+    } else {
+      // On desktop, copy to clipboard and show modal
+      await navigator.clipboard.writeText(shareUrl)
+      setShareModalOpen(true)
+    }
+  }
+
+  const shareOnPlatform = (platform: 'whatsapp' | 'instagram' | 'facebook') => {
+    const shareUrl = `${window.location.origin}${window.location.pathname}`
+    const shareText = encodeURIComponent(`${question?.title}\n${shareUrl}`)
+    let url = ''
+    
+    switch (platform) {
+      case 'whatsapp':
+        url = `https://wa.me/?text=${shareText}`
+        break
+      case 'instagram':
+        // Instagram doesn't support direct URL sharing, so we just copy to clipboard
+        navigator.clipboard.writeText(shareUrl)
+        alert('Link disalin. Silakan buka Instagram dan paste di caption atau direct message.')
+        setShareModalOpen(false)
+        return
+      case 'facebook':
+        url = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareUrl)}`
+        break
+    }
+    
+    if (url) {
+      window.open(url, '_blank', 'width=600,height=400')
+    }
+    setShareModalOpen(false)
+  }
+
+  const handleBookmark = async () => {
+    if (!question) return
+    
+    try {
+      setBookmarkLoading(true)
+      const token = localStorage.getItem('token')
+      
+      if (isBookmarked) {
+        await apiRequest(
+          `/v1/konsultasi/${question.id}/bookmark`,
+          'DELETE',
+          undefined,
+          token
+        )
+        setIsBookmarked(false)
+        alert('Bookmark dihapus')
+      } else {
+        await apiRequest(
+          `/v1/konsultasi/${question.id}/bookmark`,
+          'POST',
+          {},
+          token
+        )
+        setIsBookmarked(true)
+        alert('Pertanyaan berhasil di-bookmark')
+      }
+    } catch (error: any) {
+      console.error('Error bookmarking:', error)
+      // Handle duplicate bookmark error gracefully
+      if (error?.message?.includes('sudah di-bookmark')) {
+        setIsBookmarked(true)
+      } else {
+        alert('Gagal memperbarui bookmark')
+      }
+    } finally {
+      setBookmarkLoading(false)
+    }
   }
 
   const handleSubmitAnswer = async () => {
@@ -161,7 +318,7 @@ const DetailKonsultasiPageBK: React.FC<DetailKonsultasiPageBKProps> = ({ onBack 
         setSubmitting(true)
         const token = localStorage.getItem('token')
         const newAnswer = await apiRequest(
-          `/v1/konsultasi/${questionId}/answers`,
+          `/v1/konsultasi/${question.id}/answers`,
           'POST',
           { content: answerText },
           token
@@ -182,6 +339,7 @@ const DetailKonsultasiPageBK: React.FC<DetailKonsultasiPageBKProps> = ({ onBack 
 
         setAnswers([transformedAnswer, ...answers])
         setAnswerText('')
+        alert('Jawaban berhasil dikirim')
       } catch (error) {
         console.error('Error submitting answer:', error)
         alert('Gagal mengirim jawaban')
@@ -304,16 +462,25 @@ const DetailKonsultasiPageBK: React.FC<DetailKonsultasiPageBKProps> = ({ onBack 
           {/* Actions */}
           <div className="flex gap-3 mt-4">
             <button className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors text-sm font-medium">
-              <Heart className="w-4 h-4" />
-              Suka ({question.likes})
+              <ThumbsUp className="w-4 h-4" />
+              Vote ({question.votes})
             </button>
-            <button className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors text-sm font-medium">
+            <button 
+              onClick={handleShare}
+              className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors text-sm font-medium">
               <Share2 className="w-4 h-4" />
               Bagikan
             </button>
-            <button className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors text-sm font-medium">
+            <button 
+              onClick={handleBookmark}
+              disabled={bookmarkLoading}
+              className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg transition-colors text-sm font-medium ${
+                isBookmarked
+                  ? 'bg-blue-600 text-white hover:bg-blue-700'
+                  : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
+              } disabled:opacity-50 disabled:cursor-not-allowed`}>
               <Bookmark className="w-4 h-4" />
-              Bookmark
+              {isBookmarked ? 'Tersimpan' : 'Simpan'}
             </button>
             <button className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors text-sm font-medium">
               <Flag className="w-4 h-4" />
@@ -378,15 +545,26 @@ const DetailKonsultasiPageBK: React.FC<DetailKonsultasiPageBKProps> = ({ onBack 
               {/* Actions */}
               <div className="flex items-center gap-4 pt-4 border-t border-gray-100">
                 <button
-                  onClick={() => handleLike(answer.id)}
+                  onClick={() => handleVoteAnswer(answer.id, 1)}
                   className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition-colors text-sm font-medium ${
-                    likedAnswers.has(answer.id)
-                      ? 'bg-orange-50 text-orange-600'
+                    votedAnswers.get(answer.id) === 1
+                      ? 'bg-green-50 text-green-600'
                       : 'text-gray-600 hover:bg-gray-100'
                   }`}
                 >
                   <ThumbsUp className="w-4 h-4" />
-                  {answer.likes + (likedAnswers.has(answer.id) ? 1 : 0)}
+                  {answer.likes + (votedAnswers.get(answer.id) === 1 ? 1 : 0)}
+                </button>
+                <button 
+                  onClick={() => handleVoteAnswer(answer.id, -1)}
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition-colors text-sm font-medium ${
+                    votedAnswers.get(answer.id) === -1
+                      ? 'bg-red-50 text-red-600'
+                      : 'text-gray-600 hover:bg-gray-100'
+                  }`}
+                >
+                  <ThumbsUp className="w-4 h-4 rotate-180" />
+                  {Math.abs(answer.likes - (votedAnswers.get(answer.id) === -1 ? 1 : 0))}
                 </button>
                 <button className="flex items-center gap-2 px-3 py-1.5 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors text-sm font-medium">
                   <MessageCircle className="w-4 h-4" />
@@ -452,6 +630,65 @@ const DetailKonsultasiPageBK: React.FC<DetailKonsultasiPageBKProps> = ({ onBack 
             </p>
           </div>
         </div>
+
+        {/* Share Modal */}
+        {shareModalOpen && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-end z-50">
+            <div className="bg-white w-full rounded-t-lg p-6 animate-slide-up">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-gray-900">Bagikan Pertanyaan</h3>
+                <button
+                  onClick={() => setShareModalOpen(false)}
+                  className="text-gray-500 hover:text-gray-700"
+                >
+                  ✕
+                </button>
+              </div>
+              
+              <div className="bg-gray-100 p-3 rounded-lg mb-4">
+                <p className="text-sm text-gray-600 break-all">{window.location.href}</p>
+                <p className="text-xs text-gray-500 mt-2">✓ Link sudah disalin ke clipboard</p>
+              </div>
+
+              <div className="grid grid-cols-3 gap-3">
+                <button
+                  onClick={() => shareOnPlatform('whatsapp')}
+                  className="flex flex-col items-center gap-2 p-4 bg-green-50 hover:bg-green-100 rounded-lg transition-colors"
+                >
+                  <div className="w-10 h-10 bg-green-600 rounded-full flex items-center justify-center text-white font-bold">
+                    W
+                  </div>
+                  <span className="text-xs font-medium text-gray-700">WhatsApp</span>
+                </button>
+                <button
+                  onClick={() => shareOnPlatform('instagram')}
+                  className="flex flex-col items-center gap-2 p-4 bg-pink-50 hover:bg-pink-100 rounded-lg transition-colors"
+                >
+                  <div className="w-10 h-10 bg-gradient-to-br from-pink-500 to-purple-500 rounded-full flex items-center justify-center text-white font-bold">
+                    I
+                  </div>
+                  <span className="text-xs font-medium text-gray-700">Instagram</span>
+                </button>
+                <button
+                  onClick={() => shareOnPlatform('facebook')}
+                  className="flex flex-col items-center gap-2 p-4 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"
+                >
+                  <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center text-white font-bold">
+                    F
+                  </div>
+                  <span className="text-xs font-medium text-gray-700">Facebook</span>
+                </button>
+              </div>
+
+              <button
+                onClick={() => setShareModalOpen(false)}
+                className="w-full mt-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors font-medium"
+              >
+                Tutup
+              </button>
+            </div>
+          </div>
+        )}
           </>
         )}
       </div>

@@ -130,6 +130,7 @@ const ChatBKPage: React.FC = () => {
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null)
   const [isRemoteMuted, setIsRemoteMuted] = useState(false)
   const [isRemoteVideoOff, setIsRemoteVideoOff] = useState(false)
+  const [isReconnecting, setIsReconnecting] = useState(false)
   const peerConnectionRef = useRef<RTCPeerConnection | null>(null)
   const localVideoRef = useRef<HTMLVideoElement | null>(null)
   const remoteVideoRef = useRef<HTMLVideoElement | null>(null)
@@ -226,6 +227,7 @@ const ChatBKPage: React.FC = () => {
 
       callSocket.on('connect', () => {
         console.log('✅ [ChatBKPage Call Socket] Connected to /call namespace')
+        setIsReconnecting(false)
       })
 
       callSocket.on('disconnect', (reason: string) => {
@@ -316,7 +318,6 @@ const ChatBKPage: React.FC = () => {
 
       callSocket.on('call-rejected', (data: any) => {
         console.log('📞 [ChatBKPage] Call rejected:', data)
-        alert('Panggilan ditolak')
         // cleanup UI
         setIncomingCall(null)
         setIncomingCallModalOpen(false)
@@ -325,7 +326,6 @@ const ChatBKPage: React.FC = () => {
 
       callSocket.on('call-ended', (data: any) => {
         console.log('📞 [ChatBKPage] Call ended:', data)
-        alert('Panggilan berakhir')
         // cleanup
         if (localStreamRef.current) stopMediaStream(localStreamRef.current)
         if (peerConnectionRef.current) peerConnectionRef.current.close()
@@ -428,6 +428,7 @@ const ChatBKPage: React.FC = () => {
       try {
         const callState = JSON.parse(savedCallState)
         setActiveCall(callState)
+        setIsReconnecting(true) // Mark as reconnecting since socket might not be ready yet
         console.log('✅ [ChatBK] Restored call state from sessionStorage:', callState)
       } catch (error) {
         console.error('❌ [ChatBK] Error restoring call state:', error)
@@ -1782,8 +1783,25 @@ const ChatBKPage: React.FC = () => {
           </div>
         </div>
       )}
+      
+      {/* Reconnecting Modal */}
+      {isReconnecting && activeCall && (
+        <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center backdrop-blur-sm">
+          <div className="bg-gray-900 rounded-lg p-8 text-center max-w-md mx-4">
+            <div className="mb-6">
+              <div className="inline-block">
+                <div className="animate-spin rounded-full h-16 w-16 border-4 border-gray-700 border-t-blue-500"></div>
+              </div>
+            </div>
+            <h2 className="text-xl font-bold text-white mb-3">Menghubungkan Kembali</h2>
+            <p className="text-gray-300 mb-4">Tunggu sebentar, kami sedang memulihkan koneksi panggilan Anda...</p>
+            <p className="text-sm text-gray-400">Jangan tutup halaman ini</p>
+          </div>
+        </div>
+      )}
+
       {/* Active Call UI */}
-      {activeCall && (
+      {activeCall && !isReconnecting && (
         <CallUI
           callId={activeCall.callId}
           callType={activeCall.callType}
