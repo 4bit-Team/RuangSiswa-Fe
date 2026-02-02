@@ -1,11 +1,14 @@
-import React from 'react'
+"use client"
+import React, { useState } from 'react'
 import { 
   BarChart3, User, MessageCircle, Calendar, FileText, TrendingUp, Users, Settings,
-  Clock, AlertCircle, Trophy, Zap, CheckCircle, Shield
+  Clock, AlertCircle, Trophy, CheckCircle, ArrowRight, Zap, ChevronRight, Sparkles
 } from 'lucide-react'
 import type { Feature } from '@/types'
 
 const Features = () => {
+  const [activeTab, setActiveTab] = useState<'siswa' | 'bk' | 'kesiswaan'>('siswa')
+
   // Portal Siswa
   const siswaFeatures: Feature[] = [
     {
@@ -123,156 +126,180 @@ const Features = () => {
     }
   ]
 
+  const getFeatures = () => {
+    switch(activeTab) {
+      case 'siswa': return siswaFeatures
+      case 'bk': return bkFeatures
+      case 'kesiswaan': return kesiswaanFeatures
+      default: return siswaFeatures
+    }
+  }
+
+  const getColorClass = () => {
+    switch(activeTab) {
+      case 'siswa': return { icon: 'text-green-600', bg: 'bg-green-100', border: 'border-green-300' }
+      case 'bk': return { icon: 'text-orange-600', bg: 'bg-orange-100', border: 'border-orange-300' }
+      case 'kesiswaan': return { icon: 'text-purple-600', bg: 'bg-purple-100', border: 'border-purple-300' }
+      default: return { icon: 'text-green-600', bg: 'bg-green-100', border: 'border-green-300' }
+    }
+  }
+
   return (
-    <section id="features" className="py-20 bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Portal Siswa */}
-        <div className="mb-20">
-          <div className="text-center mb-16">
-            <div className="inline-flex items-center bg-green-100 text-green-800 px-4 py-2 rounded-full text-sm font-medium mb-4">
-              <Zap className="w-4 h-4 mr-2" />
-              Portal Siswa
+    <section id="features" className="relative scroll-mt-20 overflow-hidden">
+      <style>{`
+        .features-section {
+          background: linear-gradient(135deg, #f8fafc 0%, #e0f2fe 50%, #f0f4f8 100%);
+          position: relative;
+          width: 100%;
+          padding: 6rem 0;
+        }
+        .features-pattern {
+          position: absolute;
+          width: 100%;
+          height: 100%;
+          opacity: 0.08;
+          background-image: 
+            repeating-linear-gradient(0deg, transparent, transparent 35px, rgba(59, 130, 246, 0.1) 35px, rgba(59, 130, 246, 0.1) 70px),
+            repeating-linear-gradient(90deg, transparent, transparent 35px, rgba(59, 130, 246, 0.1) 35px, rgba(59, 130, 246, 0.1) 70px);
+          pointer-events: none;
+        }
+        @keyframes float {
+          0%, 100% { transform: translateY(0px); }
+          50% { transform: translateY(-20px); }
+        }
+        @keyframes slideInUp {
+          from {
+            opacity: 0;
+            transform: translateY(30px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+        @keyframes fadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+        .animate-slide-up {
+          animation: slideInUp 0.8s ease-out forwards;
+          opacity: 0;
+        }
+      `}</style>
+      
+      <div className="features-section relative">
+        {/* Pattern overlay */}
+        <div className="features-pattern absolute inset-0"></div>
+        
+        {/* Decorative elements */}
+        <div className="absolute inset-0 pointer-events-none overflow-hidden">
+          {/* Gradient circles */}
+          <div className="absolute -top-40 -right-40 w-96 h-96 bg-gradient-to-br from-cyan-200 to-blue-300 rounded-full blur-3xl opacity-20"></div>
+          <div className="absolute -bottom-40 -left-40 w-96 h-96 bg-gradient-to-tr from-blue-200 to-purple-200 rounded-full blur-3xl opacity-15"></div>
+        </div>
+
+      <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        {/* Section Header */}
+        <div className="text-center mb-20 animate-slide-up" style={{ animationDelay: '0.1s' }}>
+          <div className="inline-flex items-center gap-2 bg-blue-600/10 border border-blue-400/30 text-blue-700 px-6 py-3 rounded-full text-sm font-semibold mb-6">
+            <Sparkles className="w-4 h-4" />
+            Fitur Lengkap & Terintegrasi
+          </div>
+          <h2 className="text-5xl md:text-6xl font-black text-gray-900 mb-6 bg-gradient-to-r from-blue-600 via-cyan-500 to-blue-600 bg-clip-text text-transparent">
+            Platform All-in-One
+          </h2>
+          <p className="text-lg text-gray-700 max-w-3xl mx-auto leading-relaxed">
+            Solusi manajemen kesiswaan terpadu dengan fitur konseling, kehadiran, dan komunikasi yang seamless
+          </p>
+        </div>
+
+        {/* Tab Navigation */}
+        <div className="flex justify-center gap-4 mb-20 flex-wrap animate-slide-up" style={{ animationDelay: '0.2s' }}>
+          {[
+            { id: 'siswa', label: '✨ Portal Siswa', color: 'from-emerald-400 to-teal-600' },
+            { id: 'bk', label: '🧑‍💼 Dashboard BK', color: 'from-orange-400 to-red-600' },
+            { id: 'kesiswaan', label: '📊 Dashboard Kesiswaan', color: 'from-purple-400 to-pink-600' }
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id as 'siswa' | 'bk' | 'kesiswaan')}
+              className={`px-8 py-4 rounded-xl font-bold transition-all duration-300 transform ${
+                activeTab === tab.id
+                  ? `bg-gradient-to-r ${tab.color} text-white shadow-2xl scale-105`
+                  : 'bg-white/60 backdrop-blur-md text-gray-700 hover:bg-white/80 border border-white/40'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Features Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 animate-slide-up" style={{ animationDelay: '0.3s' }}>
+          {getFeatures().map((feature, index) => {
+            const colors = getColorClass()
+            return (
+              <div
+                key={index}
+                className="group relative bg-white/70 backdrop-blur-md rounded-2xl p-8 border-2 border-white/50 hover:border-blue-400 hover:shadow-2xl transition-all duration-300 hover:-translate-y-3 overflow-hidden"
+              >
+                {/* Hover gradient background */}
+                <div className={`absolute inset-0 bg-gradient-to-br ${activeTab === 'siswa' ? 'from-emerald-50 to-transparent' : activeTab === 'bk' ? 'from-orange-50 to-transparent' : 'from-purple-50 to-transparent'} opacity-0 group-hover:opacity-100 transition-opacity duration-300`}></div>
+
+                {/* Content */}
+                <div className="relative z-10">
+                  <div className={`inline-flex w-14 h-14 rounded-xl ${colors.bg} ${colors.icon} items-center justify-center mb-4 group-hover:scale-125 transition-transform duration-300 shadow-lg`}>
+                    {feature.icon}
+                  </div>
+                  <h3 className="text-lg font-bold text-gray-900 mb-3">{feature.title}</h3>
+                  <p className="text-gray-700 text-sm leading-relaxed mb-4">{feature.description}</p>
+                  
+                </div>
+              </div>
+            )
+          })}
+        </div>
+
+        {/* Integration Section */}
+        <div className="mt-32 pt-20 border-t-2 border-blue-200/50">
+          <div className="text-center mb-16 animate-slide-up" style={{ animationDelay: '0.4s' }}>
+            <div className="inline-flex items-center gap-2 bg-gradient-to-r from-blue-500 to-cyan-500 text-white px-6 py-3 rounded-full text-sm font-bold mb-6 shadow-lg">
+              <Zap className="w-4 h-4" />
+              Integrasi Data Real-time
             </div>
-            <h2 className="text-3xl font-bold text-gray-900 mb-4">
-              ✨ Modul Portal Siswa
-            </h2>
-            <p className="text-lg text-gray-600 max-w-3xl mx-auto">
-              Akses mudah ke layanan BK dan informasi kesiswaan dengan 7 fitur utama
-            </p>
+            <h3 className="text-4xl md:text-5xl font-black text-gray-900 mb-4 bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+              Ekosistem Data Terpadu
+            </h3>
+            <p className="text-lg text-gray-700 max-w-2xl mx-auto">Konsistensi data real-time di semua modul dengan sinkronisasi otomatis</p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {siswaFeatures.map((feature, index) => (
-              <div key={index} className="group bg-gradient-to-br from-white to-green-50 rounded-2xl p-6 border border-green-100 hover:shadow-lg transition-all duration-300">
-                <div className="bg-gradient-to-r from-green-500 to-emerald-500 w-12 h-12 rounded-xl flex items-center justify-center text-white mb-4 group-hover:scale-110 transition-transform duration-300">
-                  {feature.icon}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-slide-up" style={{ animationDelay: '0.5s' }}>
+            {[
+              { icon: "📋", title: "Kehadiran Siswa", items: ["Portal: Input & tracking", "BK: Monitoring behavior", "Kesiswaan: Rekap & laporan"] },
+              { icon: "⏰", title: "Keterlambatan", items: ["Portal: Notifikasi real-time", "BK: Tren & pembinaan", "Kesiswaan: SP otomatis"] },
+              { icon: "⚠️", title: "Siswa Bermasalah", items: ["Portal: Status monitoring", "BK: Detail & konseling", "Kesiswaan: Tindak lanjut"] },
+              { icon: "🏆", title: "Prestasi & Achievement", items: ["Portal: Lihat pengumuman", "BK: Motivasi & reward", "Kesiswaan: Publikasi"] },
+              { icon: "💬", title: "Layanan Konseling", items: ["Portal: Chat & reservasi", "BK: Dokumentasi case", "Kesiswaan: Referensi"] },
+              { icon: "📰", title: "Berita & Pengumuman", items: ["Portal: Interactive content", "Kesiswaan: Publishing", "BK: Educational reference"] }
+            ].map((item, index) => (
+              <div key={index} className="group bg-gradient-to-br from-white/80 to-blue-50/60 backdrop-blur-md rounded-2xl p-8 border-2 border-blue-200/50 hover:border-blue-400 hover:shadow-xl transition-all duration-300 hover:-translate-y-2 cursor-default">
+                <div className="flex items-start gap-4 mb-4">
+                  <span className="text-5xl group-hover:scale-110 transition-transform duration-300">{item.icon}</span>
+                  <h4 className="font-bold text-gray-900 text-lg group-hover:text-blue-600 transition-colors">{item.title}</h4>
                 </div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">{feature.title}</h3>
-                <p className="text-gray-600 text-sm leading-relaxed">{feature.description}</p>
+                <div className="space-y-2">
+                  {item.items.map((itemContent, itemIndex) => (
+                    <div key={itemIndex} className="flex items-center gap-2 text-sm text-gray-700 group-hover:translate-x-1 transition-transform" style={{ transitionDelay: `${itemIndex * 50}ms` }}>
+                      <ArrowRight className="w-4 h-4 text-blue-600 flex-shrink-0 font-bold" />
+                      <span>{itemContent}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
             ))}
           </div>
         </div>
-
-        {/* Dashboard BK */}
-        <div className="mb-20">
-          <div className="text-center mb-16">
-            <div className="inline-flex items-center bg-orange-100 text-orange-800 px-4 py-2 rounded-full text-sm font-medium mb-4">
-              <Zap className="w-4 h-4 mr-2" />
-              Dashboard BK
-            </div>
-            <h2 className="text-3xl font-bold text-gray-900 mb-4">
-              🧑‍💼 Dashboard Guru Bimbingan Konseling
-            </h2>
-            <p className="text-lg text-gray-600 max-w-3xl mx-auto">
-              Manajemen layanan BK, kasus siswa, dan dokumentasi konseling dengan 6 fitur utama
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {bkFeatures.map((feature, index) => (
-              <div key={index} className="group bg-gradient-to-br from-white to-orange-50 rounded-2xl p-6 border border-orange-100 hover:shadow-lg transition-all duration-300">
-                <div className="bg-gradient-to-r from-orange-500 to-amber-500 w-12 h-12 rounded-xl flex items-center justify-center text-white mb-4 group-hover:scale-110 transition-transform duration-300">
-                  {feature.icon}
-                </div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">{feature.title}</h3>
-                <p className="text-gray-600 text-sm leading-relaxed">{feature.description}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Dashboard Kesiswaan */}
-        <div>
-          <div className="text-center mb-16">
-            <div className="inline-flex items-center bg-purple-100 text-purple-800 px-4 py-2 rounded-full text-sm font-medium mb-4">
-              <Zap className="w-4 h-4 mr-2" />
-              Dashboard Kesiswaan
-            </div>
-            <h2 className="text-3xl font-bold text-gray-900 mb-4">
-              📊 Dashboard Bidang Kesiswaan
-            </h2>
-            <p className="text-lg text-gray-600 max-w-3xl mx-auto">
-              Pengelolaan data kesiswaan, monitoring siswa, dan pelaporan dengan 8 fitur utama
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {kesiswaanFeatures.map((feature, index) => (
-              <div key={index} className="group bg-gradient-to-br from-white to-purple-50 rounded-2xl p-6 border border-purple-100 hover:shadow-lg transition-all duration-300">
-                <div className="bg-gradient-to-r from-purple-500 to-indigo-500 w-12 h-12 rounded-xl flex items-center justify-center text-white mb-4 group-hover:scale-110 transition-transform duration-300">
-                  {feature.icon}
-                </div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">{feature.title}</h3>
-                <p className="text-gray-600 text-sm leading-relaxed">{feature.description}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Keterhubungan Data */}
-        <div className="mt-20 pt-12 border-t border-gray-200">
-          <div className="text-center mb-12">
-            <h3 className="text-2xl font-bold text-gray-900 mb-2">🔗 Keterhubungan Data Antar Modul</h3>
-            <p className="text-gray-600">Integrasi seamless untuk pengalaman pengguna yang holistik</p>
-          </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-6 border border-blue-200">
-              <h4 className="font-semibold text-gray-900 mb-3">📋 Kehadiran Mingguan</h4>
-              <ul className="space-y-2 text-sm text-gray-700">
-                <li>✅ Portal Siswa: Input dan lihat status</li>
-                <li>✅ Dashboard BK: Monitoring dan analitik</li>
-                <li>✅ Dashboard Kesiswaan: Rekap per kelas</li>
-              </ul>
-            </div>
-
-            <div className="bg-gradient-to-br from-orange-50 to-orange-100 rounded-xl p-6 border border-orange-200">
-              <h4 className="font-semibold text-gray-900 mb-3">⏰ Keterlambatan</h4>
-              <ul className="space-y-2 text-sm text-gray-700">
-                <li>✅ Portal Siswa: Info keterlambatan</li>
-                <li>✅ Dashboard BK: Monitoring</li>
-                <li>✅ Dashboard Kesiswaan: Input & SP otomatis</li>
-              </ul>
-            </div>
-
-            <div className="bg-gradient-to-br from-red-50 to-red-100 rounded-xl p-6 border border-red-200">
-              <h4 className="font-semibold text-gray-900 mb-3">⚠️ Siswa Bermasalah</h4>
-              <ul className="space-y-2 text-sm text-gray-700">
-                <li>✅ Portal Siswa: Status monitoring</li>
-                <li>✅ Dashboard BK: Detail kasus & konseling</li>
-                <li>✅ Dashboard Kesiswaan: Monitoring & tindak lanjut</li>
-              </ul>
-            </div>
-
-            <div className="bg-gradient-to-br from-yellow-50 to-yellow-100 rounded-xl p-6 border border-yellow-200">
-              <h4 className="font-semibold text-gray-900 mb-3">🏆 Prestasi Siswa</h4>
-              <ul className="space-y-2 text-sm text-gray-700">
-                <li>✅ Portal Siswa: Lihat pengumuman</li>
-                <li>✅ Dashboard BK: Motivasi & pembinaan</li>
-                <li>✅ Dashboard Kesiswaan: Input & publikasi</li>
-              </ul>
-            </div>
-
-            <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-xl p-6 border border-green-200">
-              <h4 className="font-semibold text-gray-900 mb-3">💬 Konseling</h4>
-              <ul className="space-y-2 text-sm text-gray-700">
-                <li>✅ Portal Siswa: Reservasi & chat</li>
-                <li>✅ Dashboard BK: Kelola & dokumentasi</li>
-                <li>⏸️ Dashboard Kesiswaan: -</li>
-              </ul>
-            </div>
-
-            <div className="bg-gradient-to-br from-indigo-50 to-indigo-100 rounded-xl p-6 border border-indigo-200">
-              <h4 className="font-semibold text-gray-900 mb-3">📰 Berita & Pengumuman</h4>
-              <ul className="space-y-2 text-sm text-gray-700">
-                <li>✅ Portal Siswa: Lihat & interaksi</li>
-                <li>✅ Dashboard Kesiswaan: Publikasi konten</li>
-                <li>✅ Dashboard BK: Referensi pembinaan</li>
-              </ul>
-            </div>
-          </div>
-        </div>
+      </div>
       </div>
     </section>
   )
