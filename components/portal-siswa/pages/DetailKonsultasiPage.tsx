@@ -34,6 +34,7 @@ interface Answer {
   timestamp: string
   content: string
   likes: number
+  dislikes: number
   isVerified: boolean
   isAuthorAnswer: boolean
   edited?: string
@@ -130,7 +131,8 @@ const DetailKonsultasiPage: React.FC<DetailKonsultasiPageProps> = ({ onBack }) =
           avatar: (ans.author?.name || 'A').substring(0, 2).toUpperCase(),
           timestamp: formatDate(ans.createdAt),
           content: ans.content,
-          likes: ans.votes,
+          likes: ans.votes || 0,
+          dislikes: ans.downvotes || 0,
           isVerified: ans.isVerified,
           isAuthorAnswer: false,
         }))
@@ -207,6 +209,7 @@ const DetailKonsultasiPage: React.FC<DetailKonsultasiPageProps> = ({ onBack }) =
           timestamp: 'baru saja',
           content: newAnswer.content,
           likes: 0,
+          dislikes: 0,
           isVerified: false,
           isAuthorAnswer: false,
         }
@@ -537,7 +540,7 @@ const DetailKonsultasiPage: React.FC<DetailKonsultasiPageProps> = ({ onBack }) =
                   }`}
                 >
                   <ThumbsUp className="w-4 h-4" />
-                  {answer.likes + (votedAnswers.get(answer.id) === 1 ? 1 : 0)}
+                  Setuju ({answer.likes})
                 </button>
                 <button 
                   onClick={() => handleVoteAnswer(answer.id, -1)}
@@ -548,7 +551,7 @@ const DetailKonsultasiPage: React.FC<DetailKonsultasiPageProps> = ({ onBack }) =
                   }`}
                 >
                   <ThumbsUp className="w-4 h-4 rotate-180" />
-                  {Math.abs(answer.likes - (votedAnswers.get(answer.id) === -1 ? 1 : 0))}
+                  Tidak Setuju ({answer.dislikes})
                 </button>
                 <button className="flex items-center gap-2 px-3 py-1.5 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors text-sm font-medium">
                   <MessageCircle className="w-4 h-4" />
