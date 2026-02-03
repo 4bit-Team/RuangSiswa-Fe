@@ -26,6 +26,7 @@ import AskQuestionModal from '../modals/AskQuestionModal'
 import Link from 'next/link'
 import { apiRequest } from '@/lib/api'
 import { generateSlug } from '@/lib/slugify'
+import { useAuth } from '@/hooks/useAuth'
 
 interface Category {
   id: number
@@ -39,6 +40,8 @@ interface PostCardProps {
   title: string
   category: string
   author: string
+  authorId?: number
+  authorRole?: string
   avatar: string
   timestamp: string
   content: string
@@ -50,11 +53,13 @@ interface PostCardProps {
   onClick?: () => void
 }
 
-const PostCard: React.FC<PostCardProps> = ({
+const PostCard: React.FC<PostCardProps & { currentUserId?: number }> = ({
   id,
   title,
   category,
   author,
+  authorId,
+  authorRole,
   avatar,
   timestamp,
   content,
@@ -63,10 +68,53 @@ const PostCard: React.FC<PostCardProps> = ({
   views,
   isVerified,
   categoryColor = 'bg-blue-50',
-  onClick
+  onClick,
+  currentUserId
 }) => {
   const [isUpvoted, setIsUpvoted] = useState(false);
   const [voteCount, setVoteCount] = useState(votes);
+
+  // Logika menampilkan nama author
+  const getDisplayAuthorName = () => {
+    // Debug info
+    console.log(`🎯 getDisplayAuthorName called:`, {
+      author,
+      authorId,
+      currentUserId,
+      authorRole,
+      isOwnPost: authorId === currentUserId,
+    });
+
+    // Jika author adalah user yang sedang login, tampilkan nama sebenarnya
+    if (authorId === currentUserId) {
+      console.log('✅ Showing own name:', author);
+      return author;
+    }
+    
+    // Jika author adalah konselor/BK, tampilkan nama sebenarnya dengan label
+    if (authorRole) {
+      const roleStr = String(authorRole).toLowerCase().trim();
+      console.log('🔎 Checking role:', roleStr);
+      // Check berbagai kemungkinan format role dari API
+      if (
+        roleStr === 'konselor' ||
+        roleStr === 'bk' ||
+        roleStr === 'bk_staff' ||
+        roleStr === 'counselor' ||
+        roleStr === 'guidance_counselor' ||
+        roleStr.includes('konselor') ||
+        roleStr.includes('bk') ||
+        roleStr.includes('counselor')
+      ) {
+        console.log('👨‍💼 Showing counselor:', author);
+        return `${author} (Konselor)`;
+      }
+    }
+    
+    // Jika author adalah siswa lain, anonymize nama
+    console.log('👤 Showing anonymized name');
+    return 'Siswa Lain';
+  };
 
   const handleVote = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -108,7 +156,7 @@ const PostCard: React.FC<PostCardProps> = ({
               {category}
             </span>
             <span className="text-xs text-gray-500">
-              dibuat oleh <span className="font-medium text-gray-700">{author}</span>
+              dibuat oleh <span className="font-medium text-gray-700">{getDisplayAuthorName()}</span>
             </span>
             {isVerified && (
               <div title="Jawaban terverifikasi" className="flex items-center">
@@ -147,6 +195,7 @@ const PostCard: React.FC<PostCardProps> = ({
 
 const KonsultasiPage: React.FC<{ setActivePage?: (page: string) => void }> = ({ setActivePage }) => {
   const router = useRouter()
+  const { user } = useAuth()
   const [sortBy, setSortBy] = useState<'trending' | 'newest' | 'unanswered'>('trending')
   const [filterCategory, setFilterCategory] = useState<string>('all')
   const [searchQuery, setSearchQuery] = useState('')
@@ -157,6 +206,7 @@ const KonsultasiPage: React.FC<{ setActivePage?: (page: string) => void }> = ({ 
   const [totalPages, setTotalPages] = useState(1)
   const [categories, setCategories] = useState<Category[]>([])
   const [loadingCategories, setLoadingCategories] = useState(true)
+  const [userAnswerCount, setUserAnswerCount] = useState(0)
 
   // Fetch categories on mount
   useEffect(() => {
@@ -200,11 +250,19 @@ const KonsultasiPage: React.FC<{ setActivePage?: (page: string) => void }> = ({ 
 
         const transformedPosts = data.data.map((item: any) => {
           const category = categories.find(c => c.id === item.categoryId);
+          console.log('🔍 Debug post item:', {
+            id: item.id,
+            authorName: item.author?.name,
+            authorRole: item.author?.role,
+            authorId: item.author?.id,
+          });
           return {
             id: item.id,
             title: item.title,
             category: category?.name || 'Umum',
             author: item.author?.name || 'Anonymous',
+            authorId: item.author?.id,
+            authorRole: item.author?.role,
             avatar: (item.author?.name || 'A').substring(0, 2).toUpperCase(),
             timestamp: formatDate(item.createdAt),
             content: item.content,
@@ -218,6 +276,23 @@ const KonsultasiPage: React.FC<{ setActivePage?: (page: string) => void }> = ({ 
 
         setPosts(transformedPosts);
         setTotalPages(data.pagination.pages);
+
+        // Fetch user's answer count if user is logged in
+        if (user?.id) {
+          try {
+            const userAnswersData = await apiRequest(
+              `/v1/konsultasi/answers?userId=${user.id}`,
+              'GET',
+              undefined,
+              token
+            );
+            const totalAnswers = userAnswersData.data ? userAnswersData.data.length : 0;
+            setUserAnswerCount(totalAnswers);
+          } catch (error) {
+            console.error('Error fetching user answers:', error);
+            setUserAnswerCount(0);
+          }
+        }
       } catch (error) {
         console.error('Error fetching consultations:', error);
         setPosts([]);
@@ -229,7 +304,7 @@ const KonsultasiPage: React.FC<{ setActivePage?: (page: string) => void }> = ({ 
     if (!loadingCategories) {
       fetchConsultations();
     }
-  }, [sortBy, filterCategory, searchQuery, page, loadingCategories, categories]);
+  }, [sortBy, filterCategory, searchQuery, page, loadingCategories, categories, user]);
 
   const formatDate = (date: string) => {
     const now = new Date();
@@ -312,7 +387,7 @@ const KonsultasiPage: React.FC<{ setActivePage?: (page: string) => void }> = ({ 
 
   return (
     <div className="bg-gray-50 min-h-screen py-6">
-      {/* Header */}
+      {/* Content */}
       <div className="max-w-7xl mx-auto px-4 mb-8">
         <div className="mb-6 flex items-center justify-between">
           <div>
@@ -410,6 +485,7 @@ const KonsultasiPage: React.FC<{ setActivePage?: (page: string) => void }> = ({ 
                   <Link key={post.id} href={`/home/siswa/konsultasi/${generateSlug(post.title)}`}>
                     <PostCard
                       {...post}
+                      currentUserId={user?.id}
                       onClick={() => {
                         // Navigate handled by Link
                       }}
@@ -477,22 +553,30 @@ const KonsultasiPage: React.FC<{ setActivePage?: (page: string) => void }> = ({ 
 
             {/* Stats */}
             <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-5">
-              <h3 className="font-semibold text-gray-900 mb-4">Statistik</h3>
+              <h3 className="font-semibold text-gray-900 mb-4">Statistik Anda</h3>
               <div className="space-y-3">
                 <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-600">Pertanyaan</span>
-                  <span className="font-semibold text-blue-600">{posts.length}</span>
+                  <span className="text-sm text-gray-600">Pertanyaan Saya</span>
+                  <span className="font-semibold text-blue-600">
+                    {posts.filter(p => p.authorId === user?.id).length}
+                  </span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-gray-600">Terjawab</span>
                   <span className="font-semibold text-green-600">
-                    {posts.filter(p => p.answers > 0).length}
+                    {posts.filter(p => p.authorId === user?.id && p.answers > 0).length}
                   </span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-gray-600">Total Lihat</span>
                   <span className="font-semibold text-purple-600">
-                    {posts.reduce((sum, p) => sum + p.views, 0)}
+                    {posts.filter(p => p.authorId === user?.id).reduce((sum, p) => sum + p.views, 0)}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-gray-600">Total Menjawab</span>
+                  <span className="font-semibold text-indigo-600">
+                    {userAnswerCount}
                   </span>
                 </div>
               </div>
