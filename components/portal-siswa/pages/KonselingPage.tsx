@@ -15,7 +15,8 @@ interface Reservasi {
   preferredDate: string
   preferredTime: string
   type: 'chat' | 'tatap-muka'
-  topic: string
+  topic?: { id: number; name: string; description?: string } | null
+  topicId?: number | null
   status: 'pending' | 'approved' | 'rejected' | 'completed' | 'cancelled'
 }
 
@@ -106,7 +107,7 @@ const KonselingPage: React.FC = () => {
         preferredDate: new Date(formData.date).toISOString(),
         preferredTime: formData.time,
         type: formData.sessionType === 'tatap-muka' ? 'tatap-muka' : 'chat',
-        topic: formData.topic || formData.counselingType,
+        topicId: formData.topicId, // Send topicId for Konseling Lainnya, null for others
         notes: formData.notes,
       }
 
@@ -154,7 +155,7 @@ const KonselingPage: React.FC = () => {
           <CounselingCard
             icon={Heart}
             title="Konseling Umum"
-            description="Sesi one-on-one dengan konselor untuk membahas masalah Umum, emosional, atau sosial"
+            description="Sesi one-on-one dengan konselor untuk membahas berbagai topik konseling, emosional, sosial, atau masalah khusus lainnya"
             duration="45-60 menit"
             color="bg-pink-500"
             handleSubmitReservasi={handleSubmitReservasi}
@@ -184,14 +185,6 @@ const KonselingPage: React.FC = () => {
             badge="Terbatas"
             handleSubmitReservasi={handleSubmitReservasi}
           />
-          {/* <CounselingCard
-            icon={MessageSquare}
-            title="Konseling Lainnya"
-            description="Konsultasi untuk masalah sosial, keluarga, atau topik khusus lainnya"
-            duration="Disesuaikan"
-            color="bg-orange-500"
-            handleSubmitReservasi={handleSubmitReservasi}
-          /> */}
         </div>
 
         <div className="bg-green-50 rounded-xl p-4">
@@ -225,7 +218,7 @@ const KonselingPage: React.FC = () => {
                     <Heart className="w-5 h-5 text-blue-600" />
                   </div>
                   <div className="flex-1">
-                    <h5 className="font-semibold text-gray-900">{res.topic}</h5>
+                    <h5 className="font-semibold text-gray-900">{res.topic?.name || 'Konseling'}</h5>
                     <p className="text-sm text-gray-600">{typeLabel[res.type]} • {res.counselor?.username || res.counselor?.fullName || 'Konselor'} • {formatDate(res.preferredDate)} • {res.preferredTime}</p>
                   </div>
                 </div>

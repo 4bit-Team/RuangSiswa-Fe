@@ -79,7 +79,8 @@ interface Reservasi {
   preferredDate: string
   preferredTime: string
   type: 'chat' | 'tatap-muka'
-  topic: string
+  topic?: { id: number; name: string; description?: string } | null
+  topicId?: number | null
   notes?: string
   status: 'pending' | 'approved' | 'rejected' | 'in_counseling' | 'completed' | 'cancelled'
   conversationId?: number
@@ -165,11 +166,11 @@ const ChatPage: React.FC = () => {
         setReservasiHistory(data)
         
         // Generate pinned topics from reservasi history - only chat type with topics
-        const pinned = data
-          .filter((r: Reservasi) => r.type === 'chat' && r.topic)
+        const pinned = (Array.isArray(data) ? data : [])
+          .filter((r: Reservasi) => r && r.type === 'chat' && r.topic && typeof r.topic === 'object')
           .map((r: Reservasi) => ({
             id: `${r.id}`,
-            topic: `📚 Sesi chat: ${r.topic}${r.notes ? ` | ${r.notes}` : ''}`,
+            topic: `📚 Sesi chat: ${r.topic?.name || 'Konseling'}${r.notes ? ` | ${r.notes}` : ''}`,
             subject: '',
             timestamp: new Date(r.createdAt).getTime()
           }))
@@ -1504,7 +1505,7 @@ const ChatPage: React.FC = () => {
                   const previousReservasi = index > 0 ? getReservatiForMessage(messages[index - 1]) : null
                   // Check if reservasi changed
                   const showSessionSeparator = currentReservasi && (index === 0 || currentReservasi.id !== previousReservasi?.id)
-                  const topicDisplay = currentReservasi?.topic ? `📚 Sesi chat: ${currentReservasi.topic}${currentReservasi.notes ? ` | ${currentReservasi.notes}` : ''}` : (activeConversation?.topic ? `📚 Sesi chat: ${activeConversation.topic}` : null)
+                  const topicDisplay = currentReservasi?.topic ? `📚 Sesi chat: ${currentReservasi.topic?.name || 'Konseling'}${currentReservasi.notes ? ` | ${currentReservasi.notes}` : ''}` : (activeConversation?.topic ? `📚 Sesi chat: ${activeConversation.topic}` : null)
                   const topicId = currentReservasi ? `sesi-${currentReservasi.id}` : 'conversation'
                   
                   return (
@@ -1606,7 +1607,7 @@ const ChatPage: React.FC = () => {
                       
                       // Show separator if latest reservasi is different from last message's reservasi
                       if (latestReservasi.id !== lastMessageReservasi?.id) {
-                        const topicDisplay = `📚 Sesi chat: ${latestReservasi.topic}${latestReservasi.notes ? ` | ${latestReservasi.notes}` : ''}`
+                        const topicDisplay = `📚 Sesi chat: ${latestReservasi.topic?.name || 'Konseling'}${latestReservasi.notes ? ` | ${latestReservasi.notes}` : ''}`
                         const topicId = `sesi-${latestReservasi.id}`
                         
                         return (

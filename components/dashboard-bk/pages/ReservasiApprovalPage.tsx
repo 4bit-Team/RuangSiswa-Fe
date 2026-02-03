@@ -13,7 +13,8 @@ interface Reservasi {
   preferredDate: string;
   preferredTime: string;
   type: 'chat' | 'tatap-muka';
-  topic: string;
+  topic?: { id: number; name: string } | null;
+  topicId?: number | null;
   notes?: string;
   status: 'pending' | 'approved' | 'rejected' | 'in_counseling' | 'completed' | 'cancelled';
   conversationId?: number;
@@ -70,7 +71,7 @@ const ReservasiCard: React.FC<ReservasiCardProps> = ({ reservasi, onViewDetail, 
             </span>
             <span className="flex items-center gap-1">
               <MessageCircle size={12} />
-              {reservasi.topic || '-'}
+              {typeof reservasi.topic === 'object' ? reservasi.topic?.name : (reservasi.topicId ? `Topic #${reservasi.topicId}` : '-')}
             </span>
             <span className="flex items-center gap-1">
               <Calendar size={12} />
@@ -180,7 +181,7 @@ const DetailModal: React.FC<DetailModalProps> = ({ reservasi, isOpen, onClose, o
                 </div>
                 <div className="bg-gray-50 rounded-lg p-4">
                   <p className="text-xs text-gray-600 font-medium mb-1">Topik</p>
-                  <p className="text-gray-900 font-semibold capitalize">{reservasi.topic || '-'}</p>
+                  <p className="text-gray-900 font-semibold capitalize">{typeof reservasi.topic === 'object' ? reservasi.topic?.name : (reservasi.topicId ? `Topic #${reservasi.topicId}` : '-')}</p>
                 </div>
               </div>
 
@@ -445,7 +446,7 @@ const ReservasiApprovalPage: React.FC = () => {
         (r) =>
           r.student?.fullName?.toLowerCase().includes(query) ||
           r.student?.email?.toLowerCase().includes(query) ||
-          r.topic?.toLowerCase().includes(query)
+          (typeof r.topic === 'object' ? r.topic?.name?.toLowerCase().includes(query) : false)
       );
     }
 

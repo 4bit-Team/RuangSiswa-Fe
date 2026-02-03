@@ -65,7 +65,7 @@ const AppointmentScheduleModal: React.FC<AppointmentScheduleModalProps> = ({
 
   // Fetch counseling categories on modal open
   useEffect(() => {
-    if (isOpen && counselingType === 'Konseling Lainnya' && token) {
+    if (isOpen && (counselingType === 'Konseling Lainnya' || counselingType === 'Konseling Umum') && token) {
       fetchCounselingCategories()
     }
   }, [isOpen, token, counselingType])
@@ -165,6 +165,17 @@ const AppointmentScheduleModal: React.FC<AppointmentScheduleModalProps> = ({
   }
 
   const handleNext = () => {
+    // Logic untuk konfirmasi di step terakhir
+    if ((counselingType === 'Konseling Lainnya' || counselingType === 'Konseling Umum') && step === 4) {
+      handleConfirm()
+      return
+    }
+    if (!(counselingType === 'Konseling Lainnya' || counselingType === 'Konseling Umum') && step === 3) {
+      handleConfirm()
+      return
+    }
+    
+    // Increment step
     if (step < 4) {
       setStep((step + 1) as 1 | 2 | 3 | 4)
     }
@@ -185,6 +196,7 @@ const AppointmentScheduleModal: React.FC<AppointmentScheduleModalProps> = ({
       counselorName: selectedCounselor?.fullName || 'Unknown',
       counselingType,
       topic: topicName,
+      topicId: formData.topicId, // Ensure topicId is passed to parent
     })
     setStep(1)
     setSelectedTopic(null)
@@ -222,11 +234,11 @@ const AppointmentScheduleModal: React.FC<AppointmentScheduleModalProps> = ({
               <h2 className="text-2xl font-bold">
                 {step === 1
                   ? 'Pilih Tipe Sesi'
-                  : step === 2 && counselingType === 'Konseling Lainnya'
+                  : step === 2 && (counselingType === 'Konseling Lainnya' || counselingType === 'Konseling Umum')
                   ? 'Pilih Topik Konseling'
                   : step === 2
                   ? 'Pilih Tanggal, Waktu & Konselor'
-                  : step === 3 && counselingType === 'Konseling Lainnya'
+                  : step === 3 && (counselingType === 'Konseling Lainnya' || counselingType === 'Konseling Umum')
                   ? 'Pilih Tanggal, Waktu & Konselor'
                   : step === 3
                   ? 'Konfirmasi Reservasi'
@@ -235,11 +247,11 @@ const AppointmentScheduleModal: React.FC<AppointmentScheduleModalProps> = ({
               <p className="text-indigo-100 text-sm">
                 {step === 1
                   ? 'Pilih jenis sesi konseling'
-                  : step === 2 && counselingType === 'Konseling Lainnya'
+                  : step === 2 && (counselingType === 'Konseling Lainnya' || counselingType === 'Konseling Umum')
                   ? 'Pilih topik spesifik yang ingin Anda konsultasikan'
                   : step === 2
                   ? 'Atur jadwal konseling Anda'
-                  : step === 3 && counselingType === 'Konseling Lainnya'
+                  : step === 3 && (counselingType === 'Konseling Lainnya' || counselingType === 'Konseling Umum')
                   ? 'Atur jadwal konseling Anda'
                   : 'Tinjau detail reservasi Anda'}
               </p>
@@ -313,7 +325,7 @@ const AppointmentScheduleModal: React.FC<AppointmentScheduleModalProps> = ({
                 </div>
               )}
 
-              {step === 2 && counselingType === 'Konseling Lainnya' && (
+              {step === 2 && (counselingType === 'Konseling Lainnya' || counselingType === 'Konseling Umum') && (
                 <div className="space-y-4">
                   <h3 className="font-semibold text-gray-900 mb-3">Pilih Topik Konseling</h3>
                   {loadingCategories ? (
@@ -333,7 +345,6 @@ const AppointmentScheduleModal: React.FC<AppointmentScheduleModalProps> = ({
                           onClick={() => {
                             setSelectedTopic({ id: category.id, name: category.name })
                             setFormData({ ...formData, topicId: category.id })
-                            setStep(3)
                           }}
                           className={`w-full p-4 rounded-lg border-2 transition-all text-left ${
                             selectedTopic?.id === category.id
@@ -352,7 +363,7 @@ const AppointmentScheduleModal: React.FC<AppointmentScheduleModalProps> = ({
                 </div>
               )}
 
-              {step === 2 && counselingType !== 'Konseling Lainnya' && (
+              {step === 2 && counselingType !== 'Konseling Lainnya' && counselingType !== 'Konseling Umum' && (
                 <div className="space-y-6">
                   <div>
                     <h3 className="font-semibold text-gray-900 mb-3">Pilih Tanggal</h3>
@@ -449,7 +460,7 @@ const AppointmentScheduleModal: React.FC<AppointmentScheduleModalProps> = ({
                 </div>
               )}
 
-              {step === 3 && counselingType === 'Konseling Lainnya' && (
+              {step === 3 && (counselingType === 'Konseling Lainnya' || counselingType === 'Konseling Umum') && (
                 <div className="space-y-6">
                   <div>
                     <h3 className="font-semibold text-gray-900 mb-3">Pilih Tanggal</h3>
@@ -546,8 +557,9 @@ const AppointmentScheduleModal: React.FC<AppointmentScheduleModalProps> = ({
                 </div>
               )}
 
-              {step === 4 && counselingType === 'Konseling Lainnya' && (
+              {step === 4 && (counselingType === 'Konseling Lainnya' || counselingType === 'Konseling Umum') && (
                 <div className="space-y-6">
+                  <h3 className="font-semibold text-gray-900 mb-3">Ringkasan Reservasi</h3>
                   <div className="bg-gradient-to-br from-indigo-50 to-blue-50 rounded-xl p-6 border border-indigo-200 space-y-4">
                     <div className="space-y-3">
                       <div className="flex items-start gap-3">
@@ -633,7 +645,7 @@ const AppointmentScheduleModal: React.FC<AppointmentScheduleModalProps> = ({
                 </div>
               )}
 
-              {step === 3 && counselingType !== 'Konseling Lainnya' && (
+              {step === 3 && counselingType !== 'Konseling Lainnya' && counselingType !== 'Konseling Umum' && (
                 <div className="space-y-6">
                   <div className="bg-gradient-to-br from-indigo-50 to-blue-50 rounded-xl p-6 border border-indigo-200 space-y-4">
                     <div className="space-y-3">
@@ -772,21 +784,16 @@ const AppointmentScheduleModal: React.FC<AppointmentScheduleModalProps> = ({
             Kembali
           </button>
           <button
-            onClick={
-              counselingType === 'Konseling Lainnya'
-                ? step === 4 ? handleConfirm : handleNext
-                : step === 3 ? handleConfirm : handleNext
-            }
+            onClick={handleNext}
             disabled={
               (step === 1 && !formData.sessionType) ||
-              (step === 2 && counselingType === 'Konseling Lainnya' && !selectedTopic) ||
-              (step === 2 && counselingType !== 'Konseling Lainnya' && (!formData.date || !formData.time || !formData.counselorId)) ||
-              (step === 3 && counselingType === 'Konseling Lainnya' && (!formData.date || !formData.time || !formData.counselorId)) ||
-              (step === 3 && counselingType !== 'Konseling Lainnya' && (!formData.date || !formData.time || !formData.counselorId))
+              (step === 2 && (counselingType === 'Konseling Lainnya' || counselingType === 'Konseling Umum') && !selectedTopic) ||
+              (step === 2 && !(counselingType === 'Konseling Lainnya' || counselingType === 'Konseling Umum') && (!formData.date || !formData.time || !formData.counselorId)) ||
+              (step === 3 && (!formData.date || !formData.time || !formData.counselorId))
             }
             className="flex-1 px-4 py-3 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg font-medium disabled:bg-gray-300 disabled:cursor-not-allowed transition-all duration-200"
           >
-            {(counselingType === 'Konseling Lainnya' && step === 4) || (counselingType !== 'Konseling Lainnya' && step === 3)
+            {step === 4 || (step === 3 && !(counselingType === 'Konseling Lainnya' || counselingType === 'Konseling Umum'))
               ? 'Konfirmasi Reservasi'
               : 'Lanjut'}
           </button>

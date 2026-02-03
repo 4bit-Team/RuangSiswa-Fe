@@ -16,7 +16,8 @@ interface Reservasi {
   preferredDate: string
   preferredTime: string
   type: 'chat' | 'tatap-muka'
-  topic: string
+  topic?: { id: number; name: string; description?: string } | null
+  topicId?: number | null
   status: 'pending' | 'approved' | 'rejected' | 'in_counseling' | 'completed' | 'cancelled'
   qrCode?: string
   attendanceConfirmed?: boolean
@@ -54,10 +55,16 @@ const ReservasiPage: React.FC = () => {
       console.log('📥 Fetching user reservasi...')
       const response = await apiRequest('/reservasi/student/my-reservations', 'GET', undefined, token)
       console.log('✅ Reservasi loaded:', response)
-      setReservasiList(response || [])
+      // Ensure response is array and all items have valid structure
+      const validReservasi = Array.isArray(response) ? response.map(r => ({
+        ...r,
+        topic: r.topic && typeof r.topic === 'object' ? r.topic : null
+      })) : []
+      setReservasiList(validReservasi)
     } catch (error: any) {
       console.error('❌ Error fetching reservasi:', error)
       setErrorMessage('Gagal mengambil data reservasi')
+      setReservasiList([])
     }
   }
 
@@ -191,7 +198,11 @@ const ReservasiPage: React.FC = () => {
           </div>
         ) : (
           <div className="space-y-3">
-            {reservasiList.map((res: Reservasi) => (
+            {Array.isArray(reservasiList) && reservasiList.length > 0 && reservasiList.map((res: Reservasi) => {
+              // Defensive checks to prevent rendering errors
+              if (!res || !res.id) return null
+              
+              return (
               <div key={res.id} className="bg-white rounded-lg p-4 border border-gray-200">
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-4 flex-1">
@@ -199,9 +210,9 @@ const ReservasiPage: React.FC = () => {
                       <Heart className="w-5 h-5 text-blue-600" />
                     </div>
                     <div className="flex-1">
-                      <h5 className="font-semibold text-gray-900">{res.topic}</h5>
+                      <h5 className="font-semibold text-gray-900">{res.topic?.name || 'Konseling'}</h5>
                       <p className="text-sm text-gray-600">
-                        {typeLabel[res.type]} • {res.counselor?.username || res.counselor?.fullName || 'Konselor'} • {formatDate(res.preferredDate)} • {res.preferredTime}
+                        {(typeLabel[res.type as keyof typeof typeLabel] || res.type)} • {res.counselor?.username || res.counselor?.fullName || 'Konselor'} • {formatDate(res.preferredDate)} • {res.preferredTime}
                       </p>
                     </div>
                   </div>
@@ -285,7 +296,8 @@ const ReservasiPage: React.FC = () => {
                   </div>
                 )}
               </div>
-            ))}
+            )
+            })}
           </div>
         )}
       </div>
