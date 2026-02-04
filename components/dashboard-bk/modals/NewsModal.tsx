@@ -109,18 +109,28 @@ const NewsModal: React.FC<NewsModalProps> = ({
   const [creatingCategory, setCreatingCategory] = useState(false)
   const [displayCount, setDisplayCount] = useState(6)
   const [categoryMessage, setCategoryMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+  const [formError, setFormError] = useState<string | null>(null)
 
   // Initialize form data when modal opens or initialData changes
   useEffect(() => {
     if (isOpen) {
       loadCategories()
       if (initialData) {
+        // Handle categoryIds - either from categoryIds field or extract from categories array
+        let categoryIds: number[] = []
+        if (Array.isArray(initialData.categoryIds)) {
+          categoryIds = initialData.categoryIds
+        } else if (Array.isArray(initialData.categories)) {
+          // If categories is an array of objects with id property
+          categoryIds = initialData.categories.map((cat: any) => cat.id || cat).filter((id: any) => typeof id === 'number')
+        }
+
         setFormData({
           title: initialData.title || '',
           summary: initialData.summary || '',
           content: initialData.content || '',
           imageUrl: initialData.imageUrl || '',
-          categoryIds: Array.isArray(initialData.categoryIds) ? initialData.categoryIds : (initialData.categories || []),
+          categoryIds: categoryIds,
           status: initialData.status || 'draft',
           scheduledDate: initialData.scheduledDate 
             ? new Date(initialData.scheduledDate).toISOString().slice(0, 16) 
@@ -144,6 +154,7 @@ const NewsModal: React.FC<NewsModalProps> = ({
     })
     setDisplayCount(6)
     setCategoryMessage(null)
+    setFormError(null)
   }
 
   // Load categories from API
@@ -221,6 +232,30 @@ const NewsModal: React.FC<NewsModalProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    setFormError(null)
+    
+    // Validation
+    if (!formData.title.trim()) {
+      setFormError('Judul berita tidak boleh kosong')
+      return
+    }
+    if (!formData.summary.trim()) {
+      setFormError('Ringkasan berita tidak boleh kosong')
+      return
+    }
+    if (!formData.content.trim()) {
+      setFormError('Konten berita tidak boleh kosong')
+      return
+    }
+    if (formData.categoryIds.length === 0) {
+      setFormError('Pilih minimal satu kategori')
+      return
+    }
+    if (formData.status === 'scheduled' && !formData.scheduledDate) {
+      setFormError('Tanggal publikasi harus diisi untuk berita terjadwal')
+      return
+    }
+
     setSubmitting(true)
     try {
       // Clean data - remove scheduledDate if not scheduled
@@ -229,6 +264,12 @@ const NewsModal: React.FC<NewsModalProps> = ({
         scheduledDate: formData.status === 'scheduled' ? formData.scheduledDate : undefined,
       }
       await onSubmit(cleanData)
+      
+      // Trigger refresh event for portal siswa pages
+      if (typeof window !== 'undefined') {
+        const event = new Event('refreshNews');
+        window.dispatchEvent(event);
+      }
     } finally {
       setSubmitting(false)
     }
@@ -269,6 +310,16 @@ const NewsModal: React.FC<NewsModalProps> = ({
             {/* Form Section */}
             <div className="flex-1 min-w-0">
               <form onSubmit={handleSubmit} className="space-y-4">
+                {/* Error Message */}
+                {formError && (
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-center gap-3 mb-4">
+                    <div className="w-5 h-5 rounded-full bg-red-200 flex items-center justify-center">
+                      <span className="text-red-700 text-sm font-bold">!</span>
+                    </div>
+                    <p className="text-red-700 text-sm flex-1">{formError}</p>
+                  </div>
+                )}
+
                 {/* Judul */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">

@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { Eye, Heart, MessageCircle, X, Loader, Flame } from 'lucide-react';
-import { NewsItemProps } from '@types';
+import { NewsItemProps, NewsCategory } from '@types';
 import NewsDetailModal from '../modals/NewsDetailModal';
 import NewsAPI, { getCleanPreview } from '@lib/newsAPI';
 import { formatTimeRelative } from '@lib/timeFormat';
@@ -18,17 +18,32 @@ const BeritaPage: React.FC<BeritaPageProps> = ({ selectedTopic = null, setActive
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(selectedTopic);
   const [loading, setLoading] = useState(true);
- 
-  // Fetch published news
+  const [categories, setCategories] = useState<NewsCategory[]>([]);
+  const [loadingCategories, setLoadingCategories] = useState(true);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+
+  // Fetch categories and news
   useEffect(() => {
+    fetchCategories();
     fetchNews();
-  }, []);
+  }, [refreshTrigger]);
 
   const fetchNews = async () => {
     try {
       setLoading(true);
       const response = await NewsAPI.getPublishedNews({ limit: 100 });
-      setAllNews(response.data);
+      // Validate response.data is array and contains valid news items
+      if (!response || !response.data) {
+        console.warn('Invalid response from getPublishedNews:', response);
+        setAllNews([]);
+        return;
+      }
+
+      const newsData = Array.isArray(response.data) 
+        ? response.data.filter((item: any) => item && typeof item === 'object' && item.id && item.title)
+        : [];
+      
+      setAllNews(newsData);
     } catch (err) {
       console.error('Failed to fetch news:', err);
       // Fallback to empty if API fails
@@ -38,269 +53,68 @@ const BeritaPage: React.FC<BeritaPageProps> = ({ selectedTopic = null, setActive
     }
   };
 
-  // Fallback mock data in case API fails
-  const mockNews: NewsItemProps[] = [
-    {
-      id: 1,
-      title: 'Tips Menghadapi Ujian Akhir Semester',
-      description: `Persiapan yang matang adalah kunci sukses menghadapi ujian. Berikut beberapa tips yang bisa membantu siswa-siswi dalam menghadapi ujian akhir semester:
+  // Fetch categories from backend
+  const fetchCategories = async () => {
+    try {
+      setLoadingCategories(true);
+      const categoryList = await NewsAPI.getCategories();
+      
+      // Ensure we have valid category array
+      if (Array.isArray(categoryList)) {
+        setCategories(categoryList);
+      } else {
+        console.warn('Invalid categories format:', categoryList);
+        setCategories([]);
+      }
+    } catch (err) {
+      console.error('Failed to fetch categories:', err);
+      setCategories([]);
+    } finally {
+      setLoadingCategories(false);
+    }
+  };
 
-1. Buat Jadwal Belajar yang Terstruktur
-   - Mulai belajar 2-3 minggu sebelum ujian
-   - Alokasikan waktu 2-3 jam per hari
-   - Bagi materi sesuai dengan tingkat kesulitannya
-
-2. Pahami Konsep, Jangan Hanya Menghafal
-   - Fokus pada pemahaman mendalam
-   - Buat mind map atau ringkasan
-   - Coba soal-soal latihan
-
-3. Istirahat yang Cukup
-   - Tidur minimal 7-8 jam per hari
-   - Istirahat 5-10 menit setiap 30 menit belajar
-   - Jangan belajar semalam suntuk
-
-4. Atur Nutrisi dan Kesehatan
-   - Konsumsi makanan bergizi
-   - Minum air putih yang cukup
-   - Olahraga ringan untuk mengurangi stres
-
-Semoga tips ini membantu kalian dalam menghadapi ujian. Ingat, yang terpenting adalah proses, bukan hanya hasil akhirnya!`,
-      author: 'Bu Sarah Wijaya',
-      date: '15 Nov 2025',
-      category: 'Akademik',
-      status: 'Published',
-      image: 'https://images.unsplash.com/photo-1434582881033-aaf475b8e6ad?w=500&h=300&fit=crop',
-      likes: 42,
-      comments: 8,
-      views: 234,
-    },
-    {
-      id: 2,
-      title: 'Mengatasi Stress dan Kecemasan',
-      description: `Stress adalah bagian normal dari kehidupan, namun penting untuk mengelolanya dengan baik. Sebagai konselor BK, saya ingin berbagi beberapa strategi efektif:
-
-1. Identifikasi Sumber Stress
-   - Catat hal-hal yang membuat Anda stres
-   - Kelompokkan berdasarkan kategori
-   - Fokus pada apa yang bisa dikontrol
-
-2. Teknik Pernapasan dan Relaksasi
-   - Praktikkan deep breathing (4-7-8)
-   - Coba progressive muscle relaxation
-   - Meditasi atau mindfulness 10 menit per hari
-
-3. Aktivitas Fisik
-   - Olahraga 30 menit 3-4 kali per minggu
-   - Jalan santai di alam terbuka
-   - Aktivitas yang Anda nikmati
-
-4. Kelola Waktu dengan Baik
-   - Buat to-do list yang realistis
-   - Prioritaskan tugas penting
-   - Belajar mengatakan "tidak"
-
-5. Cari Dukungan Sosial
-   - Bicarakan dengan teman atau keluarga
-   - Bergabung dengan komunitas
-   - Kunjungi konselor BK jika perlu
-
-Ingat, stres adalah normal, tetapi Anda tidak perlu menghadapinya sendiri!`,
-      author: 'Pak Budi',
-      date: '12 Nov 2025',
-      category: 'Kesehatan Mental',
-      status: 'Published',
-      image: 'https://images.unsplash.com/photo-1506126613408-eca07ce68773?w=500&h=300&fit=crop',
-      likes: 28,
-      comments: 12,
-      views: 189,
-    },
-    {
-      id: 3,
-      title: 'Pilihan Karir Sesuai Bakat dan Minat',
-      description: `Memilih karir adalah keputusan penting yang akan mempengaruhi masa depan Anda. Mari kita bahas bagaimana memilih karir yang tepat:
-
-1. Kenali Diri Sendiri
-   - Identifikasi kekuatan dan kelemahan
-   - Pahami nilai-nilai pribadi Anda
-   - Cari tahu apa yang benar-benar Anda sukai
-
-2. Eksplorasi Berbagai Profesi
-   - Pelajari berbagai pilihan karir
-   - Bicarakan dengan orang-orang di industri
-   - Ikuti workshop atau seminar karir
-
-3. Pertimbangkan Faktor-Faktor Penting
-   - Prospek pertumbuhan
-   - Gaji dan benefit
-   - Work-life balance
-   - Kepuasan pribadi
-
-4. Ambil Langkah Nyata
-   - Ambil kursus atau pelatihan relevan
-   - Cari pengalaman magang
-   - Bangun portfolio atau skill
-   - Networking dengan profesional
-
-5. Konsultasi dengan Konselor BK
-   - Kami siap membantu pemetaan karir Anda
-   - Diskusikan pilihan dan strategi
-   - Dapatkan bimbingan untuk mencapai tujuan
-
-Masa depan ada di tangan Anda. Mulai ambil langkah hari ini!`,
-      author: 'Bu Sarah Wijaya',
-      date: '10 Nov 2025',
-      category: 'Karir',
-      status: 'Published',
-      image: 'https://images.unsplash.com/photo-1552664730-d307ca884978?w=500&h=300&fit=crop',
-      likes: 35,
-      comments: 15,
-      views: 267,
-    },
-    {
-      id: 4,
-      title: 'Membangun Kepercayaan Diri Sejak Dini',
-      description: `Kepercayaan diri adalah fondasi kesuksesan dalam berbagai aspek kehidupan. Bagaimana cara membangunnya?
-
-1. Terima Diri Sendiri
-   - Hargai kelebihan yang dimiliki
-   - Terima kekurangan sebagai bagian dari pembelajaran
-   - Jangan membandingkan diri dengan orang lain
-
-2. Tetapkan Tujuan yang Realistis
-   - Buat tujuan yang dapat dicapai
-   - Rayakan setiap pencapaian kecil
-   - Belajar dari kegagalan
-
-3. Kembangkan Keterampilan
-   - Ambil kelas atau pelatihan baru
-   - Praktikkan skill yang ingin dikuasai
-   - Cari mentor atau role model
-
-4. Kelola Percakapan Batin
-   - Ganti self-talk negatif dengan positif
-   - Afirmasi diri setiap hari
-   - Fokus pada apa yang bisa Anda lakukan
-
-5. Bangun Hubungan Positif
-   - Kelilingi diri dengan orang-orang positif
-   - Minta dukungan dari teman dan keluarga
-   - Berbagi pengalaman dengan orang lain
-
-Percaya diri adalah proses yang berkelanjutan. Mulai dari sekarang!`,
-      author: 'Ibu Maya Santoso',
-      date: '08 Nov 2025',
-      category: 'Pengembangan Diri',
-      status: 'Published',
-      image: 'https://images.unsplash.com/photo-1519389950473-47ba0277781c?w=500&h=300&fit=crop',
-      likes: 56,
-      comments: 18,
-      views: 312,
-    },
-    {
-      id: 5,
-      title: 'Mengatasi Bullying di Lingkungan Sekolah',
-      description: `Bullying adalah masalah serius yang dapat mempengaruhi kesejahteraan mental siswa. Berikut cara mengatasinya:
-
-1. Kenali Tanda-tanda Bullying
-   - Perubahan perilaku atau mood
-   - Takut pergi ke sekolah
-   - Kehilangan minat pada aktivitas yang disukai
-   - Luka atau benda yang hilang tanpa penjelasan
-
-2. Jangan Diam, Laporkan
-   - Ceritakan kepada orang tua atau guru
-   - Hubungi konselor BK
-   - Kumpulkan bukti atau catatan kejadian
-   - Beritahu teman yang dipercaya
-
-3. Perlindungan Diri
-   - Hindari tempat yang rawan bullying
-   - Selalu bersama teman
-   - Jangan merespons dengan kekerasan
-   - Jaga privasi data pribadi
-
-4. Dukungan Emosional
-   - Terima bahwa ini bukan kesalahan Anda
-   - Cari dukungan dari teman dan keluarga
-   - Lakukan aktivitas yang menyenangkan
-   - Kunjungi konselor untuk berbicara
-
-5. Pencegahan Jangka Panjang
-   - Ikuti program kesadaran bullying di sekolah
-   - Ajarkan empati kepada teman sebaya
-   - Bangun budaya saling menghormati
-   - Laporkan setiap kasus yang diketahui
-
-Anda tidak sendirian. Kami siap membantu!`,
-      author: 'Pak Ahmad Rijanto',
-      date: '05 Nov 2025',
-      category: 'Sosial',
-      status: 'Published',
-      image: 'https://images.unsplash.com/photo-1516534775068-bb6c2dc8e382?w=500&h=300&fit=crop',
-      likes: 73,
-      comments: 22,
-      views: 456,
-    },
-    {
-      id: 6,
-      title: 'Strategi Manajemen Waktu untuk Siswa Sibuk',
-      description: `Dengan banyak tanggung jawab, manajemen waktu menjadi kunci. Berikut strategi yang efektif:
-
-1. Analisis Penggunaan Waktu
-   - Catat semua aktivitas selama seminggu
-   - Identifikasi waktu yang terbuang
-   - Lihat pola dan kebiasaan
-
-2. Prioritaskan Tugas
-   - Gunakan metode Eisenhower (Urgent vs Important)
-   - Kerjakan yang penting dulu
-   - Belajar menunda hal yang tidak penting
-
-3. Buat Jadwal yang Realistis
-   - Alokasikan waktu dengan fleksibel
-   - Tambahkan buffer waktu untuk hal tak terduga
-   - Jangan terlalu membebani diri sendiri
-
-4. Gunakan Tools dan Teknik
-   - Pomodoro Technique (25 menit fokus, 5 menit istirahat)
-   - To-do list atau planner
-   - Aplikasi reminder atau calendar
-   - Time tracking tools
-
-5. Evaluasi dan Penyesuaian
-   - Tinjau sistem Anda setiap minggu
-   - Sesuaikan yang tidak bekerja
-   - Rayakan kesuksesan kecil
-   - Bersabar dengan diri sendiri
-
-Waktu adalah aset terberharga. Gunakan dengan bijak!`,
-      author: 'Bu Sarah Wijaya',
-      date: '03 Nov 2025',
-      category: 'Akademik',
-      status: 'Published',
-      image: 'https://images.unsplash.com/photo-1517694712202-14dd9538aa97?w=500&h=300&fit=crop',
-      likes: 44,
-      comments: 11,
-      views: 287,
-    },
-  ];
-
-  // Build categories from the news data
-  const categories = [
-    { id: 'Akademik', label: 'Akademik', count: allNews.filter(n => n.category === 'Akademik').length },
-    { id: 'Kesehatan Mental', label: 'Kesehatan Mental', count: allNews.filter(n => n.category === 'Kesehatan Mental').length },
-    { id: 'Sosial', label: 'Sosial', count: allNews.filter(n => n.category === 'Sosial').length },
-    { id: 'Pengembangan Diri', label: 'Pengembangan Diri', count: allNews.filter(n => n.category === 'Pengembangan Diri').length },
-    { id: 'Karir', label: 'Karir', count: allNews.filter(n => n.category === 'Karir').length },
-    { id: 'Pengumuman', label: 'Pengumuman', count: allNews.filter(n => n.category === 'Pengumuman').length },
-  ].filter(cat => cat.count > 0); // Only show categories that have news
+  // Build categories dynamically from backend + count from allNews
+  const categoriesWithCount = useMemo(() => {
+    if (!categories || categories.length === 0) return [];
+    
+    return categories
+      .map((cat) => {
+        // Ensure cat.id is number, cat.name is string
+        const categoryId = typeof cat.id === 'number' ? cat.id : parseInt(cat.id as any);
+        const categoryName = typeof cat.name === 'string' ? cat.name : String(cat.name);
+        
+        // Count news matching this category by name (news.category is now string)
+        const count = allNews.filter(n => {
+          // Ensure news.category is string before comparison
+          const newsCategory = typeof n.category === 'string' ? n.category : '';
+          return newsCategory === categoryName;
+        }).length;
+        
+        return {
+          id: String(categoryId),
+          label: categoryName,
+          count: count,
+        };
+      })
+      .filter(cat => cat.count > 0);
+  }, [categories, allNews]);
 
   // Filter berita berdasarkan kategori
   const filteredNews = useMemo(() => {
-    if (!selectedCategory) return allNews;
-    return allNews.filter(news => news.category === selectedCategory);
-  }, [selectedCategory, allNews]);
+    if (!selectedCategory || !categories) return allNews;
+    
+    // Find the selected category by ID
+    const selectedCat = categories.find(c => String(c.id) === selectedCategory);
+    
+    if (!selectedCat) return allNews;
+    
+    // Ensure category name is string
+    const categoryName = typeof selectedCat.name === 'string' ? selectedCat.name : String(selectedCat.name);
+    
+    // Filter by category name (since allNews has category as string)
+    return allNews.filter(news => news.category === categoryName);
+  }, [selectedCategory, allNews, categories]);
 
   // Get latest news (first item)
   const latestNews = filteredNews.length > 0 ? filteredNews[0] : null;
@@ -318,25 +132,26 @@ Waktu adalah aset terberharga. Gunakan dengan bijak!`,
   ]);
   const remainingNews = filteredNews.filter(n => !excludedIds.has(n.id));
 
-  const handleNewsClick = async (news: NewsItemProps) => {
-    // Optimistically update views in UI
-    setAllNews((prev) =>
-      prev.map((n) =>
-        n.id === news.id ? { ...n, views: (n.views || 0) + 1 } : n
-      )
-    );
-    setSelectedNews({ ...news, views: (news.views || 0) + 1 });
+  const handleNewsClick = (news: NewsItemProps) => {
+    setSelectedNews(news);
     setIsModalOpen(true);
-    try {
-      await NewsAPI.incrementViews(news.id);
-    } catch (e) {
-      // Optionally handle error, but keep UI responsive
-    }
   };
 
   const handleCategoryChange = (categoryId: string | null) => {
     setSelectedCategory(selectedCategory === categoryId ? null : categoryId);
   };
+
+  // Expose refresh function via window for global updates
+  useEffect(() => {
+    const handleRefreshNews = () => {
+      setRefreshTrigger(prev => prev + 1);
+    };
+    
+    window.addEventListener('refreshNews', handleRefreshNews as EventListener);
+    return () => {
+      window.removeEventListener('refreshNews', handleRefreshNews as EventListener);
+    };
+  }, []);
 
   return (
     <>
@@ -352,31 +167,41 @@ Waktu adalah aset terberharga. Gunakan dengan bijak!`,
         {/* Filter Kategori */}
         <div className="space-y-3 bg-white rounded-xl border border-gray-200 p-4">
           <h3 className="text-sm font-semibold text-gray-700">Filter Kategori</h3>
-          <div className="flex flex-wrap gap-2">
-            <button
-              onClick={() => handleCategoryChange(null)}
-              className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 text-sm ${
-                selectedCategory === null
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-100 border border-gray-300 text-gray-700 hover:border-gray-400'
-              }`}
-            >
-              Semua ({allNews.length})
-            </button>
-            {categories.map((cat) => (
+          {loadingCategories ? (
+            <div className="flex items-center justify-center py-4">
+              <Loader className="animate-spin text-blue-600" size={20} />
+            </div>
+          ) : (
+            <div className="flex flex-wrap gap-2">
               <button
-                key={cat.id}
-                onClick={() => handleCategoryChange(cat.id)}
+                onClick={() => handleCategoryChange(null)}
                 className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 text-sm ${
-                  selectedCategory === cat.id
+                  selectedCategory === null
                     ? 'bg-blue-600 text-white'
                     : 'bg-gray-100 border border-gray-300 text-gray-700 hover:border-gray-400'
                 }`}
               >
-                {cat.label} ({cat.count})
+                Semua ({allNews.length})
               </button>
-            ))}
-          </div>
+              {categoriesWithCount.length > 0 ? (
+                categoriesWithCount.map((cat) => (
+                  <button
+                    key={cat.id}
+                    onClick={() => handleCategoryChange(cat.id)}
+                    className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 text-sm ${
+                      selectedCategory === cat.id
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-gray-100 border border-gray-300 text-gray-700 hover:border-gray-400'
+                    }`}
+                  >
+                    {cat.label} ({cat.count})
+                  </button>
+                ))
+              ) : (
+                <p className="text-sm text-gray-500">Tidak ada kategori tersedia</p>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Hasil Filter Info */}
@@ -406,7 +231,7 @@ Waktu adalah aset terberharga. Gunakan dengan bijak!`,
             {(latestNews || topPopularNews.length > 0) && (
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
                 {/* Latest News - Large Card (Left) */}
-                {latestNews && (
+                {latestNews && latestNews.id && (
                   <div className="lg:col-span-2">
                     <NewsCard
                       news={latestNews}
@@ -422,14 +247,17 @@ Waktu adalah aset terberharga. Gunakan dengan bijak!`,
                     <Flame className="w-5 h-5 text-orange-500" />
                     Paling Populer
                   </h3>
-                  {topPopularNews.map((news) => (
-                    <NewsCard
-                      key={news.id}
-                      news={news}
-                      onViewDetail={handleNewsClick}
-                      isSmall={true}
-                    />
-                  ))}
+                  {topPopularNews.map((news) => {
+                    if (!news || !news.id) return null;
+                    return (
+                      <NewsCard
+                        key={news.id}
+                        news={news}
+                        onViewDetail={handleNewsClick}
+                        isSmall={true}
+                      />
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -439,13 +267,16 @@ Waktu adalah aset terberharga. Gunakan dengan bijak!`,
               <div>
                 <h3 className="text-lg font-bold text-gray-900 mb-6">Semua Berita</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {remainingNews.map((news) => (
-                    <NewsCard
-                      key={news.id}
-                      news={news}
-                      onViewDetail={handleNewsClick}
-                    />
-                  ))}
+                  {remainingNews.map((news) => {
+                    if (!news || !news.id) return null;
+                    return (
+                      <NewsCard
+                        key={news.id}
+                        news={news}
+                        onViewDetail={handleNewsClick}
+                      />
+                    );
+                  })}
                 </div>
               </div>
             )}

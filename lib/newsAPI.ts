@@ -1,11 +1,11 @@
 import { API_URL } from './api';
-import { NewsItemProps } from '@types';
+import { NewsItemProps, NewsCategory } from '@types';
 
 export interface CreateNewsPayload {
   title: string;
   summary: string;
   content: string;
-  categories: string[];
+  categoryIds: number[];
   imageUrl?: string;
   status: 'draft' | 'published' | 'scheduled';
   scheduledDate?: string;
@@ -60,18 +60,32 @@ const transformNewsData = (data: any): NewsItemProps & { summary?: string } => {
     // Ensure likes and comments are arrays
     const likes = Array.isArray(data.likes) ? data.likes : [];
     const comments = Array.isArray(data.comments) ? data.comments : [];
-    // Ensure categories is array
-    const categories = Array.isArray(data.categories) ? data.categories : data.categories ? [data.categories] : [];
+    
+    // Ensure categories is array of objects with name property
+    let categories: any[] = [];
+    if (Array.isArray(data.categories)) {
+      categories = data.categories.filter((cat: any) => cat && typeof cat === 'object' && cat.name);
+    } else if (data.categories && typeof data.categories === 'object' && data.categories.name) {
+      categories = [data.categories];
+    }
+    
+    // Extract category name from first category object (for backward compatibility)
+    const categoryName = categories.length > 0 && categories[0].name 
+      ? String(categories[0].name) 
+      : 'Umum';
+    
+    // Transform categories to include only name strings
+    const categoryNames = categories.map((cat: any) => cat.name ? String(cat.name) : '').filter(Boolean);
     
     return {
       id: data.id,
       title: data.title,
-      description: data.content,
-      summary: data.summary, // Optional summary field
+      description: data.content || '',
+      summary: data.summary || '',
       author: data.author?.fullName || data.author?.username || 'Anonymous',
       date: data.publishedDate || data.createdAt || new Date(),
-      category: categories[0] || 'Umum', // For backward compatibility
-      categories: categories, // Add this for components that need full array
+      category: categoryName,
+      categories: categoryNames, // Array of category names (strings)
       status: data.status,
       image: data.imageUrl,
       likes: likes.length || 0,
@@ -87,32 +101,77 @@ const transformNewsData = (data: any): NewsItemProps & { summary?: string } => {
 };
 
 class NewsAPI {
-    // Increment news views
-    static async incrementViews(id: number) {
-      const response = await fetch(`${API_URL}/news/${id}/views`, {
-        method: 'POST',
-      });
+  // Get categories - public endpoint
+  static async getCategories(): Promise<NewsCategory[]> {
+    try {
+      const response = await fetch(`${API_URL}/news-category/public/list`);
+      
       if (!response.ok) {
-        throw new Error('Failed to increment views');
+        console.error('Failed to fetch categories, status:', response.status);
+        return [];
       }
-      return response.json();
+
+      const data = await response.json();
+      
+      // Ensure data is array and contains valid objects
+      if (!Array.isArray(data)) {
+        console.error('Categories response is not an array:', data);
+        return [];
+      }
+
+      // Filter and validate categories
+      const validCategories = data
+        .filter((cat: any) => cat && typeof cat === 'object')
+        .filter((cat: any) => cat.isActive === true)
+        .map((cat: any) => ({
+          id: typeof cat.id === 'number' ? cat.id : parseInt(cat.id),
+          name: typeof cat.name === 'string' ? cat.name : String(cat.name),
+          description: cat.description || undefined,
+          isActive: cat.isActive === true,
+        }));
+
+      return validCategories;
+    } catch (error) {
+      console.error('Error fetching categories:', error);
+      return [];
     }
+  }
+
+  // Increment news views
+  static async incrementViews(id: number) {
+    const response = await fetch(`${API_URL}/news/${id}/views`, {
+      method: 'POST',
+    });
+    if (!response.ok) {
+      throw new Error('Failed to increment views');
+    }
+    return response.json();
+  }
+
   // Create news
   static async createNews(payload: CreateNewsPayload, token: string) {
-    const response = await fetch(`${API_URL}/news`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify(payload),
-    });
+    try {
+      const response = await fetch(`${API_URL}/news`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      });
 
-    if (!response.ok) {
-      throw new Error('Failed to create news');
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: 'Unknown error' }));
+        console.error('Create news error response:', errorData);
+        throw new Error(errorData.message || `Failed to create news (${response.status})`);
+      }
+
+      const result = await response.json();
+      return result;
+    } catch (error) {
+      console.error('Create news request error:', error);
+      throw error;
     }
-
-    return response.json();
   }
 
   // Get all news
@@ -127,20 +186,41 @@ class NewsAPI {
       if (params.limit) queryString.append('limit', String(params.limit));
     }
 
-    const response = await fetch(
-      `${API_URL}/news?${queryString.toString()}`
-    );
+    try {
+      const response = await fetch(
+        `${API_URL}/news?${queryString.toString()}`
+      );
 
-    if (!response.ok) {
-      throw new Error('Failed to fetch news');
+      if (!response.ok) {
+        console.error('Failed to fetch all news:', response.status);
+        return { data: [], total: 0 };
+      }
+
+      const data = await response.json();
+      
+      if (!data || typeof data !== 'object') {
+        console.warn('Invalid response structure:', data);
+        return { data: [], total: 0 };
+      }
+
+      const newsArray = Array.isArray(data.data) ? data.data : [];
+      const transformedNews = newsArray.map((item: any) => {
+        try {
+          return transformNewsData(item);
+        } catch (err) {
+          console.error('Error transforming news item:', item, err);
+          return null;
+        }
+      }).filter((item: any) => item !== null);
+
+      return {
+        ...data,
+        data: transformedNews,
+      };
+    } catch (err) {
+      console.error('Error fetching all news:', err);
+      return { data: [], total: 0 };
     }
-
-    const data = await response.json();
-    const newsArray = Array.isArray(data.data) ? data.data : [];
-    return {
-      ...data,
-      data: newsArray.map((item: any) => transformNewsData(item)),
-    };
   }
 
   // Get published news
@@ -154,20 +234,45 @@ class NewsAPI {
       if (params.limit) queryString.append('limit', String(params.limit));
     }
 
-    const response = await fetch(
-      `${API_URL}/news/published?${queryString.toString()}`
-    );
+    try {
+      const response = await fetch(
+        `${API_URL}/news/published?${queryString.toString()}`
+      );
 
-    if (!response.ok) {
-      throw new Error('Failed to fetch published news');
+      if (!response.ok) {
+        console.error('Failed to fetch published news:', response.status);
+        return { data: [], total: 0 };
+      }
+
+      const data = await response.json();
+      
+      // Validate response structure
+      if (!data || typeof data !== 'object') {
+        console.warn('Invalid response structure:', data);
+        return { data: [], total: 0 };
+      }
+
+      // Ensure data.data is array
+      const newsArray = Array.isArray(data.data) ? data.data : [];
+      
+      // Transform each news item with error handling
+      const transformedNews = newsArray.map((item: any) => {
+        try {
+          return transformNewsData(item);
+        } catch (err) {
+          console.error('Error transforming news item:', item, err);
+          return null;
+        }
+      }).filter((item: any) => item !== null);
+
+      return {
+        ...data,
+        data: transformedNews,
+      };
+    } catch (err) {
+      console.error('Error fetching published news:', err);
+      return { data: [], total: 0 };
     }
-
-    const data = await response.json();
-    const newsArray = Array.isArray(data.data) ? data.data : [];
-    return {
-      ...data,
-      data: newsArray.map((item: any) => transformNewsData(item)),
-    };
   }
 
   // Get news by category
@@ -204,24 +309,44 @@ class NewsAPI {
       headers['Authorization'] = `Bearer ${token}`;
     }
 
-    const response = await fetch(
-      `${API_URL}/news/user/${userId}?page=${page}&limit=${limit}`,
-      { headers }
-    );
+    try {
+      const response = await fetch(
+        `${API_URL}/news/user/${userId}?page=${page}&limit=${limit}`,
+        { headers }
+      );
 
-    if (!response.ok) {
-      throw new Error('Failed to fetch user news');
+      if (!response.ok) {
+        console.error('Failed to fetch user news:', response.status);
+        return { data: [], total: 0 };
+      }
+
+      const data = await response.json();
+      
+      if (!data || typeof data !== 'object') {
+        console.warn('Invalid response structure:', data);
+        return { data: [], total: 0 };
+      }
+      
+      // Ensure data.data is an array before mapping
+      const newsArray = Array.isArray(data.data) ? data.data : [];
+      
+      const transformedNews = newsArray.map((item: any) => {
+        try {
+          return transformNewsData(item);
+        } catch (err) {
+          console.error('Error transforming user news item:', item, err);
+          return null;
+        }
+      }).filter((item: any) => item !== null);
+
+      return {
+        ...data,
+        data: transformedNews,
+      };
+    } catch (err) {
+      console.error('Error fetching user news:', err);
+      return { data: [], total: 0 };
     }
-
-    const data = await response.json();
-    
-    // Ensure data.data is an array before mapping
-    const newsArray = Array.isArray(data.data) ? data.data : [];
-    
-    return {
-      ...data,
-      data: newsArray.map((item: any) => transformNewsData(item)),
-    };
   }
 
   // Get single news
@@ -242,20 +367,27 @@ class NewsAPI {
     payload: UpdateNewsPayload,
     token: string
   ) {
-    const response = await fetch(`${API_URL}/news/${id}`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify(payload),
-    });
+    try {
+      const response = await fetch(`${API_URL}/news/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      });
 
-    if (!response.ok) {
-      throw new Error('Failed to update news');
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: 'Unknown error' }));
+        console.error('Update news error response:', errorData);
+        throw new Error(errorData.message || `Failed to update news (${response.status})`);
+      }
+
+      return response.json();
+    } catch (error) {
+      console.error('Update news request error:', error);
+      throw error;
     }
-
-    return response.json();
   }
 
   // Delete news

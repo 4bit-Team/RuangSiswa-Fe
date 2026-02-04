@@ -8,7 +8,7 @@ import { NewsItemProps } from '@types';
 import NewsAPI, { getCleanPreview } from '@lib/newsAPI';
 import { formatTimeRelative } from '@lib/timeFormat';
 
- 
+
 const StatCard: React.FC<StatCardProps> = ({ icon: Icon, label, value, color }) => (
   <div className="bg-white rounded-xl border border-gray-200 p-6">
     <div className={`w-12 h-12 ${color} rounded-xl flex items-center justify-center mb-4`}>
@@ -101,17 +101,41 @@ const DashboardPage: React.FC<{ setActivePage?: (page: string) => void }> = ({ s
   const [isNewsModalOpen, setIsNewsModalOpen] = useState(false);
   const [latestNews, setLatestNews] = useState<NewsItemProps[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   // Fetch latest news
   useEffect(() => {
     fetchLatestNews();
+  }, [refreshTrigger]);
+
+  // Listen for refresh events from other components
+  useEffect(() => {
+    const handleRefreshNews = () => {
+      setRefreshTrigger(prev => prev + 1);
+    };
+    
+    window.addEventListener('refreshNews', handleRefreshNews as EventListener);
+    return () => {
+      window.removeEventListener('refreshNews', handleRefreshNews as EventListener);
+    };
   }, []);
 
   const fetchLatestNews = async () => {
     try {
       setLoading(true);
       const response = await NewsAPI.getPublishedNews({ limit: 2, page: 1 });
-      setLatestNews(response.data);
+      // Ensure response.data is valid array of news items
+      if (!response || !response.data) {
+        console.warn('Invalid response from getPublishedNews:', response);
+        setLatestNews([]);
+        return;
+      }
+
+      const newsData = Array.isArray(response.data) 
+        ? response.data.filter((item: any) => item && typeof item === 'object' && item.id)
+        : [];
+      
+      setLatestNews(newsData);
     } catch (err) {
       console.error('Failed to fetch latest news:', err);
       setLatestNews([]);
@@ -120,20 +144,9 @@ const DashboardPage: React.FC<{ setActivePage?: (page: string) => void }> = ({ s
     }
   };
 
-  const handleViewNewsDetail = async (news: NewsItemProps) => {
-    // Optimistically update views in UI
-    setLatestNews((prev) =>
-      prev.map((n) =>
-        n.id === news.id ? { ...n, views: (n.views || 0) + 1 } : n
-      )
-    );
-    setSelectedNews({ ...news, views: (news.views || 0) + 1 });
+  const handleViewNewsDetail = (news: NewsItemProps) => {
+    setSelectedNews(news);
     setIsNewsModalOpen(true);
-    try {
-      await NewsAPI.incrementViews(news.id);
-    } catch (e) {
-      // Optionally handle error, but keep UI responsive
-    }
   };
 
   const handleViewAll = () => {
@@ -172,15 +185,19 @@ const DashboardPage: React.FC<{ setActivePage?: (page: string) => void }> = ({ s
             <div className="flex justify-center py-8">
               <Loader className="animate-spin text-blue-600" size={32} />
             </div>
-          ) : latestNews.length > 0 ? (
+          ) : latestNews && latestNews.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {latestNews.map((news) => (
-                <NewsPreviewCard
-                  key={news.id}
-                  news={news}
-                  onViewDetail={handleViewNewsDetail}
-                />
-              ))}
+              {latestNews.map((news) => {
+                // Ensure news object is valid before rendering
+                if (!news || !news.id) return null;
+                return (
+                  <NewsPreviewCard
+                    key={news.id}
+                    news={news}
+                    onViewDetail={handleViewNewsDetail}
+                  />
+                );
+              })}
             </div>
           ) : (
             <div className="flex flex-col items-center justify-center py-12 text-gray-500">

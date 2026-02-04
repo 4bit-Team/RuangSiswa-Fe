@@ -48,6 +48,7 @@ interface PostCardProps {
   votes: number
   answers: number
   views: number
+  bookmarks: number
   isVerified?: boolean
   categoryColor?: string
   onClick?: () => void
@@ -66,6 +67,7 @@ const PostCard: React.FC<PostCardProps & { currentUserId?: number }> = ({
   votes,
   answers,
   views,
+  bookmarks,
   isVerified,
   categoryColor = 'bg-blue-50',
   onClick,
@@ -186,6 +188,10 @@ const PostCard: React.FC<PostCardProps & { currentUserId?: number }> = ({
               <Eye className="w-4 h-4" />
               <span>{views} dilihat</span>
             </div>
+            <div className="flex items-center gap-1">
+              <Bookmark className="w-4 h-4" />
+              <span>{bookmarks} bookmark</span>
+            </div>
           </div>
         </div>
       </div>
@@ -207,6 +213,7 @@ const KonsultasiPage: React.FC<{ setActivePage?: (page: string) => void }> = ({ 
   const [categories, setCategories] = useState<Category[]>([])
   const [loadingCategories, setLoadingCategories] = useState(true)
   const [userAnswerCount, setUserAnswerCount] = useState(0)
+  const [userBookmarkCount, setUserBookmarkCount] = useState(0)
 
   // Fetch categories on mount
   useEffect(() => {
@@ -266,9 +273,10 @@ const KonsultasiPage: React.FC<{ setActivePage?: (page: string) => void }> = ({ 
             avatar: (item.author?.name || 'A').substring(0, 2).toUpperCase(),
             timestamp: formatDate(item.createdAt),
             content: item.content,
-            votes: item.votes,
-            answers: item.answerCount,
-            views: item.views,
+            votes: item.votes || 0,
+            answers: item.answerCount || 0,
+            views: item.views || 0,
+            bookmarks: item.bookmarkCount || 0,
             categoryColor: 'bg-blue-50',
             isVerified: false,
           };
@@ -277,7 +285,7 @@ const KonsultasiPage: React.FC<{ setActivePage?: (page: string) => void }> = ({ 
         setPosts(transformedPosts);
         setTotalPages(data.pagination.pages);
 
-        // Fetch user's answer count if user is logged in
+        // Fetch user's answer count and bookmarks if user is logged in
         if (user?.id) {
           try {
             const userAnswersData = await apiRequest(
@@ -288,9 +296,20 @@ const KonsultasiPage: React.FC<{ setActivePage?: (page: string) => void }> = ({ 
             );
             const totalAnswers = userAnswersData.data ? userAnswersData.data.length : 0;
             setUserAnswerCount(totalAnswers);
+
+            // Fetch user's bookmarks
+            const userBookmarksData = await apiRequest(
+              `/v1/konsultasi/user/bookmarks`,
+              'GET',
+              undefined,
+              token
+            );
+            const totalBookmarks = userBookmarksData.data ? userBookmarksData.data.length : 0;
+            setUserBookmarkCount(totalBookmarks);
           } catch (error) {
-            console.error('Error fetching user answers:', error);
+            console.error('Error fetching user data:', error);
             setUserAnswerCount(0);
+            setUserBookmarkCount(0);
           }
         }
       } catch (error) {
@@ -320,62 +339,6 @@ const KonsultasiPage: React.FC<{ setActivePage?: (page: string) => void }> = ({ 
     if (diffDays < 7) return `${diffDays} hari lalu`;
     return postDate.toLocaleDateString('id-ID');
   };
-
-  const posts_old: PostCardProps[] = [
-    {
-      id: '1',
-      title: 'Bagaimana cara mengatasi rasa cemas saat menghadapi ujian?',
-      category: 'Akademik',
-      author: 'Siswa A',
-      avatar: 'SA',
-      timestamp: '2 jam lalu',
-      content: 'Saya selalu merasa cemas dan gugup sebelum ujian dimulai. Hati berdetak cepat, tangan gemetar, dan sulit fokus. Apa yang harus saya lakukan?',
-      votes: 24,
-      answers: 8,
-      views: 156,
-      categoryColor: 'bg-cyan-50',
-    },
-    {
-      id: '2',
-      title: 'Tips meningkatkan kepercayaan diri dalam presentasi',
-      category: 'Pengembangan',
-      author: 'Siswa B',
-      avatar: 'SB',
-      timestamp: '5 jam lalu',
-      content: 'Saya sangat gugup saat harus presentasi di depan kelas. Bagaimana cara mengatasi rasa takut dan percaya diri saat presentasi?',
-      votes: 18,
-      answers: 12,
-      views: 203,
-      categoryColor: 'bg-violet-50',
-      isVerified: true,
-    },
-    {
-      id: '3',
-      title: 'Apa yang harus dilakukan jika mengalami konflik dengan teman?',
-      category: 'Sosial',
-      author: 'Siswa C',
-      avatar: 'SC',
-      timestamp: '8 jam lalu',
-      content: 'Saya sedang mengalami masalah dengan salah satu teman dekat saya. Kami punya perbedaan pendapat yang cukup serius...',
-      votes: 15,
-      answers: 6,
-      views: 98,
-      categoryColor: 'bg-emerald-50',
-    },
-    {
-      id: '4',
-      title: 'Cara mengelola waktu antara belajar dan kegiatan lain',
-      category: 'Akademik',
-      author: 'Siswa D',
-      avatar: 'SD',
-      timestamp: '1 hari lalu',
-      content: 'Saya merasa jam sekolah sangat panjang dan ketika pulang sudah lelah. Tapi masih ada PR dan kegiatan organisasi. Bagaimana cara mengatur waktu?',
-      votes: 32,
-      answers: 10,
-      views: 287,
-      categoryColor: 'bg-cyan-50',
-    },
-  ];
 
   const filteredPosts = posts.filter(post => {
     const matchesSearch = post.title.toLowerCase().includes(searchQuery.toLowerCase());
@@ -577,6 +540,12 @@ const KonsultasiPage: React.FC<{ setActivePage?: (page: string) => void }> = ({ 
                   <span className="text-sm text-gray-600">Total Menjawab</span>
                   <span className="font-semibold text-indigo-600">
                     {userAnswerCount}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-gray-600">Total Bookmark</span>
+                  <span className="font-semibold text-blue-600">
+                    {userBookmarkCount}
                   </span>
                 </div>
               </div>

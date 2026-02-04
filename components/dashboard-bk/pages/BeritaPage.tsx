@@ -109,18 +109,32 @@ const BeritaPage: React.FC = () => {
       const response = await NewsAPI.getUserNews(user!.id, 1, 100, token || undefined);
       
       // Map transformed data to ArticleCardProps format
-      const mapped = response.data.map((item: any) => ({
-        id: item.id,
-        title: item.title,
-        summary: item.summary,
-        categories: item.categories || [],
-        status: item.status,
-        views: item.views,
-        author: item.author,
-        date: item.date,
-        imageUrl: item.image,
-        content: item.description, // Keep description from transformNewsData
-      }));
+      const mapped = response.data.map((item: any) => {
+        // Extract category objects and ensure they have id property
+        let categories: any[] = [];
+        if (Array.isArray(item.categories)) {
+          categories = item.categories.map((cat: any) => {
+            // If category has name property, it's a full category object
+            if (cat.name) {
+              return cat.name;
+            }
+            return cat;
+          });
+        }
+        
+        return {
+          id: item.id,
+          title: item.title,
+          summary: item.summary,
+          categories: Array.isArray(categories) ? categories : [],
+          status: item.status || 'draft',
+          views: item.views || item.viewCount || 0,
+          author: item.author?.fullName || item.author?.username || item.author || 'Unknown',
+          date: item.publishedDate || item.date || item.createdAt || new Date().toISOString(),
+          imageUrl: item.image || item.imageUrl,
+          content: item.description || item.content, // Keep description from transformNewsData
+        };
+      });
       
       setArticles(mapped);
       setError('');
@@ -133,17 +147,28 @@ const BeritaPage: React.FC = () => {
   };
 
   const handleModalSubmit = async (formData: any) => {
-    if (!formData.title || !formData.summary || !formData.content || formData.categories.length === 0) {
+    if (!formData.title || !formData.summary || !formData.content || !formData.categoryIds || formData.categoryIds.length === 0) {
       setError('Please fill in all required fields');
       return;
     }
 
     try {
       setSubmitting(true);
+      // Ensure proper format for API
+      const submitData = {
+        title: formData.title,
+        summary: formData.summary,
+        content: formData.content,
+        imageUrl: formData.imageUrl,
+        categoryIds: formData.categoryIds,
+        status: formData.status,
+        scheduledDate: formData.scheduledDate,
+      };
+
       if (modalMode === 'create') {
-        await NewsAPI.createNews(formData, token!);
+        await NewsAPI.createNews(submitData, token!);
       } else if (selectedArticle) {
-        await NewsAPI.updateNews(selectedArticle.id, formData, token!);
+        await NewsAPI.updateNews(selectedArticle.id, submitData, token!);
       }
       
       setModalOpen(false);
@@ -159,9 +184,30 @@ const BeritaPage: React.FC = () => {
   };
 
   const handleEdit = (article: any) => {
-    setSelectedArticle(article);
-    setModalMode('edit');
-    setModalOpen(true);
+    // Fetch full article data to get category IDs
+    const fetchFullArticle = async () => {
+      try {
+        const fullData = await NewsAPI.getNews(article.id);
+        const enrichedArticle = {
+          ...article,
+          ...fullData,
+          categoryIds: Array.isArray(fullData.categories) 
+            ? fullData.categories.map((cat: any) => cat.id || cat)
+            : [],
+        };
+        setSelectedArticle(enrichedArticle);
+        setModalMode('edit');
+        setModalOpen(true);
+      } catch (err) {
+        console.error('Failed to fetch full article:', err);
+        // Fallback to article without full data
+        setSelectedArticle(article);
+        setModalMode('edit');
+        setModalOpen(true);
+      }
+    };
+    
+    fetchFullArticle();
   };
 
   const handleDelete = async (id: number) => {
@@ -190,7 +236,7 @@ const BeritaPage: React.FC = () => {
     const matchesSearch = article.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
       article.summary.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = !filterStatus || article.status === filterStatus;
-    const matchesCategory = !filterCategory || article.categories.includes(filterCategory);
+    const matchesCategory = !filterCategory || (article.categories && article.categories.includes(filterCategory));
     
     return matchesSearch && matchesStatus && matchesCategory;
   });

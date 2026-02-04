@@ -114,7 +114,12 @@ const NewsDetailModal: React.FC<NewsDetailModalProps> = ({ isOpen, onClose, news
   const author = 'author' in news ? (typeof news.author === 'string' ? news.author : news.author.fullName) : '';
   const date = 'date' in news ? news.date : 'date' in news ? news.publishedDate : '';
   const image = 'image' in news ? news.image : 'imageUrl' in news ? news.imageUrl : '';
-  const category = 'category' in news ? news.category : 'categories' in news ? news.categories[0] : '';
+  // Handle category as string (after transformation) or fallback
+  const category = 'category' in news 
+    ? typeof news.category === 'string' ? news.category : 'Unknown'
+    : 'categories' in news && Array.isArray(news.categories) && news.categories.length > 0
+      ? typeof news.categories[0] === 'string' ? news.categories[0] : 'Unknown'
+      : 'Unknown';
   const description = 'description' in news ? news.description : 'summary' in news ? news.summary : '';
   const content = 'content' in news ? news.content : description;
   const views = 'views' in news ? news.views : 'viewCount' in news ? news.viewCount : 0;

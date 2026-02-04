@@ -201,6 +201,13 @@ export interface NewsCommentProps {
   updatedAt: Date;
 }
 
+export interface NewsCategory {
+  id: number;
+  name: string;
+  description?: string;
+  isActive: boolean;
+}
+
 export interface Student {
   id: number
   name: string
