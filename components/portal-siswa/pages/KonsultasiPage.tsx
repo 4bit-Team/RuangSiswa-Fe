@@ -213,7 +213,6 @@ const KonsultasiPage: React.FC<{ setActivePage?: (page: string) => void }> = ({ 
   const [categories, setCategories] = useState<Category[]>([])
   const [loadingCategories, setLoadingCategories] = useState(true)
   const [userAnswerCount, setUserAnswerCount] = useState(0)
-  const [userBookmarkCount, setUserBookmarkCount] = useState(0)
 
   // Fetch categories on mount
   useEffect(() => {
@@ -296,20 +295,9 @@ const KonsultasiPage: React.FC<{ setActivePage?: (page: string) => void }> = ({ 
             );
             const totalAnswers = userAnswersData.data ? userAnswersData.data.length : 0;
             setUserAnswerCount(totalAnswers);
-
-            // Fetch user's bookmarks
-            const userBookmarksData = await apiRequest(
-              `/v1/konsultasi/user/bookmarks`,
-              'GET',
-              undefined,
-              token
-            );
-            const totalBookmarks = userBookmarksData.data ? userBookmarksData.data.length : 0;
-            setUserBookmarkCount(totalBookmarks);
           } catch (error) {
             console.error('Error fetching user data:', error);
             setUserAnswerCount(0);
-            setUserBookmarkCount(0);
           }
         }
       } catch (error) {
@@ -540,12 +528,6 @@ const KonsultasiPage: React.FC<{ setActivePage?: (page: string) => void }> = ({ 
                   <span className="text-sm text-gray-600">Total Menjawab</span>
                   <span className="font-semibold text-indigo-600">
                     {userAnswerCount}
-                  </span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-600">Total Bookmark</span>
-                  <span className="font-semibold text-blue-600">
-                    {userBookmarkCount}
                   </span>
                 </div>
               </div>

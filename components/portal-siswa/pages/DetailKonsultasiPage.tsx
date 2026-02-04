@@ -120,7 +120,7 @@ const DetailKonsultasiPage: React.FC<DetailKonsultasiPageProps> = ({ onBack }) =
           views: data.question.views,
           votes: data.question.votes,
           answers: data.question.answerCount,
-          bookmarks: 0,
+          bookmarks: data.question.bookmarkCount || 0,
         })
 
         const transformedAnswers = data.answers.map((ans: any) => ({
