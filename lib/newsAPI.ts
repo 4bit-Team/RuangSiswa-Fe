@@ -87,6 +87,16 @@ const transformNewsData = (data: any): NewsItemProps & { summary?: string } => {
 };
 
 class NewsAPI {
+    // Increment news views
+    static async incrementViews(id: number) {
+      const response = await fetch(`${API_URL}/news/${id}/views`, {
+        method: 'POST',
+      });
+      if (!response.ok) {
+        throw new Error('Failed to increment views');
+      }
+      return response.json();
+    }
   // Create news
   static async createNews(payload: CreateNewsPayload, token: string) {
     const response = await fetch(`${API_URL}/news`, {

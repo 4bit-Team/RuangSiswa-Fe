@@ -8,7 +8,7 @@ import { NewsItemProps } from '@types';
 import NewsAPI, { getCleanPreview } from '@lib/newsAPI';
 import { formatTimeRelative } from '@lib/timeFormat';
 
-
+ 
 const StatCard: React.FC<StatCardProps> = ({ icon: Icon, label, value, color }) => (
   <div className="bg-white rounded-xl border border-gray-200 p-6">
     <div className={`w-12 h-12 ${color} rounded-xl flex items-center justify-center mb-4`}>
@@ -120,9 +120,20 @@ const DashboardPage: React.FC<{ setActivePage?: (page: string) => void }> = ({ s
     }
   };
 
-  const handleViewNewsDetail = (news: NewsItemProps) => {
-    setSelectedNews(news);
+  const handleViewNewsDetail = async (news: NewsItemProps) => {
+    // Optimistically update views in UI
+    setLatestNews((prev) =>
+      prev.map((n) =>
+        n.id === news.id ? { ...n, views: (n.views || 0) + 1 } : n
+      )
+    );
+    setSelectedNews({ ...news, views: (news.views || 0) + 1 });
     setIsNewsModalOpen(true);
+    try {
+      await NewsAPI.incrementViews(news.id);
+    } catch (e) {
+      // Optionally handle error, but keep UI responsive
+    }
   };
 
   const handleViewAll = () => {

@@ -229,6 +229,8 @@ const DetailKonsultasiPage: React.FC<DetailKonsultasiPageProps> = ({ onBack }) =
   const handleVoteAnswer = async (answerId: string, voteValue: 1 | -1) => {
     if (!question) return
     
+    const previousVote = votedAnswers.get(answerId) // 1 | -1 undefined
+
     try {
       const token = localStorage.getItem('token')
       await apiRequest(
@@ -238,13 +240,34 @@ const DetailKonsultasiPage: React.FC<DetailKonsultasiPageProps> = ({ onBack }) =
         token
       )
       
+      setAnswers(prev =>
+        prev.map(answer => {
+        if (answer.id !== answerId) return answer
+
+        let likes = answer.likes
+        let dislikes = answer.dislikes
+
+        if (previousVote === voteValue) {
+          if (voteValue === 1) likes--
+          else dislikes--
+        }
+
+        else {
+          if (previousVote === 1) likes--
+          if (previousVote === -1) dislikes--
+
+          if (voteValue === 1) likes++
+          else dislikes++
+        }
+
+        return { ...answer, likes, dislikes }
+      })
+    )
+
+
       setVotedAnswers(prev => {
         const newMap = new Map(prev)
-        if (newMap.get(answerId) === voteValue) {
-          newMap.delete(answerId)
-        } else {
-          newMap.set(answerId, voteValue)
-        }
+        newMap.set(answerId, voteValue)
         return newMap
       })
     } catch (error) {

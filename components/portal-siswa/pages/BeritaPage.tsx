@@ -18,7 +18,7 @@ const BeritaPage: React.FC<BeritaPageProps> = ({ selectedTopic = null, setActive
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(selectedTopic);
   const [loading, setLoading] = useState(true);
-
+ 
   // Fetch published news
   useEffect(() => {
     fetchNews();
@@ -318,9 +318,20 @@ Waktu adalah aset terberharga. Gunakan dengan bijak!`,
   ]);
   const remainingNews = filteredNews.filter(n => !excludedIds.has(n.id));
 
-  const handleNewsClick = (news: NewsItemProps) => {
-    setSelectedNews(news);
+  const handleNewsClick = async (news: NewsItemProps) => {
+    // Optimistically update views in UI
+    setAllNews((prev) =>
+      prev.map((n) =>
+        n.id === news.id ? { ...n, views: (n.views || 0) + 1 } : n
+      )
+    );
+    setSelectedNews({ ...news, views: (news.views || 0) + 1 });
     setIsModalOpen(true);
+    try {
+      await NewsAPI.incrementViews(news.id);
+    } catch (e) {
+      // Optionally handle error, but keep UI responsive
+    }
   };
 
   const handleCategoryChange = (categoryId: string | null) => {

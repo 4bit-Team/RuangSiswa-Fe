@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react'
 import { Heart, MessageSquare, Shield, Clock, Calendar, Users, MessageCircle, AlertCircle, CheckCircle } from 'lucide-react'
 import { CounselingCardProps } from '@types'
 import AppointmentScheduleModal from '../modals/AppointmentScheduleModal'
+import GroupCounselingModal from '../modals/GroupCounselingModal'
 import { useAuth } from '@hooks/useAuth'
 import { apiRequest } from '@lib/api'
 import { getStatusLabel, getStatusBadgeColor, statusBadgeColor, getTypeColor, getStatusColor, formatDate, typeLabel } from '@/lib/reservasi';
@@ -15,12 +16,28 @@ interface Reservasi {
   preferredDate: string
   preferredTime: string
   type: 'chat' | 'tatap-muka'
-  topic?: { id: number; name: string; description?: string } | null
-  topicId?: number | null
+  topic?: { id: number; name: string; description?: string } | string | null
+  topicId?: number
   status: 'pending' | 'approved' | 'rejected' | 'completed' | 'cancelled'
 }
 
-const CounselingCard: React.FC<CounselingCardProps & { onBooking?: (type: string) => void; handleSubmitReservasi: (data: any) => void }> = ({
+interface GroupReservasi {
+  id: number
+  groupName: string
+  creatorId: number
+  creator?: { id: number; username: string; fullName?: string }
+  counselorId: number
+  counselor?: { id: number; username: string; fullName?: string }
+  students?: any[]
+  preferredDate: string
+  preferredTime: string
+  type: 'chat' | 'tatap-muka'
+  topic?: { id: number; name: string; description?: string } | string | null
+  topicId?: number
+  status: 'pending' | 'approved' | 'rejected' | 'completed' | 'cancelled'
+}
+
+const CounselingCard: React.FC<CounselingCardProps & { onBooking?: (type: string) => void; handleSubmitReservasi: (data: any) => void; isGroupCounseling?: boolean; handleSubmitReservasiV2?: (data: any) => void }> = ({
   icon: Icon,
   title,
   description,
@@ -29,6 +46,8 @@ const CounselingCard: React.FC<CounselingCardProps & { onBooking?: (type: string
   badge,
   onBooking,
   handleSubmitReservasi,
+  isGroupCounseling = false,
+  handleSubmitReservasiV2,
 }) => {
   const [modalOpen, setModalOpen] = useState(false)
 
@@ -57,16 +76,28 @@ const CounselingCard: React.FC<CounselingCardProps & { onBooking?: (type: string
         </button>
       </div>
 
-      <AppointmentScheduleModal
-        isOpen={modalOpen}
-        onClose={() => setModalOpen(false)}
-        counselingType={title}
-        onConfirm={(data) => {
-          console.log('Booking confirmed:', data)
-          handleSubmitReservasi(data)
-          setModalOpen(false)
-        }}
-      />
+      {isGroupCounseling ? (
+        <GroupCounselingModal
+          isOpen={modalOpen}
+          onClose={() => setModalOpen(false)}
+          onConfirm={(data) => {
+            console.log('Group booking confirmed:', data)
+            handleSubmitReservasiV2?.(data)
+            setModalOpen(false)
+          }}
+        />
+      ) : (
+        <AppointmentScheduleModal
+          isOpen={modalOpen}
+          onClose={() => setModalOpen(false)}
+          counselingType={title}
+          onConfirm={(data) => {
+            console.log('Booking confirmed:', data)
+            handleSubmitReservasi(data)
+            setModalOpen(false)
+          }}
+        />
+      )}
     </>
   )
 }
@@ -74,6 +105,7 @@ const CounselingCard: React.FC<CounselingCardProps & { onBooking?: (type: string
 const KonselingPage: React.FC = () => {
   const { user, token } = useAuth()
   const [reservasiList, setReservasiList] = useState<Reservasi[]>([])
+  const [groupReservasiList, setGroupReservasiList] = useState<GroupReservasi[]>([])
   const [successMessage, setSuccessMessage] = useState<string>('')
   const [errorMessage, setErrorMessage] = useState<string>('')
   const [loading, setLoading] = useState(false)
@@ -81,6 +113,7 @@ const KonselingPage: React.FC = () => {
   useEffect(() => {
     if (user && token) {
       fetchMyReservasi()
+      fetchMyGroupReservasi()
     }
   }, [user, token])
 
@@ -92,6 +125,17 @@ const KonselingPage: React.FC = () => {
       setReservasiList(response || [])
     } catch (error: any) {
       console.error('❌ Error fetching reservasi:', error)
+    }
+  }
+
+  const fetchMyGroupReservasi = async () => {
+    try {
+      console.log('📥 Fetching user group reservasi...')
+      const response = await apiRequest('/reservasi/group/student/my-group-reservations', 'GET', undefined, token)
+      console.log('✅ Group Reservasi loaded:', response)
+      setGroupReservasiList(response || [])
+    } catch (error: any) {
+      console.error('❌ Error fetching group reservasi:', error)
     }
   }
 
@@ -107,7 +151,7 @@ const KonselingPage: React.FC = () => {
         preferredDate: new Date(formData.date).toISOString(),
         preferredTime: formData.time,
         type: formData.sessionType === 'tatap-muka' ? 'tatap-muka' : 'chat',
-        topicId: formData.topicId, // Send topicId for Konseling Lainnya, null for others
+        topic: formData.topic || formData.counselingType,
         notes: formData.notes,
       }
 
@@ -125,6 +169,43 @@ const KonselingPage: React.FC = () => {
     } catch (error: any) {
       console.error('❌ Error creating reservasi:', error)
       setErrorMessage(error?.message || 'Gagal membuat reservasi')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleSubmitReservasiV2 = async (formData: any) => {
+    setLoading(true)
+    setErrorMessage('')
+    setSuccessMessage('')
+
+    try {
+      const payload = {
+        groupName: formData.groupName,
+        creatorId: user?.id,
+        studentIds: [...formData.selectedStudentIds, user?.id],
+        counselorId: formData.counselorId,
+        preferredDate: new Date(formData.date).toISOString(),
+        preferredTime: formData.time,
+        type: formData.sessionType === 'tatap-muka' ? 'tatap-muka' : 'chat',
+        topicId: formData.topicId,
+        notes: formData.notes,
+      }
+
+      console.log('📤 Submitting group reservasi:', payload)
+      const response = await apiRequest('/reservasi/group', 'POST', payload, token)
+      console.log('✅ Group Reservasi created:', response)
+
+      setSuccessMessage('Reservasi kelompok berhasil dibuat! Menunggu konfirmasi dari konselor.')
+
+      // Refresh list
+      await fetchMyGroupReservasi()
+
+      // Clear success message after 3 seconds
+      setTimeout(() => setSuccessMessage(''), 3000)
+    } catch (error: any) {
+      console.error('❌ Error creating group reservasi:', error)
+      setErrorMessage(error?.message || 'Gagal membuat reservasi kelompok')
     } finally {
       setLoading(false)
     }
@@ -155,27 +236,11 @@ const KonselingPage: React.FC = () => {
           <CounselingCard
             icon={Heart}
             title="Konseling Umum"
-            description="Sesi one-on-one dengan konselor untuk membahas berbagai topik konseling, emosional, sosial, atau masalah khusus lainnya"
+            description="Sesi one-on-one dengan konselor untuk membahas masalah Umum, emosional, atau sosial"
             duration="45-60 menit"
             color="bg-pink-500"
             handleSubmitReservasi={handleSubmitReservasi}
           />
-          {/* <CounselingCard
-            icon={MessageCircle}
-            title="Konseling Akademik"
-            description="Bantuan untuk mengatasi kesulitan belajar, motivasi akademik, dan perencanaan studi"
-            duration="30-45 menit"
-            color="bg-blue-500"
-            handleSubmitReservasi={handleSubmitReservasi}
-          />
-          <CounselingCard
-            icon={Calendar}
-            title="Konseling Karir"
-            description="Bimbingan untuk eksplorasi minat, bakat, dan perencanaan karir masa depan"
-            duration="60 menit"
-            color="bg-purple-500"
-            handleSubmitReservasi={handleSubmitReservasi}
-          /> */}
           <CounselingCard
             icon={Users}
             title="Konseling Kelompok"
@@ -184,6 +249,8 @@ const KonselingPage: React.FC = () => {
             color="bg-green-500"
             badge="Terbatas"
             handleSubmitReservasi={handleSubmitReservasi}
+            isGroupCounseling={true}
+            handleSubmitReservasiV2={handleSubmitReservasiV2}
           />
         </div>
 
@@ -200,10 +267,10 @@ const KonselingPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Reservasi Saya */}
+      {/* Reservasi Konseling Pribadi */}
       <div className="bg-white rounded-xl border border-gray-200 p-6">
-        <h3 className="font-bold text-gray-900 mb-2">Reservasi Saya</h3>
-        <p className="text-gray-600 mb-6">Daftar reservasi konseling Anda</p>
+        <h3 className="font-bold text-gray-900 mb-2">Reservasi Konseling Pribadi</h3>
+        <p className="text-gray-600 mb-6">Daftar reservasi konseling pribadi Anda</p>
 
         {reservasiList.length === 0 ? (
           <div className="bg-gray-50 rounded-lg p-6 text-center">
@@ -218,8 +285,56 @@ const KonselingPage: React.FC = () => {
                     <Heart className="w-5 h-5 text-blue-600" />
                   </div>
                   <div className="flex-1">
-                    <h5 className="font-semibold text-gray-900">{res.topic?.name || 'Konseling'}</h5>
+                    <h5 className="font-semibold text-gray-900">
+                      {typeof res.topic === 'object' && res.topic?.name 
+                        ? res.topic.name 
+                        : typeof res.topic === 'string' 
+                        ? res.topic 
+                        : 'Topik Umum'}
+                    </h5>
                     <p className="text-sm text-gray-600">{typeLabel[res.type]} • {res.counselor?.username || res.counselor?.fullName || 'Konselor'} • {formatDate(res.preferredDate)} • {res.preferredTime}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className={`text-xs px-3 py-1 rounded-full font-medium ${getStatusBadgeColor(res.status)}`}>
+                    {getStatusLabel(res.status)}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Reservasi Konseling Kelompok */}
+      <div className="bg-white rounded-xl border border-gray-200 p-6">
+        <h3 className="font-bold text-gray-900 mb-2">Reservasi Konseling Kelompok</h3>
+        <p className="text-gray-600 mb-6">Daftar reservasi konseling kelompok Anda</p>
+
+        {groupReservasiList.length === 0 ? (
+          <div className="bg-gray-50 rounded-lg p-6 text-center">
+            <p className="text-gray-600">Belum ada reservasi kelompok</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {groupReservasiList.map((res) => (
+              <div key={res.id} className="bg-white rounded-lg p-4 border border-gray-200 flex items-center justify-between">
+                <div className="flex items-center gap-4 flex-1">
+                  <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
+                    <Users className="w-5 h-5 text-green-600" />
+                  </div>
+                  <div className="flex-1">
+                    <h5 className="font-semibold text-gray-900">{res.groupName}</h5>
+                    <p className="text-sm text-gray-600">
+                      {typeof res.topic === 'object' && res.topic?.name 
+                        ? res.topic.name 
+                        : typeof res.topic === 'string' 
+                        ? res.topic 
+                        : 'Topik Umum'} • {typeLabel[res.type] || 'Chat'} • {res.students?.length || 0} anggota • {formatDate(res.preferredDate)} • {res.preferredTime}
+                    </p>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Konselor: {res.counselor?.username || res.counselor?.fullName || 'Belum ditentukan'}
+                    </p>
                   </div>
                 </div>
                 <div className="flex items-center gap-3">

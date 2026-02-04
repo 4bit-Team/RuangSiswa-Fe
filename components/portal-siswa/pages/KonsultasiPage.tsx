@@ -587,11 +587,15 @@ const KonsultasiPage: React.FC<{ setActivePage?: (page: string) => void }> = ({ 
               <h3 className="font-semibold text-gray-900 mb-2">Butuh Bantuan Langsung?</h3>
               <p className="text-sm text-gray-600 mb-4">Chat dengan konselor BK kami atau buat reservasi konseling</p>
               <div className="space-y-2">
-                <button className="w-full px-3 py-2 text-sm bg-white border border-green-300 text-green-700 rounded-lg hover:bg-green-50 transition-colors font-medium">
+                <button onClick={() => router.push('/home/siswa/chat')}
+                  className="w-full px-3 py-2 text-sm bg-white border border-green-300 text-green-700 rounded-lg hover:bg-green-50 transition-colors font-medium"
+                >
                   Chat BK
                 </button>
-                <button className="w-full px-3 py-2 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium">
-                  Reservasi Konseling
+                <button onClick={() => router.push('/home/siswa/reservasi')}
+                  className="w-full px-3 py-2 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium"
+                >
+                  Reservasi Saya
                 </button>
               </div>
             </div>
