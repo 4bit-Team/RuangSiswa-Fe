@@ -27,6 +27,7 @@ import Link from 'next/link'
 import { apiRequest } from '@/lib/api'
 import { generateSlug } from '@/lib/slugify'
 import { useAuth } from '@/hooks/useAuth'
+import { getDisplayAuthorName } from '@/lib/KonsultasiAPI'
 
 interface Category {
   id: number
@@ -54,7 +55,7 @@ interface PostCardProps {
   onClick?: () => void
 }
 
-const PostCard: React.FC<PostCardProps & { currentUserId?: number }> = ({
+const PostCard: React.FC<PostCardProps & { currentUserId?: number; currentUserRole?: string }> = ({
   id,
   title,
   category,
@@ -71,52 +72,13 @@ const PostCard: React.FC<PostCardProps & { currentUserId?: number }> = ({
   isVerified,
   categoryColor = 'bg-blue-50',
   onClick,
-  currentUserId
+  currentUserId,
+  currentUserRole
 }) => {
   const [isUpvoted, setIsUpvoted] = useState(false);
   const [voteCount, setVoteCount] = useState(votes);
 
-  // Logika menampilkan nama author
-  const getDisplayAuthorName = () => {
-    // Debug info
-    console.log(`🎯 getDisplayAuthorName called:`, {
-      author,
-      authorId,
-      currentUserId,
-      authorRole,
-      isOwnPost: authorId === currentUserId,
-    });
 
-    // Jika author adalah user yang sedang login, tampilkan nama sebenarnya
-    if (authorId === currentUserId) {
-      console.log('✅ Showing own name:', author);
-      return author;
-    }
-    
-    // Jika author adalah konselor/BK, tampilkan nama sebenarnya dengan label
-    if (authorRole) {
-      const roleStr = String(authorRole).toLowerCase().trim();
-      console.log('🔎 Checking role:', roleStr);
-      // Check berbagai kemungkinan format role dari API
-      if (
-        roleStr === 'konselor' ||
-        roleStr === 'bk' ||
-        roleStr === 'bk_staff' ||
-        roleStr === 'counselor' ||
-        roleStr === 'guidance_counselor' ||
-        roleStr.includes('konselor') ||
-        roleStr.includes('bk') ||
-        roleStr.includes('counselor')
-      ) {
-        console.log('👨‍💼 Showing counselor:', author);
-        return `${author} (Konselor)`;
-      }
-    }
-    
-    // Jika author adalah siswa lain, anonymize nama
-    console.log('👤 Showing anonymized name');
-    return 'Siswa Lain';
-  };
 
   const handleVote = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -158,7 +120,7 @@ const PostCard: React.FC<PostCardProps & { currentUserId?: number }> = ({
               {category}
             </span>
             <span className="text-xs text-gray-500">
-              dibuat oleh <span className="font-medium text-gray-700">{getDisplayAuthorName()}</span>
+              dibuat oleh <span className="font-medium text-gray-700">{getDisplayAuthorName(author, authorId, authorRole, { id: currentUserId, role: currentUserRole }, authorId === currentUserId)}</span>
             </span>
             {isVerified && (
               <div title="Jawaban terverifikasi" className="flex items-center">
@@ -213,6 +175,7 @@ const KonsultasiPage: React.FC<{ setActivePage?: (page: string) => void }> = ({ 
   const [categories, setCategories] = useState<Category[]>([])
   const [loadingCategories, setLoadingCategories] = useState(true)
   const [userAnswerCount, setUserAnswerCount] = useState(0)
+  const [refreshTrigger, setRefreshTrigger] = useState(0)
 
   // Fetch categories on mount
   useEffect(() => {
@@ -230,6 +193,19 @@ const KonsultasiPage: React.FC<{ setActivePage?: (page: string) => void }> = ({ 
       }
     }
     fetchCategories()
+  }, [])
+
+  // Listen for refresh events when new question is created
+  useEffect(() => {
+    const handleRefreshKonsultasi = () => {
+      setPage(1)
+      setRefreshTrigger(prev => prev + 1)
+    }
+    
+    window.addEventListener('refreshKonsultasi', handleRefreshKonsultasi as EventListener)
+    return () => {
+      window.removeEventListener('refreshKonsultasi', handleRefreshKonsultasi as EventListener)
+    }
   }, [])
 
   // Fetch data dari API
@@ -262,14 +238,15 @@ const KonsultasiPage: React.FC<{ setActivePage?: (page: string) => void }> = ({ 
             authorRole: item.author?.role,
             authorId: item.author?.id,
           });
+          const authorName = item.author?.username || item.author?.name || 'Anonymous';
           return {
             id: item.id,
             title: item.title,
             category: category?.name || 'Umum',
-            author: item.author?.name || 'Anonymous',
+            author: authorName,
             authorId: item.author?.id,
             authorRole: item.author?.role,
-            avatar: (item.author?.name || 'A').substring(0, 2).toUpperCase(),
+            avatar: (authorName || 'A').substring(0, 2).toUpperCase(),
             timestamp: formatDate(item.createdAt),
             content: item.content,
             votes: item.votes || 0,
@@ -311,7 +288,7 @@ const KonsultasiPage: React.FC<{ setActivePage?: (page: string) => void }> = ({ 
     if (!loadingCategories) {
       fetchConsultations();
     }
-  }, [sortBy, filterCategory, searchQuery, page, loadingCategories, categories, user]);
+  }, [sortBy, filterCategory, searchQuery, page, loadingCategories, categories, user, refreshTrigger]);
 
   const formatDate = (date: string) => {
     const now = new Date();
@@ -437,6 +414,7 @@ const KonsultasiPage: React.FC<{ setActivePage?: (page: string) => void }> = ({ 
                     <PostCard
                       {...post}
                       currentUserId={user?.id}
+                      currentUserRole={user?.role}
                       onClick={() => {
                         // Navigate handled by Link
                       }}

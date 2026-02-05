@@ -17,6 +17,8 @@ import {
   User,
 } from 'lucide-react'
 import { apiRequest } from '@/lib/api'
+import { getDisplayAuthorName } from '@/lib/KonsultasiAPI'
+import { useAuth } from '@/hooks/useAuth'
 import { extractSlug } from '@/lib/slugify'
 
 interface Category {
@@ -49,6 +51,7 @@ const DetailKonsultasiPageBK: React.FC<DetailKonsultasiPageBKProps> = ({ onBack 
   const params = useParams()
   const router = useRouter()
   const slug = params.slug as string
+  const { user } = useAuth()
   
   console.log('=== DetailKonsultasiPageBK Debug ===')
   console.log('params:', params)
@@ -107,14 +110,16 @@ const DetailKonsultasiPageBK: React.FC<DetailKonsultasiPageBKProps> = ({ onBack 
         console.log('Response data:', data)
 
         const category = categories.find(c => c.id === data.question.categoryId)
+        const authorName = data.question.author?.username || data.question.author?.name || 'Anonymous'
+        const displayName = getDisplayAuthorName(authorName, data.question.authorId, data.question.author?.role, user ?? undefined, false)
         setQuestion({
           id: data.question.id,
           title: data.question.title,
           category: category?.name || 'Umum',
-          author: data.question.author?.name || 'Anonymous',
+          author: displayName,
           authorClass: data.question.author?.studentCard?.class?.name || 'N/A',
           authorId: data.question.authorId,
-          avatar: (data.question.author?.name || 'A').substring(0, 2).toUpperCase(),
+          avatar: (authorName || 'A').substring(0, 2).toUpperCase(),
           timestamp: formatDate(data.question.createdAt),
           content: data.question.content,
           views: data.question.views,
@@ -123,19 +128,23 @@ const DetailKonsultasiPageBK: React.FC<DetailKonsultasiPageBKProps> = ({ onBack 
           bookmarks: 0,
         })
 
-        const transformedAnswers = data.answers.map((ans: any) => ({
-          id: ans.id,
-          authorId: ans.authorId,
-          authorName: ans.author?.name || 'Anonymous',
-          authorRole: ans.author?.role || 'siswa',
-          avatar: (ans.author?.name || 'A').substring(0, 2).toUpperCase(),
-          timestamp: formatDate(ans.createdAt),
-          content: ans.content,
-          likes: ans.votes || 0,
-          dislikes: ans.downvotes || 0,
-          isVerified: ans.isVerified,
-          isAuthorAnswer: false,
-        }))
+        const transformedAnswers = data.answers.map((ans: any) => {
+          const answerAuthorName = ans.author?.username || ans.author?.name || 'Anonymous'
+          const displayAnswerName = getDisplayAuthorName(answerAuthorName, ans.authorId, ans.author?.role, user ?? undefined, false)
+          return {
+            id: ans.id,
+            authorId: ans.authorId,
+            authorName: displayAnswerName,
+            authorRole: ans.author?.role || 'siswa',
+            avatar: (answerAuthorName || 'A').substring(0, 2).toUpperCase(),
+            timestamp: formatDate(ans.createdAt),
+            content: ans.content,
+            likes: ans.votes || 0,
+            dislikes: ans.downvotes || 0,
+            isVerified: ans.isVerified,
+            isAuthorAnswer: false,
+          }
+        })
 
         setAnswers(transformedAnswers)
         

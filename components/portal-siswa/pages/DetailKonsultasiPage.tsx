@@ -17,6 +17,8 @@ import {
 } from 'lucide-react'
 import { apiRequest } from '@/lib/api'
 import { extractSlug } from '@/lib/slugify'
+import { getDisplayAuthorName } from '@/lib/KonsultasiAPI'
+import { useAuth } from '@/hooks/useAuth'
 
 interface Category {
   id: number
@@ -49,6 +51,7 @@ const DetailKonsultasiPage: React.FC<DetailKonsultasiPageProps> = ({ onBack }) =
   const router = useRouter()
   const pathname = usePathname()
   const slug = extractSlug(pathname)
+  const { user } = useAuth()
   
   console.log('=== DetailKonsultasiPage Debug ===')
   console.log('params:', params)
@@ -108,13 +111,14 @@ const DetailKonsultasiPage: React.FC<DetailKonsultasiPageProps> = ({ onBack }) =
         console.log('Response data:', data)
 
         const category = categories.find(c => c.id === data.question.categoryId)
+        const authorName = data.question.author?.username || data.question.author?.name || 'Anonymous'
         setQuestion({
           id: data.question.id,
           title: data.question.title,
           category: category?.name || 'Umum',
-          author: data.question.author?.name || 'Anonymous',
+          author: authorName,
           authorId: data.question.authorId,
-          avatar: (data.question.author?.name || 'A').substring(0, 2).toUpperCase(),
+          avatar: (authorName || 'A').substring(0, 2).toUpperCase(),
           timestamp: formatDate(data.question.createdAt),
           content: data.question.content,
           views: data.question.views,
@@ -123,19 +127,22 @@ const DetailKonsultasiPage: React.FC<DetailKonsultasiPageProps> = ({ onBack }) =
           bookmarks: data.question.bookmarkCount || 0,
         })
 
-        const transformedAnswers = data.answers.map((ans: any) => ({
-          id: ans.id,
-          authorId: ans.authorId,
-          authorName: ans.author?.name || 'Anonymous',
-          authorRole: ans.author?.role || 'siswa',
-          avatar: (ans.author?.name || 'A').substring(0, 2).toUpperCase(),
-          timestamp: formatDate(ans.createdAt),
-          content: ans.content,
-          likes: ans.votes || 0,
-          dislikes: ans.downvotes || 0,
-          isVerified: ans.isVerified,
-          isAuthorAnswer: false,
-        }))
+        const transformedAnswers = data.answers.map((ans: any) => {
+          const answerAuthorName = ans.author?.username || ans.author?.name || 'Anonymous'
+          return {
+            id: ans.id,
+            authorId: ans.authorId,
+            authorName: answerAuthorName,
+            authorRole: ans.author?.role || 'siswa',
+            avatar: (answerAuthorName || 'A').substring(0, 2).toUpperCase(),
+            timestamp: formatDate(ans.createdAt),
+            content: ans.content,
+            likes: ans.votes || 0,
+            dislikes: ans.downvotes || 0,
+            isVerified: ans.isVerified,
+            isAuthorAnswer: false,
+          }
+        })
 
         setAnswers(transformedAnswers)
         
@@ -432,7 +439,7 @@ const DetailKonsultasiPage: React.FC<DetailKonsultasiPageProps> = ({ onBack }) =
                 {question.avatar}
               </div>
               <div>
-                <p className="font-medium text-gray-900">{question.author}</p>
+                <p className="font-medium text-gray-900">{getDisplayAuthorName(question.author, question.authorId, '', user ? { id: user.id as number, role: user.role } : undefined, String(user?.id) === String(question.authorId))}</p>
                 <p className="text-xs text-gray-500">{question.timestamp}</p>
               </div>
             </div>
@@ -528,7 +535,7 @@ const DetailKonsultasiPage: React.FC<DetailKonsultasiPageProps> = ({ onBack }) =
                   </div>
                   <div>
                     <div className="flex items-center gap-2">
-                      <p className="font-medium text-gray-900">{answer.authorName}</p>
+                      <p className="font-medium text-gray-900">{getDisplayAuthorName(answer.authorName, answer.authorId, answer.authorRole, user ? { id: user.id as number, role: user.role } : undefined, String(user?.id) === String(answer.authorId))}</p>
                       {answer.isVerified && (
                         <div title="Jawaban terverifikasi">
                           <CheckCircle className="w-4 h-4 text-green-500" />

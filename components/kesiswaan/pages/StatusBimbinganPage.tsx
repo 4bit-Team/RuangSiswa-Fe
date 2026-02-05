@@ -1,7 +1,7 @@
 'use client'
 
-import React, { useState } from 'react'
-import { BookOpen, CheckCircle, TrendingUp, Award, User, MessageSquare } from 'lucide-react'
+import React, { useState, useMemo } from 'react'
+import { BookOpen, CheckCircle, TrendingUp, Award, User, MessageSquare, Filter, AlertCircle, X } from 'lucide-react'
 import SessionDetailModal from '../modals/SessionDetailModal'
 
 interface CounselingSession {
@@ -23,6 +23,26 @@ interface GuidanceProgress {
   currentFocus: string
 }
 
+interface Student {
+  id: number
+  name: string
+  nisn: string
+  className: string
+  counselor: string
+  status: 'Normal' | 'Peringatan' | 'Perlu Tindak Lanjut'
+  lastSession: string
+  notes: string
+  spHistory: SPRecord[]
+}
+
+interface SPRecord {
+  id: number
+  date: string
+  reason: string
+  level: 'SP1' | 'SP2' | 'SP3'
+  description: string
+}
+
 const SessionStatusBadge: React.FC<{ status: string }> = ({ status }) => {
   const statusConfig: Record<string, { bg: string; text: string; icon: React.ReactNode }> = {
     'Selesai': { bg: 'bg-green-50', text: 'text-green-700', icon: <CheckCircle className="w-4 h-4" /> },
@@ -31,6 +51,23 @@ const SessionStatusBadge: React.FC<{ status: string }> = ({ status }) => {
   }
 
   const config = statusConfig[status] || statusConfig['Selesai']
+
+  return (
+    <span className={`flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium ${config.bg} ${config.text}`}>
+      {config.icon}
+      {status}
+    </span>
+  )
+}
+
+const GuidanceStatusBadge: React.FC<{ status: string }> = ({ status }) => {
+  const statusConfig: Record<string, { bg: string; text: string; icon: React.ReactNode }> = {
+    'Normal': { bg: 'bg-green-50', text: 'text-green-700', icon: <CheckCircle className="w-4 h-4" /> },
+    'Peringatan': { bg: 'bg-yellow-50', text: 'text-yellow-700', icon: <AlertCircle className="w-4 h-4" /> },
+    'Perlu Tindak Lanjut': { bg: 'bg-red-50', text: 'text-red-700', icon: <AlertCircle className="w-4 h-4" /> },
+  }
+
+  const config = statusConfig[status] || statusConfig['Normal']
 
   return (
     <span className={`flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium ${config.bg} ${config.text}`}>
@@ -106,6 +143,137 @@ const StatusBimbinganPage: React.FC = () => {
   const [expandedSession, setExpandedSession] = useState<number | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [selectedSession, setSelectedSession] = useState<CounselingSession | null>(null)
+  const [selectedName, setSelectedName] = useState('all')
+  const [selectedClass, setSelectedClass] = useState('all')
+  const [selectedStatus, setSelectedStatus] = useState('all')
+  const [isSpModalOpen, setIsSpModalOpen] = useState(false)
+  const [selectedStudentForSp, setSelectedStudentForSp] = useState<Student | null>(null)
+  const [spForm, setSpForm] = useState({ level: 'SP1', reason: '', description: '' })
+
+  // Sample students data
+  const students: Student[] = [
+    {
+      id: 1,
+      name: 'Ahmad Hidayat',
+      nisn: '0012345670',
+      className: 'XI-A',
+      counselor: 'Bu Sarah Wijaya',
+      status: 'Normal',
+      lastSession: '28 Januari 2025',
+      notes: 'Siswa menunjukkan progress baik dalam manajemen waktu.',
+      spHistory: [],
+    },
+    {
+      id: 2,
+      name: 'Siti Nurhaliza',
+      nisn: '0012345671',
+      className: 'XI-A',
+      counselor: 'Bu Sarah Wijaya',
+      status: 'Peringatan',
+      lastSession: '25 Januari 2025',
+      notes: 'Sering izin tanpa keterangan, perlu ditingkatkan kedisiplinan.',
+      spHistory: [
+        {
+          id: 1,
+          date: '30 Januari 2025',
+          reason: 'Sering tidak mengikuti pelajaran tanpa izin',
+          level: 'SP1',
+          description: 'Peringatan pertama atas ketidakdisiplinan siswa dalam kehadiran.',
+        },
+      ],
+    },
+    {
+      id: 3,
+      name: 'Reza Pratama',
+      nisn: '0012345672',
+      className: 'XI-B',
+      counselor: 'Pak Rudi Hartono',
+      status: 'Perlu Tindak Lanjut',
+      lastSession: '15 Januari 2025',
+      notes: 'Memiliki masalah perilaku, tidak fokus dalam belajar.',
+      spHistory: [
+        {
+          id: 2,
+          date: '22 Januari 2025',
+          reason: 'Pelanggaran tata tertib sekolah',
+          level: 'SP1',
+          description: 'Peringatan atas pelanggaran tata tertib sekolah.',
+        },
+        {
+          id: 3,
+          date: '3 Februari 2025',
+          reason: 'Pelanggaran berulang dan perilaku tidak terpuji',
+          level: 'SP2',
+          description: 'Peringatan kedua atas pelanggaran berulang dan perilaku yang perlu diperbaiki.',
+        },
+      ],
+    },
+    {
+      id: 4,
+      name: 'Dewi Lestari',
+      nisn: '0012345673',
+      className: 'XI-B',
+      counselor: 'Pak Rudi Hartono',
+      status: 'Normal',
+      lastSession: '27 Januari 2025',
+      notes: 'Aktif dalam kegiatan ekstrakurikuler, akademik stabil.',
+      spHistory: [],
+    },
+    {
+      id: 5,
+      name: 'Budi Santoso',
+      nisn: '0012345674',
+      className: 'XI-C',
+      counselor: 'Ibu Siti Aisyah',
+      status: 'Peringatan',
+      lastSession: '20 Januari 2025',
+      notes: 'Terlambat berkali-kali, perlu bimbingan orang tua.',
+      spHistory: [
+        {
+          id: 4,
+          date: '1 Februari 2025',
+          reason: 'Keterlambatan berulang kali ke sekolah',
+          level: 'SP1',
+          description: 'Peringatan atas keterlambatan yang sering terjadi.',
+        },
+      ],
+    },
+    {
+      id: 6,
+      name: 'Mega Putri',
+      nisn: '0012345675',
+      className: 'XI-C',
+      counselor: 'Ibu Siti Aisyah',
+      status: 'Normal',
+      lastSession: '29 Januari 2025',
+      notes: 'Siswa berprestasi, terus berkembang dalam akademik maupun karakter.',
+      spHistory: [],
+    },
+  ]
+
+  // Filtered students based on selected filters
+  const filteredStudents = useMemo(() => {
+    let filtered = students
+    
+    if (selectedName !== 'all') {
+      const student = students.find(s => s.id.toString() === selectedName)
+      if (student) {
+        filtered = filtered.filter(s => s.id.toString() === selectedName)
+      }
+    }
+
+    if (selectedClass !== 'all') {
+      filtered = filtered.filter(s => s.className === selectedClass)
+    }
+
+    if (selectedStatus !== 'all') {
+      filtered = filtered.filter(s => s.status === selectedStatus)
+    }
+
+    return filtered.sort((a, b) => a.name.localeCompare(b.name))
+  }, [selectedName, selectedClass, selectedStatus])
+
+  const uniqueClasses = Array.from(new Set(students.map(s => s.className))).sort()
 
   // Sample data
   const progress: GuidanceProgress = {
@@ -283,6 +451,134 @@ const StatusBimbinganPage: React.FC = () => {
           </div>
         </section>
 
+        {/* Filter Section */}
+        <section className="mt-8">
+          <div className="bg-gray-50 rounded-xl p-6 border border-gray-200">
+            <div className="flex items-center gap-2 mb-4">
+              <Filter className="w-5 h-5 text-purple-600" />
+              <h3 className="font-bold text-gray-900">Filter Data Bimbingan</h3>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Nama Siswa</label>
+                <select
+                  value={selectedName}
+                  onChange={(e) => setSelectedName(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-gray-900"
+                >
+                  <option value="all">Semua Siswa</option>
+                  {students.map((student) => (
+                    <option key={student.id} value={student.id.toString()}>
+                      {student.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Kelas</label>
+                <select
+                  value={selectedClass}
+                  onChange={(e) => {
+                    setSelectedClass(e.target.value)
+                    setSelectedName('all')
+                  }}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-gray-900"
+                >
+                  <option value="all">Semua Kelas</option>
+                  {uniqueClasses.map((kls) => (
+                    <option key={kls} value={kls}>
+                      {kls}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Status Bimbingan</label>
+                <select
+                  value={selectedStatus}
+                  onChange={(e) => setSelectedStatus(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-gray-900"
+                >
+                  <option value="all">Semua Status</option>
+                  <option value="Normal">Normal</option>
+                  <option value="Peringatan">Peringatan</option>
+                  <option value="Perlu Tindak Lanjut">Perlu Tindak Lanjut</option>
+                </select>
+              </div>
+            </div>
+
+            {(selectedName !== 'all' || selectedClass !== 'all' || selectedStatus !== 'all') && (
+              <div className="mt-3 flex items-center gap-2 text-sm text-gray-600">
+                <span>Filter aktif: </span>
+                {selectedName !== 'all' && <span className="bg-purple-100 text-purple-700 px-2 py-1 rounded">Siswa: {students.find(s => s.id.toString() === selectedName)?.name}</span>}
+                {selectedClass !== 'all' && <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded">Kelas: {selectedClass}</span>}
+                {selectedStatus !== 'all' && <span className="bg-orange-100 text-orange-700 px-2 py-1 rounded">Status: {selectedStatus}</span>}
+              </div>
+            )}
+          </div>
+        </section>
+
+        {/* Student Guidance Table */}
+        <section className="mt-6">
+          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50 border-b border-gray-200">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">Nama Siswa</th>
+                    <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">Kelas</th>
+                    <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">Konselor</th>
+                    <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">Status</th>
+                    <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">Sesi Terakhir</th>
+                    <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {filteredStudents.length > 0 ? (
+                    filteredStudents.map((student) => (
+                      <tr key={student.id} className="hover:bg-gray-50 transition-colors">
+                        <td className="px-6 py-4">
+                          <div>
+                            <p className="font-semibold text-gray-900">{student.name}</p>
+                            <p className="text-xs text-gray-600">{student.nisn}</p>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-700">{student.className}</td>
+                        <td className="px-6 py-4 text-sm text-gray-700">{student.counselor}</td>
+                        <td className="px-6 py-4">
+                          <GuidanceStatusBadge status={student.status} />
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-700">{student.lastSession}</td>
+                        <td className="px-6 py-4">
+                          <button
+                            onClick={() => {
+                              setSelectedStudentForSp(student)
+                              setIsSpModalOpen(true)
+                            }}
+                            className="inline-flex items-center gap-2 px-3 py-1 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors text-sm font-semibold"
+                          >
+                            <AlertCircle className="w-4 h-4" />
+                            Beri SP
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
+                        Tidak ada data bimbingan yang sesuai dengan filter
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
         {/* Recommendations */}
         <section className="mt-6">
           <div className="bg-green-50 border border-green-200 rounded-xl p-6">
@@ -317,6 +613,141 @@ const StatusBimbinganPage: React.FC = () => {
               />
             </div>
           )}
+        </>
+      )}
+
+      {/* SP Modal */}
+      {isSpModalOpen && selectedStudentForSp && (
+        <>
+          <div 
+            className="fixed inset-0 z-40 bg-black/20 backdrop-blur-sm"
+            onClick={() => setIsSpModalOpen(false)}
+            aria-hidden="true" 
+          />
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+              {/* Header */}
+              <div className="bg-gradient-to-r from-red-500 to-orange-500 px-8 py-6 text-white flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <AlertCircle className="w-8 h-8" />
+                  <div>
+                    <h2 className="text-2xl font-bold">Beri Surat Peringatan (SP)</h2>
+                    <p className="text-orange-100 text-sm">Untuk {selectedStudentForSp.name}</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setIsSpModalOpen(false)}
+                  className="text-white/80 hover:text-white transition-colors"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+
+              {/* Content */}
+              <div className="p-8 space-y-6">
+                {/* Student Info */}
+                <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-xs text-gray-600 mb-1">Nama Siswa</p>
+                      <p className="font-semibold text-gray-900">{selectedStudentForSp.name}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-600 mb-1">NISN</p>
+                      <p className="font-semibold text-gray-900">{selectedStudentForSp.nisn}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-600 mb-1">Kelas</p>
+                      <p className="font-semibold text-gray-900">{selectedStudentForSp.className}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-600 mb-1">Konselor</p>
+                      <p className="font-semibold text-gray-900">{selectedStudentForSp.counselor}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* SP History */}
+                {selectedStudentForSp.spHistory.length > 0 && (
+                  <div>
+                    <h4 className="font-bold text-gray-900 mb-3">Riwayat SP</h4>
+                    <div className="space-y-2">
+                      {selectedStudentForSp.spHistory.map((sp) => (
+                        <div key={sp.id} className="bg-orange-50 border border-orange-200 rounded-lg p-3">
+                          <div className="flex items-start justify-between mb-2">
+                            <span className="font-semibold text-orange-700">{sp.level}</span>
+                            <span className="text-xs text-orange-600">{sp.date}</span>
+                          </div>
+                          <p className="text-sm text-orange-700">{sp.reason}</p>
+                          <p className="text-xs text-orange-600 mt-1">{sp.description}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Form */}
+                <div className="space-y-4">
+                  <h4 className="font-bold text-gray-900">Form Surat Peringatan</h4>
+
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Tingkat SP</label>
+                    <select
+                      value={spForm.level}
+                      onChange={(e) => setSpForm({ ...spForm, level: e.target.value as 'SP1' | 'SP2' | 'SP3' })}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 text-gray-900"
+                    >
+                      <option value="SP1">SP 1 (Peringatan Pertama)</option>
+                      <option value="SP2">SP 2 (Peringatan Kedua)</option>
+                      <option value="SP3">SP 3 (Peringatan Ketiga)</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Alasan SP</label>
+                    <input
+                      type="text"
+                      value={spForm.reason}
+                      onChange={(e) => setSpForm({ ...spForm, reason: e.target.value })}
+                      placeholder="Masukkan alasan pemberian SP"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 text-gray-900 placeholder-gray-400"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Deskripsi / Keterangan</label>
+                    <textarea
+                      value={spForm.description}
+                      onChange={(e) => setSpForm({ ...spForm, description: e.target.value })}
+                      placeholder="Jelaskan detail pelanggaran dan tindakan yang harus dilakukan..."
+                      rows={4}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 text-gray-900 placeholder-gray-400"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="bg-gray-50 border-t border-gray-200 px-8 py-4 flex items-center justify-end gap-3">
+                <button
+                  onClick={() => setIsSpModalOpen(false)}
+                  className="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 font-semibold hover:bg-gray-100 transition-colors"
+                >
+                  Batal
+                </button>
+                <button
+                  onClick={() => {
+                    alert(`SP ${spForm.level} berhasil diberikan kepada ${selectedStudentForSp.name}\nAlasan: ${spForm.reason}`)
+                    setIsSpModalOpen(false)
+                    setSpForm({ level: 'SP1', reason: '', description: '' })
+                  }}
+                  className="px-6 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-semibold transition-colors"
+                >
+                  Beri SP
+                </button>
+              </div>
+            </div>
+          </div>
         </>
       )}
     </div>

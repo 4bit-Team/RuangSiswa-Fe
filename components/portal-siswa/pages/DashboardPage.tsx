@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { Heart, MessageCircle, Calendar, Users, ArrowRight, Eye, Loader } from 'lucide-react';
 import { StatCardProps } from '@types';
 import NewsDetailModal from '../modals/NewsDetailModal';
@@ -97,6 +98,7 @@ const NewsPreviewCard: React.FC<{
 );
 
 const DashboardPage: React.FC<{ setActivePage?: (page: string) => void }> = ({ setActivePage }) => {
+  const router = useRouter();
   const [selectedNews, setSelectedNews] = useState<NewsItemProps | null>(null);
   const [isNewsModalOpen, setIsNewsModalOpen] = useState(false);
   const [latestNews, setLatestNews] = useState<NewsItemProps[]>([]);
@@ -144,15 +146,24 @@ const DashboardPage: React.FC<{ setActivePage?: (page: string) => void }> = ({ s
     }
   };
 
-  const handleViewNewsDetail = (news: NewsItemProps) => {
-    setSelectedNews(news);
+  const handleViewNewsDetail = async (news: NewsItemProps) => {
+    // Optimistically update views in UI
+    setLatestNews((prev) =>
+      prev.map((n) =>
+        n.id === news.id ? { ...n, views: (n.views || 0) + 1 } : n
+      )
+    );
+    setSelectedNews({ ...news, views: (news.views || 0) + 1 });
     setIsNewsModalOpen(true);
+    try {
+      await NewsAPI.incrementViews(news.id);
+    } catch (e) {
+      // Optionally handle error, but keep UI responsive
+    }
   };
 
   const handleViewAll = () => {
-    if (setActivePage) {
-      setActivePage('berita');
-    }
+    router.push('/home/siswa/berita/');
   };
 
   return (

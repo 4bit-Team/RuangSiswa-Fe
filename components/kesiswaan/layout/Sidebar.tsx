@@ -35,6 +35,7 @@ const Sidebar: React.FC<SidebarProps> = ({ pathname = '', sidebarOpen, setSideba
     { id: 'dashboard', icon: Home, label: 'Dashboard', href: '/home/kesiswaan' },
     { id: 'kehadiran', icon: CheckCircle, label: 'Kehadiran Kelas', href: '/home/kesiswaan/kehadiran' },
     { id: 'keterlambatan', icon: Clock, label: 'Keterlambatan Masuk', href: '/home/kesiswaan/keterlambatan' },
+    { id: 'pelanggaran', icon: AlertTriangle, label: 'Pencatatan Pelanggaran', href: '/home/kesiswaan/pelanggaran' },
     { id: 'statusBimbingan', icon: Calendar, label: 'Status Bimbingan', href: '/home/kesiswaan/statusbimbingan' },
   ];
 
