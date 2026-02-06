@@ -40,11 +40,6 @@ const Features = () => {
       icon: <CheckCircle className="w-6 h-6" />,
       title: "Kehadiran Mingguan",
       description: "Input hadir/sakit/izin/alfa terstruktur per kelas dan jurusan"
-    },
-    {
-      icon: <Trophy className="w-6 h-6" />,
-      title: "Informasi Prestasi",
-      description: "Lihat daftar pengumuman prestasi mingguan siswa"
     }
   ]
 
@@ -53,7 +48,7 @@ const Features = () => {
     {
       icon: <BarChart3 className="w-6 h-6" />,
       title: "Dashboard BK",
-      description: "Statistik konseling, kehadiran, keterlambatan, prestasi, dan catatan siswa"
+      description: "Statistik konseling, kehadiran, keterlambatan, dan catatan siswa"
     },
     {
       icon: <User className="w-6 h-6" />,
@@ -92,7 +87,7 @@ const Features = () => {
     {
       icon: <BarChart3 className="w-6 h-6" />,
       title: "Dashboard Kesiswaan",
-      description: "Statistik kehadiran, keterlambatan, prestasi, dan catatan siswa bermasalah"
+      description: "Statistik kehadiran, keterlambatan, dan catatan siswa bermasalah"
     },
     {
       icon: <CheckCircle className="w-6 h-6" />,
@@ -108,11 +103,6 @@ const Features = () => {
       icon: <AlertCircle className="w-6 h-6" />,
       title: "Monitoring Siswa Bermasalah",
       description: "Data kasus terstruktur, status pembinaan, dan tindak lanjut monitoring"
-    },
-    {
-      icon: <Trophy className="w-6 h-6" />,
-      title: "Manajemen Prestasi",
-      description: "Input prestasi mingguan, kategori akademik/non-akademik dengan publikasi otomatis"
     },
     {
       icon: <TrendingUp className="w-6 h-6" />,
@@ -278,7 +268,6 @@ const Features = () => {
               { icon: "📋", title: "Kehadiran Siswa", items: ["Portal: Input & tracking", "BK: Monitoring behavior", "Kesiswaan: Rekap & laporan"] },
               { icon: "⏰", title: "Keterlambatan", items: ["Portal: Notifikasi real-time", "BK: Tren & pembinaan", "Kesiswaan: SP otomatis"] },
               { icon: "⚠️", title: "Siswa Bermasalah", items: ["Portal: Status monitoring", "BK: Detail & konseling", "Kesiswaan: Tindak lanjut"] },
-              { icon: "🏆", title: "Prestasi & Achievement", items: ["Portal: Lihat pengumuman", "BK: Motivasi & reward", "Kesiswaan: Publikasi"] },
               { icon: "💬", title: "Layanan Konseling", items: ["Portal: Chat & reservasi", "BK: Dokumentasi case", "Kesiswaan: Referensi"] },
               { icon: "📰", title: "Berita & Pengumuman", items: ["Portal: Interactive content", "Kesiswaan: Publishing", "BK: Educational reference"] }
             ].map((item, index) => (

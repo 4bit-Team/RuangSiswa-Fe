@@ -1,8 +1,36 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
-import { Plus, Edit2, Trash2, Users, TrendingUp, Activity, Award, Search, ChevronRight, Eye, AlertCircle, CheckCircle } from 'lucide-react'
+import { Plus, Edit2, Trash2, Users, TrendingUp, Activity, Award, Search, ChevronRight, Eye, AlertCircle, CheckCircle, AlertTriangle, FileText } from 'lucide-react'
 import DashboardFormModal from '../modals/DashboardFormModal'
+import ProblemTrackerModal from '../modals/ProblemTrackerModal'
+
+interface FollowUpAction {
+  id: number
+  type: 'Pangilan Orang Tua' | 'Home Visit' | 'Konferensi Kasus'
+  date: string
+  description: string
+  result: string
+  status: 'Terjadwal' | 'Selesai' | 'Ditunda'
+}
+
+interface ProblemRecord {
+  id: number
+  category: 'Presensi' | 'Disiplin' | 'Akademik'
+  description: string
+  referenceFrom: string // who reported it
+  problemType: 'Attendance' | 'Discipline' | 'Academic'
+  dateReported: string
+  resolutionStatus: 'Tuntas' | 'Tidak Tuntas'
+  guidanceHistory: Array<{
+    id: number
+    date: string
+    counselor: string
+    notes: string
+  }>
+  followUpActions: FollowUpAction[]
+  referralStatus?: 'Belum' | 'Dirujuk' | 'Ditangani Ahli'
+}
 
 interface DashboardItem {
   id: number
@@ -20,6 +48,7 @@ interface DashboardItem {
   totalTardiness: number
   totalViolations: number
   guidanceStatus: 'Normal' | 'Peringatan' | 'Perlu Tindak Lanjut'
+  problemRecords: ProblemRecord[]
 }
 
 interface DashboardStats {
@@ -79,6 +108,23 @@ const GuidanceStatusBadge: React.FC<{ status: string }> = ({ status }) => {
   )
 }
 
+const ProblemCategoryBadge: React.FC<{ category: 'Presensi' | 'Disiplin' | 'Akademik' }> = ({ category }) => {
+  const categoryConfig: Record<string, { bg: string; text: string; icon: React.ReactNode }> = {
+    'Presensi': { bg: 'bg-orange-50', text: 'text-orange-700', icon: <AlertTriangle className="w-3 h-3" /> },
+    'Disiplin': { bg: 'bg-red-50', text: 'text-red-700', icon: <AlertCircle className="w-3 h-3" /> },
+    'Akademik': { bg: 'bg-blue-50', text: 'text-blue-700', icon: <FileText className="w-3 h-3" /> },
+  }
+
+  const config = categoryConfig[category] || categoryConfig['Presensi']
+
+  return (
+    <span className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-medium ${config.bg} ${config.text}`}>
+      {config.icon}
+      {category}
+    </span>
+  )
+}
+
 const DashboardPage: React.FC = () => {
   const [students, setStudents] = useState<DashboardItem[]>([
     {
@@ -97,6 +143,7 @@ const DashboardPage: React.FC = () => {
       totalTardiness: 3,
       totalViolations: 0,
       guidanceStatus: 'Normal',
+      problemRecords: [],
     },
     {
       id: 2,
@@ -114,6 +161,36 @@ const DashboardPage: React.FC = () => {
       totalTardiness: 8,
       totalViolations: 1,
       guidanceStatus: 'Peringatan',
+      problemRecords: [
+        {
+          id: 1,
+          category: 'Presensi',
+          description: 'Sering terlambat masuk sekolah',
+          referenceFrom: 'Wali Kelas',
+          problemType: 'Attendance',
+          dateReported: '2025-01-20',
+          resolutionStatus: 'Tidak Tuntas',
+          guidanceHistory: [
+            {
+              id: 1,
+              date: '2025-01-25',
+              counselor: 'Bu Sarah Wijaya',
+              notes: 'Sesi pertama bimbingan, mengidentifikasi penyebab keterlambatan',
+            },
+          ],
+          followUpActions: [
+            {
+              id: 1,
+              type: 'Pangilan Orang Tua',
+              date: '2025-02-01',
+              description: 'Menghubungi orang tua untuk diskusi masalah keterlambatan',
+              result: 'Orang tua setuju membantu mengatasi',
+              status: 'Selesai',
+            },
+          ],
+          referralStatus: 'Belum',
+        },
+      ],
     },
     {
       id: 3,
@@ -131,6 +208,7 @@ const DashboardPage: React.FC = () => {
       totalTardiness: 4,
       totalViolations: 0,
       guidanceStatus: 'Normal',
+      problemRecords: [],
     },
   ])
 
@@ -140,6 +218,8 @@ const DashboardPage: React.FC = () => {
   const [formMode, setFormMode] = useState<'add' | 'edit'>('add')
   const [selectedStudent, setSelectedStudent] = useState<DashboardItem | undefined>()
   const [currentPage, setCurrentPage] = useState(1)
+  const [isProblemTrackerOpen, setIsProblemTrackerOpen] = useState(false)
+  const [problemTrackerStudent, setProblemTrackerStudent] = useState<DashboardItem | undefined>()
   const itemsPerPage = 5
 
   // Update filtered students when search term changes
@@ -178,6 +258,25 @@ const DashboardPage: React.FC = () => {
     if (window.confirm('Apakah Anda yakin ingin menghapus data siswa ini?')) {
       setStudents((prev) => prev.filter((student) => student.id !== id))
     }
+  }
+
+  const handleProblemTrackerClick = (student: DashboardItem) => {
+    setProblemTrackerStudent(student)
+    setIsProblemTrackerOpen(true)
+  }
+
+  const handleProblemSubmit = (studentId: number, problem: ProblemRecord) => {
+    setStudents((prev) =>
+      prev.map((student) =>
+        student.id === studentId
+          ? {
+              ...student,
+              problemRecords: [...(student.problemRecords || []), problem],
+            }
+          : student
+      )
+    )
+    setIsProblemTrackerOpen(false)
   }
 
   const handleFormSubmit = (data: DashboardItem) => {
@@ -284,6 +383,7 @@ const DashboardPage: React.FC = () => {
                     <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Status</th>
                     <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Monitoring</th>
                     <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Bimbingan</th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Masalah</th>
                     <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Aksi</th>
                   </tr>
                 </thead>
@@ -312,12 +412,36 @@ const DashboardPage: React.FC = () => {
                         <GuidanceStatusBadge status={student.guidanceStatus} />
                       </td>
                       <td className="px-6 py-4">
+                        {student.problemRecords && student.problemRecords.length > 0 ? (
+                          <div className="space-y-2">
+                            {student.problemRecords.slice(0, 2).map((problem) => (
+                              <div key={problem.id} className="flex items-center gap-2">
+                                <ProblemCategoryBadge category={problem.category as 'Presensi' | 'Disiplin' | 'Akademik'} />
+                                <span className={`text-xs px-2 py-1 rounded ${
+                                  problem.resolutionStatus === 'Tuntas' 
+                                    ? 'bg-green-100 text-green-700' 
+                                    : 'bg-red-100 text-red-700'
+                                }`}>
+                                  {problem.resolutionStatus}
+                                </span>
+                              </div>
+                            ))}
+                            {student.problemRecords.length > 2 && (
+                              <p className="text-xs text-gray-500">+{student.problemRecords.length - 2} lainnya</p>
+                            )}
+                          </div>
+                        ) : (
+                          <p className="text-xs text-gray-500">Tidak ada masalah</p>
+                        )}
+                      </td>
+                      <td className="px-6 py-4">
                         <div className="flex items-center gap-2">
                           <button
-                            title="Detail"
-                            className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                            onClick={() => handleProblemTrackerClick(student)}
+                            className="p-2 text-purple-600 hover:bg-purple-50 rounded-lg transition-colors"
+                            title="Track Problem"
                           >
-                            <Eye className="w-4 h-4" />
+                            <FileText className="w-4 h-4" />
                           </button>
                           <button
                             onClick={() => handleEditClick(student)}
@@ -389,9 +513,11 @@ const DashboardPage: React.FC = () => {
             <ul className="text-sm text-blue-800 space-y-1">
               <li>• Klik tombol "Tambah Data" untuk menambahkan data siswa baru</li>
               <li>• Gunakan fitur pencarian untuk menemukan siswa berdasarkan nama, NISN, atau kelas</li>
+              <li>• Klik ikon "Track Problem" untuk mencatat dan memantau masalah siswa (Presensi, Disiplin, Akademik)</li>
+              <li>• Setiap masalah dapat dilacak status penyelesaiannya: Tuntas atau Tidak Tuntas</li>
+              <li>• Kelola bimbingan dan tindak lanjut (pangilan orang tua, home visit, konferensi kasus)</li>
               <li>• Klik ikon edit untuk mengubah data siswa</li>
               <li>• Klik ikon hapus untuk menghapus data siswa (dengan konfirmasi)</li>
-              <li>• Data yang ditampilkan dapat difilter dan dipaginate untuk kemudahan navigasi</li>
             </ul>
           </div>
         </section>
@@ -412,6 +538,21 @@ const DashboardPage: React.FC = () => {
               />
             </div>
           )}
+        </>
+      )}
+
+      {/* Problem Tracker Modal */}
+      {isProblemTrackerOpen && problemTrackerStudent && (
+        <>
+          <div className="fixed inset-0 z-40 bg-black/20 backdrop-blur-sm" aria-hidden="true" />
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto">
+            <ProblemTrackerModal
+              isOpen={isProblemTrackerOpen}
+              onClose={() => setIsProblemTrackerOpen(false)}
+              student={problemTrackerStudent}
+              onSubmit={handleProblemSubmit}
+            />
+          </div>
         </>
       )}
     </div>

@@ -176,15 +176,7 @@ const Hero = () => {
                         <div className="text-blue-200 text-sm">Chat, voice & video</div>
                       </div>
                     </div>
-                    <div className="flex items-center gap-4">
-                      <div className="w-14 h-14 bg-gradient-to-br from-orange-400 to-red-500 rounded-lg flex items-center justify-center">
-                        <Trophy className="w-7 h-7 text-white" />
-                      </div>
-                      <div>
-                        <div className="text-white font-bold">Manajemen Prestasi</div>
-                        <div className="text-blue-200 text-sm">Publikasi otomatis</div>
-                      </div>
-                    </div>
+
                   </div>
                 </div>
 

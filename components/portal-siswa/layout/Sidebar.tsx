@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Heart, MessageCircle, Calendar, MessageSquare, User, Home } from 'lucide-react';
+import { Heart, MessageCircle, Calendar, MessageSquare, User, Home, CheckCircle, Clock, AlertTriangle } from 'lucide-react';
 
 interface SidebarItemProps {
   icon: React.ComponentType<{ className?: string }>;
@@ -75,6 +75,18 @@ const Sidebar: React.FC<SidebarProps> = ({ pathname = '' }) => {
         <SidebarItem icon={MessageCircle} label="Konsultasi" active={pathname === '/home/siswa/konsultasi'} href="/home/siswa/konsultasi" onClick={() => setIsOpen(false)} />
         <SidebarItem icon={Calendar} label="Reservasi Saya" active={pathname === '/home/siswa/reservasi'} href="/home/siswa/reservasi" onClick={() => setIsOpen(false)} />
         <SidebarItem icon={MessageSquare} label="Chat BK" active={pathname === '/home/siswa/chat'} href="/home/siswa/chat" onClick={() => setIsOpen(false)} />
+
+        {/* Kesiswaan Section */}
+        <div className="pt-4 pb-2">
+          <h3 className="px-4 text-xs font-semibold text-gray-600 uppercase tracking-wider">Data Kesiswaan</h3>
+        </div>
+        <SidebarItem icon={CheckCircle} label="Kehadiran" active={pathname === '/home/siswa/kehadiran'} href="/home/siswa/kehadiran" onClick={() => setIsOpen(false)} />
+        <SidebarItem icon={Clock} label="Keterlambatan" active={pathname === '/home/siswa/keterlambatan'} href="/home/siswa/keterlambatan" onClick={() => setIsOpen(false)} />
+        <SidebarItem icon={AlertTriangle} label="Pelanggaran" active={pathname === '/home/siswa/pelanggaran'} href="/home/siswa/pelanggaran" onClick={() => setIsOpen(false)} />
+
+        <div className="pt-4 pb-2">
+          <h3 className="px-4 text-xs font-semibold text-gray-600 uppercase tracking-wider">Akun</h3>
+        </div>
         <SidebarItem icon={User} label="Profil" active={pathname === '/home/siswa/profil'} href="/home/siswa/profil" onClick={() => setIsOpen(false)} />
       </nav>
 

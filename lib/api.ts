@@ -109,3 +109,33 @@ export async function markSessionComplete(
   );
 }
 
+// ==================== API CLIENT WRAPPER ====================
+
+const api = {
+  get: async (endpoint: string, config?: any) => {
+    let url = endpoint;
+    if (config?.params) {
+      const params = new URLSearchParams();
+      Object.entries(config.params).forEach(([key, value]) => {
+        params.append(key, String(value));
+      });
+      url = `${endpoint}?${params.toString()}`;
+    }
+    return apiRequest(url, 'GET', undefined, config?.token);
+  },
+  post: async (endpoint: string, data?: any, config?: any) => {
+    return apiRequest(endpoint, 'POST', data, config?.token);
+  },
+  patch: async (endpoint: string, data?: any, config?: any) => {
+    return apiRequest(endpoint, 'PATCH', data, config?.token);
+  },
+  put: async (endpoint: string, data?: any, config?: any) => {
+    return apiRequest(endpoint, 'PUT', data, config?.token);
+  },
+  delete: async (endpoint: string, config?: any) => {
+    return apiRequest(endpoint, 'DELETE', undefined, config?.token);
+  },
+};
+
+export default api;
+

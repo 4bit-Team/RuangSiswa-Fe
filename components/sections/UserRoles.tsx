@@ -19,15 +19,15 @@ const UserRoles = () => {
       role: "Siswa", 
       icon: GraduationCap,
       color: "green",
-      description: "Mengakses portal pribadi, konseling, dan informasi prestasi",
-      features: ["Dashboard Personal", "Konsultasi Online", "Lihat Prestasi", "Chat dengan BK"]
+      description: "Mengakses portal pribadi dan layanan konseling online",
+      features: ["Dashboard Personal", "Konsultasi Online", "Chat dengan BK", "Lihat Berita"]
     },
     { 
       role: "Kesiswaan", 
       icon: Briefcase,
       color: "purple",
-      description: "Mengelola kehadiran, keterlambatan, dan prestasi siswa",
-      features: ["Input Kehadiran", "Manajemen Prestasi", "Laporan Kesiswaan", "Publikasi Berita"]
+      description: "Mengelola kehadiran, keterlambatan, dan monitoring siswa",
+      features: ["Input Kehadiran", "Monitoring Keterlambatan", "Laporan Kesiswaan", "Publikasi Berita"]
     },
     { 
       role: "BK", 
@@ -196,7 +196,6 @@ const UserRoles = () => {
                   { feature: "Manajemen User", admin: true, siswa: false, kesiswaan: false, bk: false },
                   { feature: "Konsultasi Online", admin: false, siswa: true, kesiswaan: false, bk: true },
                   { feature: "Input Kehadiran", admin: true, siswa: true, kesiswaan: true, bk: false },
-                  { feature: "Manajemen Prestasi", admin: true, siswa: true, kesiswaan: true, bk: false },
                   { feature: "Monitoring Siswa", admin: true, siswa: false, kesiswaan: true, bk: true },
                   { feature: "Laporan & Analitik", admin: true, siswa: false, kesiswaan: true, bk: true },
                   { feature: "Publikasi Konten", admin: true, siswa: false, kesiswaan: true, bk: true }

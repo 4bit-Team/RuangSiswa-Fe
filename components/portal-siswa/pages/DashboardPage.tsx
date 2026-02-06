@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Heart, MessageCircle, Calendar, Users, ArrowRight, Eye, Loader } from 'lucide-react';
+import { Heart, MessageCircle, Calendar, Users, ArrowRight, Eye, Loader, CheckCircle, AlertCircle, TrendingUp, Target, Clock, AlertTriangle, Award } from 'lucide-react';
 import { StatCardProps } from '@types';
 import NewsDetailModal from '../modals/NewsDetailModal';
 import { NewsItemProps } from '@types';
@@ -26,6 +26,242 @@ const ContentWrapper: React.FC<{ children: React.ReactNode }> = ({ children }) =
     {children}
   </div>
 );
+
+const GuidanceProgressSection: React.FC<{
+  completedSessions: number;
+  totalSessions: number;
+  guidanceStatus: 'Normal' | 'Peringatan' | 'Perlu Tindak Lanjut';
+  currentFocus: string;
+  counselor: string;
+}> = ({ completedSessions, totalSessions, guidanceStatus, currentFocus, counselor }) => {
+  const progress = Math.round((completedSessions / totalSessions) * 100);
+
+  const statusConfig = {
+    'Normal': { bg: 'bg-green-50', border: 'border-green-200', icon: 'text-green-600', text: 'text-green-700', label: 'Status Baik' },
+    'Peringatan': { bg: 'bg-yellow-50', border: 'border-yellow-200', icon: 'text-yellow-600', text: 'text-yellow-700', label: 'Perlu Perhatian' },
+    'Perlu Tindak Lanjut': { bg: 'bg-red-50', border: 'border-red-200', icon: 'text-red-600', text: 'text-red-700', label: 'Perlu Tindak Lanjut' }
+  };
+
+  const config = statusConfig[guidanceStatus];
+
+  return (
+    <div className={`${config.bg} border ${config.border} rounded-xl p-6`}>
+      <div className="space-y-5">
+        {/* Header dengan Status */}
+        <div className="flex items-start justify-between">
+          <div>
+            <h3 className="font-bold text-gray-900 text-lg mb-1">📊 Status Bimbingan Anda</h3>
+            <p className="text-sm text-gray-600">Progres konseling dengan {counselor}</p>
+          </div>
+          <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg ${config.bg} border ${config.border}`}>
+            {guidanceStatus === 'Normal' && <CheckCircle className={`w-4 h-4 ${config.icon}`} />}
+            {guidanceStatus === 'Peringatan' && <AlertCircle className={`w-4 h-4 ${config.icon}`} />}
+            {guidanceStatus === 'Perlu Tindak Lanjut' && <AlertCircle className={`w-4 h-4 ${config.icon}`} />}
+            <span className={`text-xs font-semibold ${config.text}`}>{config.label}</span>
+          </div>
+        </div>
+
+        {/* Progress Bar */}
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-sm font-medium text-gray-700">Progres Sesi Bimbingan</p>
+            <span className="text-sm font-bold text-gray-900">{progress}%</span>
+          </div>
+          <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
+            <div
+              className="bg-gradient-to-r from-blue-500 to-purple-600 h-3 rounded-full transition-all duration-300"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
+          <p className="text-xs text-gray-600 mt-2">
+            {completedSessions} dari {totalSessions} sesi telah selesai
+          </p>
+        </div>
+
+        {/* Focus & Counselor Info */}
+        <div className="grid grid-cols-2 gap-3 border-t border-gray-300 pt-4">
+          <div className="flex items-center gap-2">
+            <Target className={`w-4 h-4 ${config.icon}`} />
+            <div>
+              <p className="text-xs text-gray-600">Fokus Utama</p>
+              <p className="text-sm font-semibold text-gray-900">{currentFocus}</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Users className={`w-4 h-4 ${config.icon}`} />
+            <div>
+              <p className="text-xs text-gray-600">Konselor BK</p>
+              <p className="text-sm font-semibold text-gray-900">{counselor}</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Recommendation */}
+        <div className={`p-3 rounded-lg ${config.bg} border ${config.border}`}>
+          {guidanceStatus === 'Normal' && (
+            <p className="text-xs text-green-700">
+              ✅ <strong>Bagus!</strong> Anda menunjukkan progress yang baik. Lanjutkan konsistensi dalam mengikuti sesi.
+            </p>
+          )}
+          {guidanceStatus === 'Peringatan' && (
+            <p className="text-xs text-yellow-700">
+              ⚠️ <strong>Catatan:</strong> Ada beberapa aspek yang perlu ditingkatkan. Diskusikan dengan konselor untuk strategi lebih baik.
+            </p>
+          )}
+          {guidanceStatus === 'Perlu Tindak Lanjut' && (
+            <p className="text-xs text-red-700">
+              🔴 <strong>Penting!</strong> Ada masalah yang memerlukan perhatian khusus. Segera hubungi konselor untuk pertemuan intensif.
+            </p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Kesiswaan Integration Component
+const KesiswaanIntegrationSection: React.FC<{ onNavigate?: (page: string) => void }> = ({ onNavigate }) => {
+  const router = useRouter();
+
+  // Sample data from Kesiswaan system
+  const kesiswaanData = {
+    attendance: {
+      percentage: 90,
+      status: 'Sangat Baik',
+      recentDays: 18,
+      totalDays: 20
+    },
+    tardiness: {
+      currentMonth: 2,
+      lastMonth: 4,
+      trend: 'decreasing' as const,
+      status: 'Membaik'
+    },
+    violations: {
+      total: 4,
+      pending: 1,
+      inProgress: 1,
+      resolved: 2
+    }
+  };
+
+  const handleNavigate = (page: string) => {
+    if (onNavigate) {
+      onNavigate(page);
+    } else {
+      router.push(`/home/siswa/${page}`);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="bg-gradient-to-r from-indigo-500 to-purple-600 rounded-2xl p-8 text-white">
+        <h3 className="text-2xl font-bold mb-2">📋 Data Kesiswaan Anda</h3>
+        <p className="text-indigo-50">Pantau kehadiran, keterlambatan, dan pelanggaran Anda di sekolah</p>
+      </div>
+
+      {/* Kesiswaan Stats Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* Attendance Card */}
+        <div
+          onClick={() => handleNavigate('kehadiran')}
+          className="bg-gradient-to-br from-green-50 to-emerald-50 border-2 border-green-200 rounded-xl p-6 cursor-pointer hover:shadow-lg hover:scale-105 transition-all duration-300"
+        >
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <div className="bg-green-100 p-3 rounded-lg">
+                <CheckCircle className="w-6 h-6 text-green-600" />
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">Kehadiran</p>
+                <p className="text-2xl font-bold text-green-600">{kesiswaanData.attendance.percentage}%</p>
+              </div>
+            </div>
+            <ArrowRight className="w-5 h-5 text-green-600" />
+          </div>
+          <p className="text-xs text-gray-600">
+            {kesiswaanData.attendance.recentDays}/{kesiswaanData.attendance.totalDays} hari hadir
+          </p>
+          <p className="text-xs font-semibold text-green-700 mt-1">✅ {kesiswaanData.attendance.status}</p>
+        </div>
+
+        {/* Tardiness Card */}
+        <div
+          onClick={() => handleNavigate('keterlambatan')}
+          className="bg-gradient-to-br from-orange-50 to-amber-50 border-2 border-orange-200 rounded-xl p-6 cursor-pointer hover:shadow-lg hover:scale-105 transition-all duration-300"
+        >
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <div className="bg-orange-100 p-3 rounded-lg">
+                <Clock className="w-6 h-6 text-orange-600" />
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">Keterlambatan</p>
+                <p className="text-2xl font-bold text-orange-600">{kesiswaanData.tardiness.currentMonth}</p>
+              </div>
+            </div>
+            <ArrowRight className="w-5 h-5 text-orange-600" />
+          </div>
+          <p className="text-xs text-gray-600">
+            Bulan ini (sebelumnya: {kesiswaanData.tardiness.lastMonth})
+          </p>
+          <p className="text-xs font-semibold text-green-700 mt-1">↓ {kesiswaanData.tardiness.status}</p>
+        </div>
+
+        {/* Violations Card */}
+        <div
+          onClick={() => handleNavigate('pelanggaran')}
+          className="bg-gradient-to-br from-red-50 to-rose-50 border-2 border-red-200 rounded-xl p-6 cursor-pointer hover:shadow-lg hover:scale-105 transition-all duration-300"
+        >
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <div className="bg-red-100 p-3 rounded-lg">
+                <AlertTriangle className="w-6 h-6 text-red-600" />
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">Pelanggaran</p>
+                <p className="text-2xl font-bold text-red-600">{kesiswaanData.violations.total}</p>
+              </div>
+            </div>
+            <ArrowRight className="w-5 h-5 text-red-600" />
+          </div>
+          <p className="text-xs text-gray-600">
+            {kesiswaanData.violations.resolved} selesai, {kesiswaanData.violations.pending} menunggu
+          </p>
+          {kesiswaanData.violations.pending > 0 ? (
+            <p className="text-xs font-semibold text-red-700 mt-1">⚠️ Ada yang perlu diperhatian</p>
+          ) : (
+            <p className="text-xs font-semibold text-green-700 mt-1">✅ Semua terkelola</p>
+          )}
+        </div>
+      </div>
+
+      {/* Quick Summary */}
+      {kesiswaanData.violations.pending > 0 && (
+        <div className="bg-red-50 border-2 border-red-200 rounded-xl p-4">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="font-semibold text-red-900">Ada yang memerlukan perhatian</p>
+              <p className="text-sm text-red-700 mt-1">
+                Anda memiliki {kesiswaanData.violations.pending} pelanggaran yang menunggu proses bimbingan. 
+                Segera hubungi Guru BK untuk memulai sesi bimbingan.
+              </p>
+              <button
+                onClick={() => handleNavigate('pelanggaran')}
+                className="mt-2 inline-flex items-center gap-1 px-3 py-1.5 bg-red-600 text-white rounded-lg text-sm font-semibold hover:bg-red-700 transition-colors"
+              >
+                Lihat Detail
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
 
 const NewsPreviewCard: React.FC<{
   news: NewsItemProps;
@@ -105,6 +341,15 @@ const DashboardPage: React.FC<{ setActivePage?: (page: string) => void }> = ({ s
   const [loading, setLoading] = useState(true);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
+  // Guidance Progress State
+  const [guidanceData] = useState({
+    completedSessions: 7,
+    totalSessions: 10,
+    guidanceStatus: 'Normal' as const,
+    currentFocus: 'Manajemen Stress & Waktu',
+    counselor: 'Bu Sarah Wijaya'
+  });
+
   // Fetch latest news
   useEffect(() => {
     fetchLatestNews();
@@ -174,12 +419,21 @@ const DashboardPage: React.FC<{ setActivePage?: (page: string) => void }> = ({ s
           <p className="text-blue-50">Tempat yang aman untuk berbagi, berkonsultasi, dan berkembang bersama</p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
           <StatCard icon={Heart} label="Sesi Konseling" value="12" color="bg-pink-50 text-pink-600" />
           <StatCard icon={MessageCircle} label="Konsultasi Bulan Ini" value="8" color="bg-green-50 text-green-600" />
           <StatCard icon={Calendar} label="Reservasi Aktif" value="3" color="bg-orange-50 text-orange-600" />
-          <StatCard icon={Users} label="Progres Pribadi" value="85%" color="bg-blue-50 text-blue-600" />
         </div>
+
+        <GuidanceProgressSection
+          completedSessions={guidanceData.completedSessions}
+          totalSessions={guidanceData.totalSessions}
+          guidanceStatus={guidanceData.guidanceStatus}
+          currentFocus={guidanceData.currentFocus}
+          counselor={guidanceData.counselor}
+        />
+
+        <KesiswaanIntegrationSection onNavigate={setActivePage} />
 
         <div className="bg-white rounded-xl border border-gray-200 p-6">
           <div className="flex items-center justify-between mb-6">

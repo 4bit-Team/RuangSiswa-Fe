@@ -77,8 +77,7 @@ const CTA = () => {
               {[
                 "Kelola data siswa secara terpusat",
                 "Layanan konseling terintegrasi dengan mudah",
-                "Laporan kehadiran real-time dan akurat",
-                "Monitoring prestasi siswa otomatis"
+                "Laporan kehadiran real-time dan akurat"
               ].map((benefit, index) => (
                 <div key={index} className="flex items-center gap-3 animate-slide-up" style={{ animationDelay: `${0.2 + index * 0.1}s` }}>
                   <CheckCircle className="w-6 h-6 text-emerald-400 flex-shrink-0" />

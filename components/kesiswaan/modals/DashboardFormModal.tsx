@@ -4,6 +4,31 @@ import React, { useState, useEffect } from 'react'
 import { Plus, Edit2, Trash2, Save, X } from 'lucide-react'
 import BaseModal from './BaseModal'
 
+interface ProblemRecord {
+  id: number
+  category: 'Presensi' | 'Disiplin' | 'Akademik'
+  description: string
+  referenceFrom: string
+  problemType: 'Attendance' | 'Discipline' | 'Academic'
+  dateReported: string
+  resolutionStatus: 'Tuntas' | 'Tidak Tuntas'
+  guidanceHistory: Array<{
+    id: number
+    date: string
+    counselor: string
+    notes: string
+  }>
+  followUpActions: Array<{
+    id: number
+    type: 'Pangilan Orang Tua' | 'Home Visit' | 'Konferensi Kasus'
+    date: string
+    description: string
+    result: string
+    status: 'Terjadwal' | 'Selesai' | 'Ditunda'
+  }>
+  referralStatus?: 'Belum' | 'Dirujuk' | 'Ditangani Ahli'
+}
+
 interface DashboardItem {
   id: number
   studentName: string
@@ -20,6 +45,7 @@ interface DashboardItem {
   totalTardiness: number
   totalViolations: number
   guidanceStatus: 'Normal' | 'Peringatan' | 'Perlu Tindak Lanjut'
+  problemRecords: ProblemRecord[]
 }
 
 interface DashboardFormModalProps {
@@ -52,6 +78,7 @@ const DashboardFormModal: React.FC<DashboardFormModalProps> = ({
     totalTardiness: 0,
     totalViolations: 0,
     guidanceStatus: 'Normal',
+    problemRecords: [],
   })
 
   const [errors, setErrors] = useState<Record<string, string>>({})
@@ -73,6 +100,7 @@ const DashboardFormModal: React.FC<DashboardFormModalProps> = ({
         totalTardiness: data.totalTardiness,
         totalViolations: data.totalViolations,
         guidanceStatus: data.guidanceStatus,
+        problemRecords: data.problemRecords || [],
       })
     } else {
       setFormData({
@@ -90,6 +118,7 @@ const DashboardFormModal: React.FC<DashboardFormModalProps> = ({
         totalTardiness: 0,
         totalViolations: 0,
         guidanceStatus: 'Normal',
+        problemRecords: [],
       })
     }
     setErrors({})
