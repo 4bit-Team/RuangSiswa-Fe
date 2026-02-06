@@ -4,12 +4,14 @@ import React, { useState, useMemo } from 'react'
 import { AlertTriangle, Plus, Trash2, Filter, Eye, AlertCircle } from 'lucide-react'
 import ViolationDetailModal from '../modals/ViolationDetailModal'
 import ViolationFormModal from '../modals/ViolationFormModal'
+import SpFormModal from '../modals/SpFormModal'
 
 interface Student {
   id: number
   name: string
   nisn: string
   className: string
+  spHistory?: SPRecord[]
 }
 
 interface ViolationRecord {
@@ -31,6 +33,14 @@ interface ViolationStats {
   lightViolations: number
   mediumViolations: number
   severeViolations: number
+}
+
+interface SPRecord {
+  id: number
+  date: string
+  reason: string
+  level: 'SP1' | 'SP2' | 'SP3'
+  description: string
 }
 
 const ViolationTypeBadge: React.FC<{ type: string }> = ({ type }) => {
@@ -73,6 +83,7 @@ const PelanggaranPage: React.FC = () => {
   const [isFormModalOpen, setIsFormModalOpen] = useState(false)
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false)
   const [selectedViolation, setSelectedViolation] = useState<ViolationRecord | undefined>()
+  const [isSpModalOpen, setIsSpModalOpen] = useState(false)
   const [violations, setViolations] = useState<ViolationRecord[]>([
     {
       id: 1,
@@ -143,12 +154,12 @@ const PelanggaranPage: React.FC = () => {
 
   // Sample students data
   const students: Student[] = [
-    { id: 1, name: 'Ahmad Ridho Pratama', nisn: '0031234567', className: 'XI-A' },
-    { id: 2, name: 'Siti Nurhaliza', nisn: '0031234568', className: 'XI-A' },
-    { id: 3, name: 'Budi Santoso', nisn: '0031234569', className: 'XI-B' },
-    { id: 4, name: 'Dina Kusuma', nisn: '0031234570', className: 'XI-B' },
-    { id: 5, name: 'Eka Putra', nisn: '0031234571', className: 'XI-C' },
-    { id: 6, name: 'Farah Azizah', nisn: '0031234572', className: 'XI-C' },
+    { id: 1, name: 'Ahmad Ridho Pratama', nisn: '0031234567', className: 'XI-A', spHistory: [] },
+    { id: 2, name: 'Siti Nurhaliza', nisn: '0031234568', className: 'XI-A', spHistory: [] },
+    { id: 3, name: 'Budi Santoso', nisn: '0031234569', className: 'XI-B', spHistory: [] },
+    { id: 4, name: 'Dina Kusuma', nisn: '0031234570', className: 'XI-B', spHistory: [] },
+    { id: 5, name: 'Eka Putra', nisn: '0031234571', className: 'XI-C', spHistory: [] },
+    { id: 6, name: 'Farah Azizah', nisn: '0031234572', className: 'XI-C', spHistory: [] },
   ]
 
   const classes = ['XI-A', 'XI-B', 'XI-C']
@@ -220,6 +231,33 @@ const PelanggaranPage: React.FC = () => {
     }
   }
 
+  const handleAddSp = (formData: any) => {
+    const selectedStudentData = students.find(s => s.id.toString() === formData.studentId)
+    if (!selectedStudentData) return
+
+    const sp: SPRecord = {
+      id: Math.max(...(selectedStudentData.spHistory?.map(s => s.id) || [0]), 0) + 1,
+      date: new Date().toISOString().split('T')[0],
+      reason: formData.reason,
+      level: formData.level,
+      description: formData.description,
+    }
+
+    // Update student's SP history
+    const updatedStudents = students.map(s => {
+      if (s.id.toString() === formData.studentId) {
+        return {
+          ...s,
+          spHistory: [...(s.spHistory || []), sp],
+        }
+      }
+      return s
+    })
+
+    setIsSpModalOpen(false)
+    alert(`SP ${formData.level} berhasil diberikan kepada ${selectedStudentData.name}`)
+  }
+
   // Get filtered students for dropdown
   const filteredStudentsDropdown = useMemo(() => {
     if (selectedClass === 'all') return students
@@ -241,13 +279,22 @@ const PelanggaranPage: React.FC = () => {
                 <p className="text-pink-50">Catat dan pantau pelanggaran siswa terhadap tata tertib sekolah</p>
               </div>
             </div>
-            <button
-              onClick={() => setIsFormModalOpen(true)}
-              className="flex items-center gap-2 px-6 py-3 bg-white text-red-600 font-semibold rounded-lg hover:bg-gray-50 transition-all hover:shadow-lg"
-            >
-              <Plus className="w-5 h-5" />
-              Catat Pelanggaran
-            </button>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setIsFormModalOpen(true)}
+                className="flex items-center gap-2 px-6 py-3 bg-white text-red-600 font-semibold rounded-lg hover:bg-gray-50 transition-all hover:shadow-lg"
+              >
+                <Plus className="w-5 h-5" />
+                Catat Pelanggaran
+              </button>
+              <button
+                onClick={() => setIsSpModalOpen(true)}
+                className="flex items-center gap-2 px-6 py-3 bg-orange-400 hover:bg-orange-500 text-white font-semibold rounded-lg transition-all hover:shadow-lg"
+              >
+                <AlertCircle className="w-5 h-5" />
+                Beri SP
+              </button>
+            </div>
           </div>
         </div>
 
@@ -457,6 +504,14 @@ const PelanggaranPage: React.FC = () => {
           )}
         </>
       )}
+
+      {/* SP Modal */}
+      <SpFormModal
+        isOpen={isSpModalOpen}
+        onClose={() => setIsSpModalOpen(false)}
+        onSubmit={handleAddSp}
+        students={students}
+      />
     </div>
   )
 }

@@ -120,7 +120,7 @@ const PostCard: React.FC<PostCardProps & { currentUserId?: number; currentUserRo
               {category}
             </span>
             <span className="text-xs text-gray-500">
-              dibuat oleh <span className="font-medium text-gray-700">{getDisplayAuthorName(author, authorId, authorRole, { id: currentUserId, role: currentUserRole }, authorId === currentUserId)}</span>
+              dibuat oleh <span className="font-medium text-gray-700">{author}</span>
             </span>
             {isVerified && (
               <div title="Jawaban terverifikasi" className="flex items-center">
@@ -239,14 +239,15 @@ const KonsultasiPage: React.FC<{ setActivePage?: (page: string) => void }> = ({ 
             authorId: item.author?.id,
           });
           const authorName = item.author?.username || item.author?.name || 'Anonymous';
+          const postDisplayName = getDisplayAuthorName(authorName, item.author?.id, item.author?.role, user ? { id: user.id as number, role: user.role } : undefined, String(item.author?.id) === String(user?.id));
           return {
             id: item.id,
             title: item.title,
             category: category?.name || 'Umum',
-            author: authorName,
+            author: postDisplayName,
             authorId: item.author?.id,
             authorRole: item.author?.role,
-            avatar: (authorName || 'A').substring(0, 2).toUpperCase(),
+            avatar: postDisplayName === 'Anonymous' ? 'A' : (authorName || 'A').substring(0, 2).toUpperCase(),
             timestamp: formatDate(item.createdAt),
             content: item.content,
             votes: item.votes || 0,

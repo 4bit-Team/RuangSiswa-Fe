@@ -112,13 +112,17 @@ const DetailKonsultasiPage: React.FC<DetailKonsultasiPageProps> = ({ onBack }) =
 
         const category = categories.find(c => c.id === data.question.categoryId)
         const authorName = data.question.author?.username || data.question.author?.name || 'Anonymous'
+        const authorRole = data.question.author?.role
+        const isQuestionCurrentUser = String(user?.id) === String(data.question.authorId)
+        const questionDisplayName = getDisplayAuthorName(authorName, data.question.authorId, authorRole, user ? { id: user.id as number, role: user.role } : undefined, isQuestionCurrentUser)
         setQuestion({
           id: data.question.id,
           title: data.question.title,
           category: category?.name || 'Umum',
           author: authorName,
           authorId: data.question.authorId,
-          avatar: (authorName || 'A').substring(0, 2).toUpperCase(),
+          authorRole: authorRole,
+          avatar: questionDisplayName === 'Anonymous' ? 'A' : (authorName || 'A').substring(0, 2).toUpperCase(),
           timestamp: formatDate(data.question.createdAt),
           content: data.question.content,
           views: data.question.views,
@@ -129,12 +133,14 @@ const DetailKonsultasiPage: React.FC<DetailKonsultasiPageProps> = ({ onBack }) =
 
         const transformedAnswers = data.answers.map((ans: any) => {
           const answerAuthorName = ans.author?.username || ans.author?.name || 'Anonymous'
+          const isAnswerCurrentUser = String(user?.id) === String(ans.authorId)
+          const answerDisplayName = getDisplayAuthorName(answerAuthorName, ans.authorId, ans.author?.role, user ? { id: user.id as number, role: user.role } : undefined, isAnswerCurrentUser)
           return {
             id: ans.id,
             authorId: ans.authorId,
             authorName: answerAuthorName,
             authorRole: ans.author?.role || 'siswa',
-            avatar: (answerAuthorName || 'A').substring(0, 2).toUpperCase(),
+            avatar: answerDisplayName === 'Anonymous' ? 'A' : (answerAuthorName || 'A').substring(0, 2).toUpperCase(),
             timestamp: formatDate(ans.createdAt),
             content: ans.content,
             likes: ans.votes || 0,
@@ -439,7 +445,7 @@ const DetailKonsultasiPage: React.FC<DetailKonsultasiPageProps> = ({ onBack }) =
                 {question.avatar}
               </div>
               <div>
-                <p className="font-medium text-gray-900">{getDisplayAuthorName(question.author, question.authorId, '', user ? { id: user.id as number, role: user.role } : undefined, String(user?.id) === String(question.authorId))}</p>
+                <p className="font-medium text-gray-900">{getDisplayAuthorName(question.author, question.authorId, question.authorRole, user ? { id: user.id as number, role: user.role } : undefined, String(user?.id) === String(question.authorId))}</p>
                 <p className="text-xs text-gray-500">{question.timestamp}</p>
               </div>
             </div>

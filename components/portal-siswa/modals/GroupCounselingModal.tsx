@@ -74,11 +74,23 @@ const GroupCounselingModal: React.FC<GroupCounselingModalProps> = ({
     setLoadingStudents(true)
     try {
       const response = await apiRequest('/users?role=siswa', 'GET', undefined, token)
+      let students: Student[] = []
       if (Array.isArray(response)) {
-        setAllStudents(response.filter((s: any) => s.id !== user?.id))
+        students = response.filter((s: any) => s.id !== user?.id).map((s: any) => ({
+          id: s.id,
+          fullName: s.fullName || s.username || 'Unknown',
+          username: s.username,
+          kelas: s.studentCard?.class?.name || '',
+        }))
       } else if (response?.data && Array.isArray(response.data)) {
-        setAllStudents(response.data.filter((s: any) => s.id !== user?.id))
+        students = response.data.filter((s: any) => s.id !== user?.id).map((s: any) => ({
+          id: s.id,
+          fullName: s.fullName || s.username || 'Unknown',
+          username: s.username,
+          kelas: s.studentCard?.class?.name || '',
+        }))
       }
+      setAllStudents(students)
     } catch (error) {
       console.error('❌ Error fetching students:', error)
       setAllStudents([])
@@ -210,13 +222,15 @@ const GroupCounselingModal: React.FC<GroupCounselingModalProps> = ({
     onClose()
   }
 
-  const filteredStudents = allStudents.filter((student) => {
-    if (!student.fullName) return false
-    return (
-      student.fullName.toLowerCase().includes(searchStudent.toLowerCase()) ||
-      (student.username && student.username.toLowerCase().includes(searchStudent.toLowerCase()))
-    )
-  })
+  const filteredStudents = allStudents
+    .filter((student) => {
+      if (!student.fullName) return false
+      return (
+        student.fullName.toLowerCase().includes(searchStudent.toLowerCase()) ||
+        (student.username && student.username.toLowerCase().includes(searchStudent.toLowerCase()))
+      )
+    })
+    .slice(0, searchStudent ? undefined : 25)
 
   if (!isOpen) return null
 
@@ -320,7 +334,7 @@ const GroupCounselingModal: React.FC<GroupCounselingModalProps> = ({
               {step === 2 && (
                 <div className="space-y-4">
                   <h3 className="font-semibold text-gray-900 mb-3">
-                    Pilih Siswa ({selectedStudents.length}/Unlimited)
+                    Pilih Siswa ({Math.max(0, selectedStudents.length)}/unlimited)
                   </h3>
                   <p className="text-sm text-gray-600">Pilih minimal 2 siswa untuk membentuk grup konseling</p>
 
@@ -331,15 +345,22 @@ const GroupCounselingModal: React.FC<GroupCounselingModalProps> = ({
                     onChange={(e) => setSearchStudent(e.target.value)}
                     className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
                   />
+                  {!searchStudent && allStudents.length > 25 && (
+                    <p className="text-xs text-gray-500">Menampilkan 25 siswa pertama. Cari nama untuk melihat siswa lain.</p>
+                  )}
 
                   {loadingStudents ? (
                     <div className="flex items-center justify-center py-8">
                       <Loader className="w-5 h-5 animate-spin text-green-500 mr-2" />
                       <span className="text-gray-600">Memuat daftar siswa...</span>
                     </div>
+                  ) : allStudents.length === 0 ? (
+                    <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                      <p className="text-yellow-800">Tidak ada siswa tersedia</p>
+                    </div>
                   ) : filteredStudents.length === 0 ? (
                     <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                      <p className="text-yellow-800">Tidak ada siswa ditemukan</p>
+                      <p className="text-yellow-800">Tidak ada siswa ditemukan dengan keyword "{searchStudent}"</p>
                     </div>
                   ) : (
                     <div className="space-y-2 max-h-96 overflow-y-auto">

@@ -11,7 +11,7 @@ interface UserRole {
 /**
  * Get display name untuk author pertanyaan/jawaban
  * Logic:
- * - User sendiri: tampilkan nama mereka
+ * - User membuat pertanyaan/jawaban: tampilkan "Anda"
  * - Author adalah BK/Konselor: tampilkan nama + (Konselor)
  * - Viewer adalah BK, author adalah siswa: tampilkan nama
  * - Viewer adalah siswa, author adalah siswa lain: "Siswa Lain" (anonymous)
@@ -29,9 +29,9 @@ export const getDisplayAuthorName = (
     String(authorRole).toLowerCase().includes('konselor')
   )
 
-  // Jika user sendiri
+  // Jika user sendiri, tampilkan "Anda"
   if (isCurrentUser) {
-    return authorName
+    return 'Anda'
   }
 
   // Jika author adalah konselor/BK
@@ -45,7 +45,7 @@ export const getDisplayAuthorName = (
   }
 
   // Jika author adalah siswa lain dan viewer adalah siswa
-  return 'Siswa Lain'
+  return 'Anonymous'
 }
 
 /**

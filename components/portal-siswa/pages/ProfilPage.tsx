@@ -2,8 +2,11 @@
 
 import React, { useEffect, useState } from 'react'
 import { Bell, Shield, ChevronRight, Mail, Phone, Calendar, LogOut } from 'lucide-react'
+import { useRouter } from 'next/navigation'
 import { apiRequest } from '@/lib/api'
 import { HistoryItemProps, SettingItemProps } from '@types'
+import { kelasLabel, genderLabel, fetchStudentCardData, handleLogout, fetchStudentStatistics, fetchCounselingHistory } from '@/lib/profileAPI'
+import type { StudentCardData, StudentCardViewProps, HistoryItem } from '@/lib/profileAPI'
 import EditProfileModalButton from './EditProfileModalButton'
 
 // Logo SMKN 1 Cibinong dari public folder
@@ -11,57 +14,15 @@ const Smkn1Logo = () => (
   <img src="/logo.svg" alt="SMKN 1 Cibinong" className="w-16 h-16" />
 );
 
-type StudentCardData = {
-  user_id: string;
-  kelas: string;
-  nama: string;
-  nis: string;
-  nisn: string;
-  ttl: string;
-  gender: string;
-  jurusan: string;
-};
-
-type StudentCardViewProps = {
-  userId: string;
-};
-
-const kelasLabel = (kelas: string) => {
-  if (/10/.test(kelas)) return 'Kelas 10';
-  if (/11/.test(kelas)) return 'Kelas 11';
-  if (/12/.test(kelas)) return 'Kelas 12';
-  return kelas;
-};
-
-const genderLabel = (gender: string) => {
-  if (!gender) return '-';
-  const g = gender.trim().toLowerCase();
-  if (g === 'laki-laki' || g === 'l' || g === 'male') return 'L';
-  if (g === 'perempuan' || g === 'p' || g === 'female') return 'P';
-  return gender;
-};
-
 const StudentCardView: React.FC<StudentCardViewProps> = ({ userId }) => {
   const [cards, setCards] = useState<StudentCardData[]>([]);
   const [selectedKelas, setSelectedKelas] = useState<string>('');
 
   useEffect(() => {
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
-    fetch(`${apiUrl}/student-card/extracted_data`)
-      .then(res => {
-        if (!res.ok) throw new Error(`API error: ${res.status}`);
-        return res.json();
-      })
-      .then((data: StudentCardData[]) => {
-        const userIdStr = userId?.toString();
-        const userCards = data.filter(card => card.user_id?.toString() === userIdStr);
-        setCards(userCards);
-        if (userCards.length > 0) setSelectedKelas(userCards[0].kelas);
-      })
-      .catch(err => {
-        console.error('Gagal memuat data kartu pelajar:', err);
-        setCards([]);
-      });
+    fetchStudentCardData(userId).then(userCards => {
+      setCards(userCards);
+      if (userCards.length > 0) setSelectedKelas(userCards[0].kelas);
+    });
   }, [userId]);
 
   const kelasOptions = Array.from(new Set(cards.map(card => card.kelas)));
@@ -180,7 +141,7 @@ const StudentCardView: React.FC<StudentCardViewProps> = ({ userId }) => {
   );
 };
 
-const HistoryItem: React.FC<HistoryItemProps> = ({ title, counselor, date, status, statusColor }) => (
+const HistoryItemComponent: React.FC<HistoryItemProps> = ({ title, counselor, date, status, statusColor }) => (
   <div className="flex items-center justify-between p-4 border-b border-gray-100">
     <div>
       <h4 className="font-medium text-gray-900">{title}</h4>
@@ -203,30 +164,14 @@ const SettingItem: React.FC<SettingItemProps> = ({ icon: Icon, label }) => (
 )
 
 const ProfilPage: React.FC = () => {
+  const router = useRouter()
   const [user, setUser] = useState<any>(null)
-
-  const handleLogout = async () => {
-    try {
-      await apiRequest('/auth/logout', 'POST')
-    } catch (err) {
-      // ignore errors but continue to clear client state
-      console.error('Logout gagal:', err)
-    }
-
-    localStorage.clear()
-    sessionStorage.clear()
-
-    // clear common cookies (best-effort)
-    try {
-      document.cookie = 'auth_profile=; path=/; domain=.ruangsiswa.my.id; expires=Thu, 01 Jan 1970 00:00:00 GMT'
-      document.cookie = 'access_token=; path=/; domain=.ruangsiswa.my.id; expires=Thu, 01 Jan 1970 00:00:00 GMT'
-    } catch (e) {
-      // ignore
-    }
-
-    // navigate to login
-    window.location.replace('/login')
-  }
+  const [stats, setStats] = useState({
+    totalSessions: 0,
+    totalConsultations: 0,
+    totalConsultationHours: 0
+  })
+  const [history, setHistory] = useState<HistoryItem[]>([])
 
   useEffect(() => {
     try {
@@ -239,6 +184,13 @@ const ProfilPage: React.FC = () => {
       console.error('Gagal memuat profil dari cookie:', err)
     }
   }, [])
+
+  useEffect(() => {
+    if (user?.id) {
+      fetchStudentStatistics(user.id).then(setStats)
+      fetchCounselingHistory(user.id, 5).then(setHistory)
+    }
+  }, [user])
 
   return (
     <div className="p-8 space-y-6">
@@ -257,7 +209,7 @@ const ProfilPage: React.FC = () => {
               <div className="mt-3 space-y-1 text-sm text-gray-600">
                 <div className="flex items-center gap-2"><Mail className="w-4 h-4 text-gray-400" /> <span>{user?.email || '-'}</span></div>
                 <div className="flex items-center gap-2"><Phone className="w-4 h-4 text-gray-400" /> <span>{user?.phone_number || '-'}</span></div>
-                <div className="flex items-center gap-2"><Calendar className="w-4 h-4 text-gray-400" /> <span>Bergabung sejak {user?.joined ? user.joined : 'Januari 2024'}</span></div>
+                <div className="flex items-center gap-2"><Calendar className="w-4 h-4 text-gray-400" /> <span>Bergabung sejak {user?.createdAt ? new Date(user.createdAt).toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric' }) : 'Januari 2024'}</span></div>
               </div>
             </div>
           </div>
@@ -269,19 +221,19 @@ const ProfilPage: React.FC = () => {
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-6">
           <div className="bg-white border rounded-lg p-6 flex items-center gap-4 shadow-sm">
-            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-cyan-400 to-blue-500 flex items-center justify-center text-white font-bold">12</div>
+            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-cyan-400 to-blue-500 flex items-center justify-center text-white font-bold">{stats.totalSessions}</div>
             <div>
-              <p className="text-sm text-gray-500">Total Sesi</p>
+              <p className="text-sm text-gray-500">Konseling</p>
             </div>
           </div>
           <div className="bg-white border rounded-lg p-6 flex items-center gap-4 shadow-sm">
-            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-emerald-400 to-green-500 flex items-center justify-center text-white font-bold">8</div>
+            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-emerald-400 to-green-500 flex items-center justify-center text-white font-bold">{stats.totalConsultations}</div>
             <div>
               <p className="text-sm text-gray-500">Konsultasi</p>
             </div>
           </div>
           <div className="bg-white border rounded-lg p-6 flex items-center gap-4 shadow-sm">
-            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-violet-400 to-pink-500 flex items-center justify-center text-white font-bold">18</div>
+            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-violet-400 to-pink-500 flex items-center justify-center text-white font-bold">{stats.totalConsultationHours}</div>
             <div>
               <p className="text-sm text-gray-500">Jam Konseling</p>
             </div>
@@ -291,12 +243,29 @@ const ProfilPage: React.FC = () => {
         <div className="mt-6 bg-white rounded-lg border border-gray-200">
           <h3 className="p-4 font-semibold text-gray-900 border-b border-gray-100">Riwayat Konseling</h3>
           <div>
-            <HistoryItem title="Konseling Pribadi" counselor="Bu Sarah" date="15 Oktober 2025" status="Selesai" statusColor="text-green-600" />
-            <HistoryItem title="Konseling Akademik" counselor="Pak Budi" date="10 Oktober 2025" status="Selesai" statusColor="text-green-600" />
-            <HistoryItem title="Konseling Kelompok" counselor="Bu Dina" date="5 Oktober 2025" status="Selesai" statusColor="text-green-600" />
+            {history.length > 0 ? (
+              history.map((item) => (
+                <HistoryItemComponent 
+                  key={item.id}
+                  title={item.title}
+                  counselor={item.counselor}
+                  date={item.date}
+                  status={item.status}
+                  statusColor={item.statusColor}
+                />
+              ))
+            ) : (
+              <div className="p-4 text-center text-gray-500">
+                <p>Belum ada riwayat konseling</p>
+              </div>
+            )}
           </div>
           <div className="p-4">
-            <button className="w-full py-3 rounded-md border border-gray-200 text-sm font-medium hover:bg-gray-50">Lihat Semua Riwayat</button>
+            <button 
+              onClick={() => router.push('/home/siswa/reservasi')}
+              className="w-full py-3 rounded-md border border-gray-200 text-sm font-medium hover:bg-gray-50">
+              Lihat Semua Riwayat
+            </button>
           </div>
         </div>
         {/* Kartu Pelajar Siswa dipindah ke bawah riwayat konseling */}

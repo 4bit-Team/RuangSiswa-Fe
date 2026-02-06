@@ -146,9 +146,6 @@ const StatusBimbinganPage: React.FC = () => {
   const [selectedName, setSelectedName] = useState('all')
   const [selectedClass, setSelectedClass] = useState('all')
   const [selectedStatus, setSelectedStatus] = useState('all')
-  const [isSpModalOpen, setIsSpModalOpen] = useState(false)
-  const [selectedStudentForSp, setSelectedStudentForSp] = useState<Student | null>(null)
-  const [spForm, setSpForm] = useState({ level: 'SP1', reason: '', description: '' })
 
   // Sample students data
   const students: Student[] = [
@@ -554,14 +551,10 @@ const StatusBimbinganPage: React.FC = () => {
                         <td className="px-6 py-4 text-sm text-gray-700">{student.lastSession}</td>
                         <td className="px-6 py-4">
                           <button
-                            onClick={() => {
-                              setSelectedStudentForSp(student)
-                              setIsSpModalOpen(true)
-                            }}
-                            className="inline-flex items-center gap-2 px-3 py-1 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors text-sm font-semibold"
+                            className="inline-flex items-center gap-2 px-3 py-1 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors text-sm font-semibold"
                           >
-                            <AlertCircle className="w-4 h-4" />
-                            Beri SP
+                            <MessageSquare className="w-4 h-4" />
+                            Detail
                           </button>
                         </td>
                       </tr>
@@ -613,141 +606,6 @@ const StatusBimbinganPage: React.FC = () => {
               />
             </div>
           )}
-        </>
-      )}
-
-      {/* SP Modal */}
-      {isSpModalOpen && selectedStudentForSp && (
-        <>
-          <div 
-            className="fixed inset-0 z-40 bg-black/20 backdrop-blur-sm"
-            onClick={() => setIsSpModalOpen(false)}
-            aria-hidden="true" 
-          />
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-              {/* Header */}
-              <div className="bg-gradient-to-r from-red-500 to-orange-500 px-8 py-6 text-white flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <AlertCircle className="w-8 h-8" />
-                  <div>
-                    <h2 className="text-2xl font-bold">Beri Surat Peringatan (SP)</h2>
-                    <p className="text-orange-100 text-sm">Untuk {selectedStudentForSp.name}</p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => setIsSpModalOpen(false)}
-                  className="text-white/80 hover:text-white transition-colors"
-                >
-                  <X className="w-6 h-6" />
-                </button>
-              </div>
-
-              {/* Content */}
-              <div className="p-8 space-y-6">
-                {/* Student Info */}
-                <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <p className="text-xs text-gray-600 mb-1">Nama Siswa</p>
-                      <p className="font-semibold text-gray-900">{selectedStudentForSp.name}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-gray-600 mb-1">NISN</p>
-                      <p className="font-semibold text-gray-900">{selectedStudentForSp.nisn}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-gray-600 mb-1">Kelas</p>
-                      <p className="font-semibold text-gray-900">{selectedStudentForSp.className}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-gray-600 mb-1">Konselor</p>
-                      <p className="font-semibold text-gray-900">{selectedStudentForSp.counselor}</p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* SP History */}
-                {selectedStudentForSp.spHistory.length > 0 && (
-                  <div>
-                    <h4 className="font-bold text-gray-900 mb-3">Riwayat SP</h4>
-                    <div className="space-y-2">
-                      {selectedStudentForSp.spHistory.map((sp) => (
-                        <div key={sp.id} className="bg-orange-50 border border-orange-200 rounded-lg p-3">
-                          <div className="flex items-start justify-between mb-2">
-                            <span className="font-semibold text-orange-700">{sp.level}</span>
-                            <span className="text-xs text-orange-600">{sp.date}</span>
-                          </div>
-                          <p className="text-sm text-orange-700">{sp.reason}</p>
-                          <p className="text-xs text-orange-600 mt-1">{sp.description}</p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Form */}
-                <div className="space-y-4">
-                  <h4 className="font-bold text-gray-900">Form Surat Peringatan</h4>
-
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">Tingkat SP</label>
-                    <select
-                      value={spForm.level}
-                      onChange={(e) => setSpForm({ ...spForm, level: e.target.value as 'SP1' | 'SP2' | 'SP3' })}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 text-gray-900"
-                    >
-                      <option value="SP1">SP 1 (Peringatan Pertama)</option>
-                      <option value="SP2">SP 2 (Peringatan Kedua)</option>
-                      <option value="SP3">SP 3 (Peringatan Ketiga)</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">Alasan SP</label>
-                    <input
-                      type="text"
-                      value={spForm.reason}
-                      onChange={(e) => setSpForm({ ...spForm, reason: e.target.value })}
-                      placeholder="Masukkan alasan pemberian SP"
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 text-gray-900 placeholder-gray-400"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">Deskripsi / Keterangan</label>
-                    <textarea
-                      value={spForm.description}
-                      onChange={(e) => setSpForm({ ...spForm, description: e.target.value })}
-                      placeholder="Jelaskan detail pelanggaran dan tindakan yang harus dilakukan..."
-                      rows={4}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 text-gray-900 placeholder-gray-400"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Footer */}
-              <div className="bg-gray-50 border-t border-gray-200 px-8 py-4 flex items-center justify-end gap-3">
-                <button
-                  onClick={() => setIsSpModalOpen(false)}
-                  className="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 font-semibold hover:bg-gray-100 transition-colors"
-                >
-                  Batal
-                </button>
-                <button
-                  onClick={() => {
-                    alert(`SP ${spForm.level} berhasil diberikan kepada ${selectedStudentForSp.name}\nAlasan: ${spForm.reason}`)
-                    setIsSpModalOpen(false)
-                    setSpForm({ level: 'SP1', reason: '', description: '' })
-                  }}
-                  className="px-6 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-semibold transition-colors"
-                >
-                  Beri SP
-                </button>
-              </div>
-            </div>
-          </div>
         </>
       )}
     </div>

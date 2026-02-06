@@ -302,3 +302,21 @@ export interface LaporanBkFormData {
   statusPerkembanganPesertaDidik?: string;
   keteranganKetersedianDokumen?: string;
 }
+
+// Profile Edit Page Interfaces
+export interface ProfileEditFormData {
+  email: string
+  phone_number: string
+  currentPassword: string
+  newPassword: string
+  confirmPassword: string
+}
+
+export interface ProfileEditFormErrors {
+  email?: string
+  phone_number?: string
+  currentPassword?: string
+  newPassword?: string
+  confirmPassword?: string
+  general?: string
+}

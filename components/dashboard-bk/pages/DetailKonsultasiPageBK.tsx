@@ -111,7 +111,7 @@ const DetailKonsultasiPageBK: React.FC<DetailKonsultasiPageBKProps> = ({ onBack 
 
         const category = categories.find(c => c.id === data.question.categoryId)
         const authorName = data.question.author?.username || data.question.author?.name || 'Anonymous'
-        const displayName = getDisplayAuthorName(authorName, data.question.authorId, data.question.author?.role, user ?? undefined, false)
+        const displayName = getDisplayAuthorName(authorName, data.question.authorId, data.question.author?.role, user ? { id: user.id as number, role: user.role } : undefined, String(user?.id) === String(data.question.authorId))
         setQuestion({
           id: data.question.id,
           title: data.question.title,
@@ -119,7 +119,7 @@ const DetailKonsultasiPageBK: React.FC<DetailKonsultasiPageBKProps> = ({ onBack 
           author: displayName,
           authorClass: data.question.author?.studentCard?.class?.name || 'N/A',
           authorId: data.question.authorId,
-          avatar: (authorName || 'A').substring(0, 2).toUpperCase(),
+          avatar: displayName === 'Anonymous' ? 'A' : (authorName || 'A').substring(0, 2).toUpperCase(),
           timestamp: formatDate(data.question.createdAt),
           content: data.question.content,
           views: data.question.views,
@@ -130,13 +130,13 @@ const DetailKonsultasiPageBK: React.FC<DetailKonsultasiPageBKProps> = ({ onBack 
 
         const transformedAnswers = data.answers.map((ans: any) => {
           const answerAuthorName = ans.author?.username || ans.author?.name || 'Anonymous'
-          const displayAnswerName = getDisplayAuthorName(answerAuthorName, ans.authorId, ans.author?.role, user ?? undefined, false)
+          const displayAnswerName = getDisplayAuthorName(answerAuthorName, ans.authorId, ans.author?.role, user ? { id: user.id as number, role: user.role } : undefined, String(user?.id) === String(ans.authorId))
           return {
             id: ans.id,
             authorId: ans.authorId,
             authorName: displayAnswerName,
             authorRole: ans.author?.role || 'siswa',
-            avatar: (answerAuthorName || 'A').substring(0, 2).toUpperCase(),
+            avatar: displayAnswerName === 'Anonymous' ? 'A' : (answerAuthorName || 'A').substring(0, 2).toUpperCase(),
             timestamp: formatDate(ans.createdAt),
             content: ans.content,
             likes: ans.votes || 0,
@@ -514,7 +514,7 @@ const DetailKonsultasiPageBK: React.FC<DetailKonsultasiPageBKProps> = ({ onBack 
             <div key={answer.id} className="bg-white rounded-lg border border-gray-200 p-6">
               {/* Author Info */}
               <div className="flex items-start justify-between mb-4">
-                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-3">
                   <div className="w-9 h-9 rounded-full bg-gradient-to-br from-green-400 to-green-600 flex items-center justify-center text-white font-semibold text-sm">
                     {answer.avatar}
                   </div>

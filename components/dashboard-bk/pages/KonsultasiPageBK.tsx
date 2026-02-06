@@ -26,6 +26,8 @@ import AskQuestionModalBk from '../modals/AskQuestionModalBK'
 import Link from 'next/link'
 import { apiRequest } from '@/lib/api'
 import { generateSlug } from '@/lib/slugify'
+import { getDisplayStudentName } from '@/lib/KonsultasiAPI'
+import { useAuth } from '@/hooks/useAuth'
 
 interface Category {
   id: number
@@ -49,6 +51,8 @@ interface PostCardProps {
   isVerified?: boolean
   categoryColor?: string
   onClick?: () => void
+  currentUserId?: number
+  currentUserRole?: string
 }
 
 const PostCard: React.FC<PostCardProps> = ({
@@ -65,7 +69,9 @@ const PostCard: React.FC<PostCardProps> = ({
   bookmarks,
   isVerified,
   categoryColor = 'bg-blue-50',
-  onClick
+  onClick,
+  currentUserId,
+  currentUserRole
 }) => {
   const [isUpvoted, setIsUpvoted] = useState(false);
   const [voteCount, setVoteCount] = useState(votes);
@@ -153,6 +159,7 @@ const PostCard: React.FC<PostCardProps> = ({
 
 const KonsultasiPageBK: React.FC<{ setActivePage?: (page: string) => void }> = ({ setActivePage }) => {
   const router = useRouter()
+  const { user } = useAuth()
   const [sortBy, setSortBy] = useState<'trending' | 'newest' | 'unanswered'>('trending')
   const [filterCategory, setFilterCategory] = useState<string>('all')
   const [searchQuery, setSearchQuery] = useState('')
@@ -206,12 +213,16 @@ const KonsultasiPageBK: React.FC<{ setActivePage?: (page: string) => void }> = (
 
         const transformedPosts = data.data.map((item: any) => {
           const category = categories.find(c => c.id === item.categoryId);
+          const authorName = item.author?.username || item.author?.name || 'Anonymous';
+          const isCurrentUser = String(user?.id) === String(item.author?.id);
+          const displayName = isCurrentUser ? 'Anda' : getDisplayStudentName(authorName, item.author?.role, user?.role);
+          const avatarDisplay = displayName === 'Anonymous' ? 'A' : (authorName || 'A').substring(0, 2).toUpperCase();
           return {
             id: item.id,
             title: item.title,
             category: category?.name || 'Umum',
-            author: item.author?.name || 'Anonymous',
-            avatar: (item.author?.name || 'A').substring(0, 2).toUpperCase(),
+            author: displayName,
+            avatar: avatarDisplay,
             timestamp: formatDate(item.createdAt),
             content: item.content,
             votes: item.votes || 0,
@@ -359,7 +370,14 @@ const KonsultasiPageBK: React.FC<{ setActivePage?: (page: string) => void }> = (
               ) : sortedPosts.length > 0 ? (
                 sortedPosts.map(post => (
                   <Link key={post.id} href={`/home/bk/konsultasi/${generateSlug(post.title)}`}>
-                    <PostCard {...post} />
+                    <PostCard
+                      {...post}
+                      currentUserId={user?.id}
+                      currentUserRole={user?.role}
+                      onClick={() => {
+                        // Navigate handled by Link
+                      }}
+                    />
                   </Link>
                 ))
               ) : (
