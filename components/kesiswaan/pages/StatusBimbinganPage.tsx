@@ -10,6 +10,7 @@ import {
   getCriticalReferrals,
   syncGuidanceFromWalas,
 } from '@/lib/bimbinganAPI'
+import { apiRequest } from '@/lib/api'
 
 interface Referral {
   id: string
@@ -25,7 +26,7 @@ interface Referral {
   referral_date: string
   assigned_date?: string
   completed_date?: string
-  is_urgent: boolean
+  is_urgent?: boolean
   notes?: string
 }
 
@@ -142,7 +143,7 @@ interface SPRecord {
   description: string
 }
 
-const SessionStatusBadge: React.FC<{ status: string }> = ({ status }) => {
+const SessionStatusBadge: React.FC<{ status: string }> = ({ status }: { status: string }) => {
   const statusConfig: Record<string, { bg: string; text: string; icon: React.ReactNode }> = {
     'Selesai': { bg: 'bg-green-50', text: 'text-green-700', icon: <CheckCircle className="w-4 h-4" /> },
     'Terjadwal': { bg: 'bg-blue-50', text: 'text-blue-700', icon: <BookOpen className="w-4 h-4" /> },
@@ -159,7 +160,7 @@ const SessionStatusBadge: React.FC<{ status: string }> = ({ status }) => {
   )
 }
 
-const GuidanceStatusBadge: React.FC<{ status: string }> = ({ status }) => {
+const GuidanceStatusBadge: React.FC<{ status: string }> = ({ status }: { status: string }) => {
   const statusConfig: Record<string, { bg: string; text: string; icon: React.ReactNode }> = {
     'Normal': { bg: 'bg-green-50', text: 'text-green-700', icon: <CheckCircle className="w-4 h-4" /> },
     'Peringatan': { bg: 'bg-yellow-50', text: 'text-yellow-700', icon: <AlertCircle className="w-4 h-4" /> },
@@ -187,7 +188,7 @@ const SessionCard: React.FC<
   status,
   counselor_name,
   onOpen,
-}) => {
+}: BimbinganSesi & { onOpen: (session: CounselingSession) => void }) => {
   const statusMap: Record<string, 'Selesai' | 'Terjadwal' | 'Dalam Proses'> = {
     completed: 'Selesai',
     scheduled: 'Terjadwal',
@@ -265,6 +266,11 @@ const StatCard: React.FC<{ icon: React.ReactNode; label: string; value: number |
   label,
   value,
   color,
+}: {
+  icon: React.ReactNode
+  label: string
+  value: number | string
+  color: string
 }) => (
   <div className={`${color} rounded-xl p-6 text-white`}>
     <div className="flex items-center justify-between">
@@ -342,7 +348,7 @@ const StatusBimbinganPage: React.FC = () => {
   const loadReferrals = async () => {
     try {
       const response = await getGuidanceReferrals({ page: 1, limit: 100 })
-      setReferrals(response.data || [])
+      setReferrals((response.data as Referral[]) || [])
     } catch (error) {
       console.error('Gagal memuat data referral', error)
     }
@@ -350,8 +356,21 @@ const StatusBimbinganPage: React.FC = () => {
 
   const loadSessions = async () => {
     try {
-      const response = await getGuidanceSessions({ page: 1, limit: 100 })
-      setSessions(response.data || [])
+      // Load sessions for each referral
+      if (referrals.length > 0) {
+        const allSessions: BimbinganSesi[] = []
+        for (const referral of referrals) {
+          try {
+            const response = await getGuidanceSessions(referral.id)
+            if (response.data && Array.isArray(response.data)) {
+              allSessions.push(...(response.data as BimbinganSesi[]))
+            }
+          } catch (err) {
+            console.error(`Gagal memuat sesi untuk referral ${referral.id}`, err)
+          }
+        }
+        setSessions(allSessions)
+      }
     } catch (error) {
       console.error('Gagal memuat data sesi', error)
     }
@@ -361,10 +380,11 @@ const StatusBimbinganPage: React.FC = () => {
     try {
       setSyncing(true)
       setError(null)
-      await syncGuidanceFromWalas({
-        startDate: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
-        endDate: new Date(),
-      })
+      const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1)
+      const monthEnd = new Date()
+      const formatDate = (date: Date) => date.toISOString().split('T')[0]
+      
+      await syncGuidanceFromWalas(formatDate(monthStart), formatDate(monthEnd))
       // Refresh data after sync
       await loadAllData()
     } catch (err) {
@@ -377,11 +397,9 @@ const StatusBimbinganPage: React.FC = () => {
 
   const loadTargets = async () => {
     try {
-      const response = await api.get('/v1/kesiswaan/bimbingan/target', {
-        params: { limit: 100 },
-      })
-      if (response.data.success) {
-        setTargets(response.data.data)
+      const response = await apiRequest('/v1/kesiswaan/bimbingan/target?limit=100')
+      if (response.success) {
+        setTargets(response.data)
       }
     } catch (error) {
       console.error('Gagal memuat target', error)
@@ -390,11 +408,9 @@ const StatusBimbinganPage: React.FC = () => {
 
   const loadStatuses = async () => {
     try {
-      const response = await api.get('/v1/kesiswaan/bimbingan/statuses', {
-        params: { limit: 100 },
-      })
-      if (response.data.success) {
-        setStatuses(response.data.data)
+      const response = await apiRequest('/v1/kesiswaan/bimbingan/statuses?limit=100')
+      if (response.success) {
+        setStatuses(response.data)
       }
     } catch (error) {
       console.error('Gagal memuat status', error)
@@ -405,11 +421,11 @@ const StatusBimbinganPage: React.FC = () => {
   const handleCreateReferral = async (e: React.FormEvent) => {
     e.preventDefault()
     try {
-      const response = await api.post('/v1/kesiswaan/bimbingan/referrals', {
+      const response = await apiRequest('/v1/kesiswaan/bimbingan/referrals', 'POST', {
         ...formData,
         tahun: new Date().getFullYear(),
       })
-      if (response.data.success) {
+      if (response.success) {
         alert('Referral berhasil dibuat')
         setShowReferralForm(false)
         setFormData({ student_id: '', student_name: '', referral_reason: '', risk_level: 'yellow' })
@@ -424,13 +440,13 @@ const StatusBimbinganPage: React.FC = () => {
     e.preventDefault()
     if (!selectedReferral) return
     try {
-      const response = await api.post('/v1/kesiswaan/bimbingan/sesi', {
+      const response = await apiRequest('/v1/kesiswaan/bimbingan/sesi', 'POST', {
         ...sessionFormData,
         referral_id: selectedReferral.id,
         student_id: selectedReferral.student_id,
         student_name: selectedReferral.student_name,
       })
-      if (response.data.success) {
+      if (response.success) {
         alert('Sesi berhasil dijadwalkan')
         setShowSessionForm(false)
         setSessionFormData({ tanggal_sesi: '', jam_sesi: '', topik_pembahasan: '' })
@@ -444,11 +460,11 @@ const StatusBimbinganPage: React.FC = () => {
   const handleCompleteSession = async (sesiId: string) => {
     if (!confirm('Tandai sesi ini sebagai selesai?')) return
     try {
-      const response = await api.patch(`/v1/kesiswaan/bimbingan/sesi/${sesiId}/complete`, {
+      const response = await apiRequest(`/v1/kesiswaan/bimbingan/sesi/${sesiId}/complete`, 'PATCH', {
         siswa_hadir: true,
         hasil_akhir: 'Sesi selesai',
       })
-      if (response.data.success) {
+      if (response.success) {
         alert('Sesi berhasil ditandai selesai')
         await loadSessions()
       }
@@ -459,7 +475,7 @@ const StatusBimbinganPage: React.FC = () => {
 
   // ===== HELPERS =====
   const calculateProgress = () => {
-    const completed = sessions.filter((s) => s.status === 'completed').length
+    const completed = sessions.filter((s: BimbinganSesi) => s.status === 'completed').length
     const total = sessions.length || 1
     return Math.round((completed / total) * 100)
   }
@@ -484,9 +500,9 @@ const StatusBimbinganPage: React.FC = () => {
   }
 
   const filteredStudents = useMemo(() => {
-    let filtered: any[] = statuses.map((status) => {
-      const lastRef = referrals.find((r) => r.student_id === status.student_id)
-      const lastSess = sessions.find((s) => s.student_id === status.student_id)
+    let filtered: any[] = statuses.map((status: BimbinganStatus) => {
+      const lastRef = referrals.find((r: Referral) => r.student_id === status.student_id)
+      const lastSess = sessions.find((s: BimbinganSesi) => s.student_id === status.student_id)
       return {
         id: status.student_id,
         name: lastRef?.student_name || `Student ${status.student_id}`,
@@ -518,12 +534,12 @@ const StatusBimbinganPage: React.FC = () => {
     return filtered.sort((a, b) => a.name.localeCompare(b.name))
   }, [statuses, referrals, sessions, selectedName, selectedClass, selectedStatus])
 
-  const uniqueClasses = Array.from(new Set(filteredStudents.map((s) => s.className))).sort()
+  const uniqueClasses = Array.from(new Set(filteredStudents.map((s: any) => s.className))).sort()
 
   const progressData: GuidanceProgress = {
     totalSessions: sessions.length,
-    completedSessions: sessions.filter((s) => s.status === 'completed').length,
-    upcomingSessions: sessions.filter((s) => s.status === 'scheduled').length,
+    completedSessions: sessions.filter((s: BimbinganSesi) => s.status === 'completed').length,
+    upcomingSessions: sessions.filter((s: BimbinganSesi) => s.status === 'scheduled').length,
     progressPercentage: calculateProgress(),
     currentFocus: 'Manajemen Stress dan Waktu',
   }
@@ -1310,6 +1326,7 @@ const StatusBimbinganPage: React.FC = () => {
           </div>
         </section>
       </div>
+      )}
 
       {/* Session Detail Modal */}
       {isModalOpen && selectedSession && (

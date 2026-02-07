@@ -344,8 +344,6 @@ const KeterlambatanPage: React.FC = () => {
             setIsModalOpen(false)
             setSelectedTardiness(null)
           }}
-          studentName={selectedTardiness.studentName}
-          className={selectedTardiness.className}
           date={selectedTardiness.date}
           time={selectedTardiness.time}
           minutesLate={selectedTardiness.minutesLate}

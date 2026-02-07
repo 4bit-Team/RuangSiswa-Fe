@@ -15,7 +15,7 @@ interface Student {
   spHistory?: SPRecord[]
 }
 
-interface ViolationRecord {
+interface ViolationRecordLocal {
   id: number
   studentId: number
   studentName: string
@@ -27,6 +27,29 @@ interface ViolationRecord {
   consequence: string
   witness?: string
   notes?: string
+}
+
+// Helper to map API response to local format
+const mapViolationRecord = (record: any): ViolationRecordLocal => ({
+  id: typeof record.id === 'string' ? parseInt(record.id) : record.id,
+  studentId: record.studentId,
+  studentName: record.studentName,
+  nisn: record.nisn || '',
+  className: record.className,
+  date: record.date,
+  type: mapViolationType(record.severity || record.type),
+  description: record.description,
+  consequence: record.consequence || `${record.severity || 1} point violation`,
+  witness: record.witness,
+  notes: record.notes || record.catatan_petugas,
+})
+
+// Helper to map severity to violation type
+const mapViolationType = (severity: number | string): 'Pelanggaran Ringan' | 'Pelanggaran Sedang' | 'Pelanggaran Berat' => {
+  const level = typeof severity === 'string' ? parseInt(severity) : severity
+  if (level >= 4) return 'Pelanggaran Berat'
+  if (level >= 2) return 'Pelanggaran Sedang'
+  return 'Pelanggaran Ringan'
 }
 
 interface ViolationStats {
@@ -44,7 +67,7 @@ interface SPRecord {
   description: string
 }
 
-const ViolationTypeBadge: React.FC<{ type: string }> = ({ type }) => {
+const ViolationTypeBadge: React.FC<{ type: string }> = ({ type }: { type: string }) => {
   const typeConfig: Record<string, { bg: string; text: string; icon: string }> = {
     'Pelanggaran Ringan': { bg: 'bg-yellow-50', text: 'text-yellow-700', icon: '⚠️' },
     'Pelanggaran Sedang': { bg: 'bg-orange-50', text: 'text-orange-700', icon: '⚠️⚠️' },
@@ -65,6 +88,11 @@ const StatCard: React.FC<{ icon: React.ReactNode; label: string; value: number; 
   label,
   value,
   color,
+}: {
+  icon: React.ReactNode
+  label: string
+  value: number
+  color: string
 }) => (
   <div className={`${color} rounded-xl p-6 text-white`}>
     <div className="flex items-center justify-between">
@@ -84,11 +112,11 @@ const PelanggaranPage: React.FC = () => {
   const [selectedType, setSelectedType] = useState<string>('all')
   const [isFormModalOpen, setIsFormModalOpen] = useState(false)
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false)
-  const [selectedViolation, setSelectedViolation] = useState<ViolationRecord | undefined>()
+  const [selectedViolation, setSelectedViolation] = useState<ViolationRecordLocal | undefined>()
   const [isSpModalOpen, setIsSpModalOpen] = useState(false)
 
   // API State
-  const [violations, setViolations] = useState<ViolationRecord[]>([])
+  const [violations, setViolations] = useState<ViolationRecordLocal[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [syncing, setSyncing] = useState(false)
@@ -100,7 +128,7 @@ const PelanggaranPage: React.FC = () => {
         setLoading(true)
         setError(null)
         const response = await getViolationRecords({ page: 1, limit: 1000 })
-        setViolations(response.data || [])
+        setViolations((response.data || []).map(mapViolationRecord))
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Gagal memuat data pelanggaran')
         console.error('Error fetching violations:', err)
@@ -116,13 +144,15 @@ const PelanggaranPage: React.FC = () => {
     try {
       setSyncing(true)
       setError(null)
-      await syncViolationsFromWalas({
-        startDate: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
-        endDate: new Date(),
-      })
+      const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1)
+      const monthEnd = new Date()
+      const formatDate = (date: Date) => date.toISOString().split('T')[0]
+      
+      await syncViolationsFromWalas(formatDate(monthStart), formatDate(monthEnd))
+      
       // Refresh data
       const response = await getViolationRecords({ page: 1, limit: 1000 })
-      setViolations(response.data || [])
+      setViolations((response.data || []).map(mapViolationRecord))
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Gagal sinkronisasi pelanggaran')
       console.error('Error syncing violations:', err)
@@ -132,29 +162,53 @@ const PelanggaranPage: React.FC = () => {
   }
 
   // Extract unique classes and students from violations data
-  const classes = useMemo(() => Array.from(new Set(violations.map(v => v.className))), [violations])
+  // Derive students from violations data
+  const allStudents = useMemo(() => {
+    const uniqueMap = new Map()
+    violations.forEach((v: ViolationRecordLocal) => {
+      if (!uniqueMap.has(v.studentId)) {
+        uniqueMap.set(v.studentId, { id: v.studentId, name: v.studentName, nisn: v.nisn, className: v.className })
+      }
+    })
+    return Array.from(uniqueMap.values())
+  }, [violations])
+
+  const classes = useMemo(() => Array.from(new Set(violations.map((v: ViolationRecordLocal) => v.className))), [violations])
   const violationTypes = ['Pelanggaran Ringan', 'Pelanggaran Sedang', 'Pelanggaran Berat']
+
+  // Calculate statistics
+  const stats: ViolationStats = useMemo(() => ({
+    totalViolations: violations.length,
+    lightViolations: violations.filter((v: ViolationRecordLocal) => v.type === 'Pelanggaran Ringan').length,
+    mediumViolations: violations.filter((v: ViolationRecordLocal) => v.type === 'Pelanggaran Sedang').length,
+    severeViolations: violations.filter((v: ViolationRecordLocal) => v.type === 'Pelanggaran Berat').length,
+  }), [violations])
+
+  // Alias for compatibility
+  const students = allStudents
+
+  // Filter violations based on selected criteria
+  const filteredViolations = useMemo(() => {
+    return violations.filter((v: ViolationRecordLocal) => {
+      const classMatch = selectedClass === 'all' || v.className === selectedClass
+      const studentMatch = selectedStudent === 'all' || v.studentId.toString() === selectedStudent
+      const typeMatch = selectedType === 'all' || v.type === selectedType
+      return classMatch && studentMatch && typeMatch
+    })
+  }, [violations, selectedClass, selectedStudent, selectedType])
 
   const filteredStudents = useMemo(() => {
     if (selectedClass === 'all') return []
-    const uniqueMap = new Map()
-    violations
-      .filter(v => v.className === selectedClass)
-      .forEach(v => {
-        if (!uniqueMap.has(v.studentId)) {
-          uniqueMap.set(v.studentId, { id: v.studentId, name: v.studentName, nisn: v.nisn, className: v.className })
-        }
-      })
-    return Array.from(uniqueMap.values())
-  }, [violations, selectedClass])
+    return allStudents.filter((s: any) => s.className === selectedClass)
+  }, [allStudents, selectedClass])
 
 
   const handleAddViolation = (formData: any) => {
-    const selectedStudentData = students.find(s => s.id.toString() === formData.studentId)
+    const selectedStudentData = allStudents.find((s: any) => s.id.toString() === formData.studentId)
     if (!selectedStudentData) return
 
-    const violation: ViolationRecord = {
-      id: Math.max(...violations.map(v => v.id), 0) + 1,
+    const violation: ViolationRecordLocal = {
+      id: Math.max(...violations.map((v: ViolationRecordLocal) => v.id), 0) + 1,
       studentId: parseInt(formData.studentId),
       studentName: selectedStudentData.name,
       nisn: selectedStudentData.nisn,
@@ -172,23 +226,23 @@ const PelanggaranPage: React.FC = () => {
     alert('Pelanggaran berhasil dicatat')
   }
 
-  const handleViewViolation = (violation: ViolationRecord) => {
+  const handleViewViolation = (violation: ViolationRecordLocal) => {
     setSelectedViolation(violation)
     setIsDetailModalOpen(true)
   }
 
   const handleDeleteViolation = (id: number) => {
     if (window.confirm('Hapus catatan pelanggaran ini?')) {
-      setViolations(violations.filter(v => v.id !== id))
+      setViolations(violations.filter((v: ViolationRecordLocal) => v.id !== id))
     }
   }
 
   const handleAddSp = (formData: any) => {
-    const selectedStudentData = students.find(s => s.id.toString() === formData.studentId)
+    const selectedStudentData = allStudents.find((s: any) => s.id.toString() === formData.studentId)
     if (!selectedStudentData) return
 
     const sp: SPRecord = {
-      id: Math.max(...(selectedStudentData.spHistory?.map(s => s.id) || [0]), 0) + 1,
+      id: Math.max(...(selectedStudentData.spHistory?.map((s: any) => s.id) || [0]), 0) + 1,
       date: new Date().toISOString().split('T')[0],
       reason: formData.reason,
       level: formData.level,
@@ -196,7 +250,7 @@ const PelanggaranPage: React.FC = () => {
     }
 
     // Update student's SP history
-    const updatedStudents = students.map(s => {
+    const updatedStudents = allStudents.map((s: any) => {
       if (s.id.toString() === formData.studentId) {
         return {
           ...s,
@@ -212,9 +266,9 @@ const PelanggaranPage: React.FC = () => {
 
   // Get filtered students for dropdown
   const filteredStudentsDropdown = useMemo(() => {
-    if (selectedClass === 'all') return students
-    return students.filter(s => s.className === selectedClass)
-  }, [selectedClass])
+    if (selectedClass === 'all') return allStudents
+    return allStudents.filter((s: any) => s.className === selectedClass)
+  }, [selectedClass, allStudents])
 
   return (
     <div className="space-y-6">
@@ -405,7 +459,7 @@ const PelanggaranPage: React.FC = () => {
                 </thead>
                 <tbody className="divide-y divide-gray-200">
                   {filteredViolations.length > 0 ? (
-                    filteredViolations.map((violation) => (
+                    filteredViolations.map((violation: ViolationRecordLocal) => (
                       <tr key={violation.id} className="hover:bg-gray-50 transition-colors">
                         <td className="px-6 py-4">
                           <div>
@@ -453,26 +507,27 @@ const PelanggaranPage: React.FC = () => {
           </div>
         </section>
       </div>
+      )}
 
-    {/* Form Modal */}
-        {isFormModalOpen && (
-          <>
-            <div className="fixed inset-0 z-40 bg-black/20 backdrop-blur-sm" aria-hidden="true" />
-            <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      {/* Form Modal */}
+      {isFormModalOpen && (
+        <>
+          <div className="fixed inset-0 z-40 bg-black/20 backdrop-blur-sm" aria-hidden="true" />
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <ViolationFormModal
               isOpen={isFormModalOpen}
               onClose={() => setIsFormModalOpen(false)}
               onSubmit={handleAddViolation}
               students={students}
             />
-            </div>
-          </>
-        )}
+          </div>
+        </>
+      )}
 
-    {/* Detail Modal */}
+      {/* Detail Modal */}
       {isDetailModalOpen && selectedViolation && (
         <>
-        <div className="fixed inset-0 z-40 bg-black/20 backdrop-blur-sm" aria-hidden="true" />
+          <div className="fixed inset-0 z-40 bg-black/20 backdrop-blur-sm" aria-hidden="true" />
           {selectedViolation && (
             <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
               <ViolationDetailModal
@@ -494,45 +549,19 @@ const PelanggaranPage: React.FC = () => {
         </>
       )}
 
-          {/* Violation Form Modal */}
-          <ViolationFormModal
-            isOpen={isFormModalOpen}
-            onClose={() => setIsFormModalOpen(false)}
-            onSubmit={handleAddViolation}
-            students={filteredStudents}
-          />
-
-          {/* Violation Detail Modal */}
-          <>
-            <div className="fixed inset-0 z-40 bg-black/20 backdrop-blur-sm" aria-hidden="true" />
-            {selectedViolation && (
-              <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-                <ViolationDetailModal
-                  isOpen={isDetailModalOpen}
-                  onClose={() => {
-                    setIsDetailModalOpen(false)
-                    setSelectedViolation(undefined)
-                  }}
-                  violationType={selectedViolation.type}
-                  description={selectedViolation.description}
-                  consequence={selectedViolation.consequence}
-                  date={selectedViolation.date}
-                  studentName={selectedViolation.studentName}
-                  witness={selectedViolation.witness}
-                  notes={selectedViolation.notes}
-                />
-              </div>
-            )}
-          </>
-
-          {/* SP Modal */}
-          <SpFormModal
-            isOpen={isSpModalOpen}
-            onClose={() => setIsSpModalOpen(false)}
-            onSubmit={handleAddSp}
-            students={filteredStudents}
-          />
-        </div>
+      {/* SP Modal */}
+      {isSpModalOpen && (
+        <>
+          <div className="fixed inset-0 z-40 bg-black/20 backdrop-blur-sm" aria-hidden="true" />
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <SpFormModal
+              isOpen={isSpModalOpen}
+              onClose={() => setIsSpModalOpen(false)}
+              onSubmit={handleAddSp}
+              students={filteredStudents}
+            />
+          </div>
+        </>
       )}
     </div>
   )
