@@ -206,9 +206,9 @@ const Features = () => {
         {/* Tab Navigation */}
         <div className="flex justify-center gap-4 mb-20 flex-wrap animate-slide-up" style={{ animationDelay: '0.2s' }}>
           {[
-            { id: 'siswa', label: '✨ Portal Siswa', color: 'from-emerald-400 to-teal-600' },
-            { id: 'bk', label: '🧑‍💼 Dashboard BK', color: 'from-orange-400 to-red-600' },
-            { id: 'kesiswaan', label: '📊 Dashboard Kesiswaan', color: 'from-purple-400 to-pink-600' }
+            { id: 'siswa', label: 'Portal Siswa', color: 'from-emerald-400 to-teal-600' },
+            { id: 'bk', label: 'Dashboard BK', color: 'from-orange-400 to-red-600' },
+            { id: 'kesiswaan', label: 'Dashboard Kesiswaan', color: 'from-purple-400 to-pink-600' }
           ].map((tab) => (
             <button
               key={tab.id}
@@ -265,15 +265,14 @@ const Features = () => {
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-slide-up" style={{ animationDelay: '0.5s' }}>
             {[
-              { icon: "📋", title: "Kehadiran Siswa", items: ["Portal: Input & tracking", "BK: Monitoring behavior", "Kesiswaan: Rekap & laporan"] },
-              { icon: "⏰", title: "Keterlambatan", items: ["Portal: Notifikasi real-time", "BK: Tren & pembinaan", "Kesiswaan: SP otomatis"] },
-              { icon: "⚠️", title: "Siswa Bermasalah", items: ["Portal: Status monitoring", "BK: Detail & konseling", "Kesiswaan: Tindak lanjut"] },
-              { icon: "💬", title: "Layanan Konseling", items: ["Portal: Chat & reservasi", "BK: Dokumentasi case", "Kesiswaan: Referensi"] },
-              { icon: "📰", title: "Berita & Pengumuman", items: ["Portal: Interactive content", "Kesiswaan: Publishing", "BK: Educational reference"] }
+              { title: "Kehadiran Siswa", items: ["Portal: Input & tracking", "BK: Monitoring behavior", "Kesiswaan: Rekap & laporan"] },
+              { title: "Keterlambatan", items: ["Portal: Notifikasi real-time", "BK: Tren & pembinaan", "Kesiswaan: SP otomatis"] },
+              { title: "Siswa Bermasalah", items: ["Portal: Status monitoring", "BK: Detail & konseling", "Kesiswaan: Tindak lanjut"] },
+              { title: "Layanan Konseling", items: ["Portal: Chat & reservasi", "BK: Dokumentasi case", "Kesiswaan: Referensi"] },
+              { title: "Berita & Pengumuman", items: ["Portal: Interactive content", "Kesiswaan: Publishing", "BK: Educational reference"] }
             ].map((item, index) => (
               <div key={index} className="group bg-gradient-to-br from-white/80 to-blue-50/60 backdrop-blur-md rounded-2xl p-8 border-2 border-blue-200/50 hover:border-blue-400 hover:shadow-xl transition-all duration-300 hover:-translate-y-2 cursor-default">
                 <div className="flex items-start gap-4 mb-4">
-                  <span className="text-5xl group-hover:scale-110 transition-transform duration-300">{item.icon}</span>
                   <h4 className="font-bold text-gray-900 text-lg group-hover:text-blue-600 transition-colors">{item.title}</h4>
                 </div>
                 <div className="space-y-2">

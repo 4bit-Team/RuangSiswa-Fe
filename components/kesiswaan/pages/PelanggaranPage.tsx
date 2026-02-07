@@ -1,10 +1,11 @@
 'use client'
 
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useEffect } from 'react'
 import { AlertTriangle, Plus, Trash2, Filter, Eye, AlertCircle } from 'lucide-react'
 import ViolationDetailModal from '../modals/ViolationDetailModal'
 import ViolationFormModal from '../modals/ViolationFormModal'
 import SpFormModal from '../modals/SpFormModal'
+import { getViolationRecords, reportViolation, getSPLetters, syncViolationsFromWalas } from '@/lib/violationsAPI'
 
 interface Student {
   id: number
@@ -77,6 +78,7 @@ const StatCard: React.FC<{ icon: React.ReactNode; label: string; value: number; 
 )
 
 const PelanggaranPage: React.FC = () => {
+  // State
   const [selectedClass, setSelectedClass] = useState<string>('all')
   const [selectedStudent, setSelectedStudent] = useState<string>('all')
   const [selectedType, setSelectedType] = useState<string>('all')
@@ -84,118 +86,68 @@ const PelanggaranPage: React.FC = () => {
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false)
   const [selectedViolation, setSelectedViolation] = useState<ViolationRecord | undefined>()
   const [isSpModalOpen, setIsSpModalOpen] = useState(false)
-  const [violations, setViolations] = useState<ViolationRecord[]>([
-    {
-      id: 1,
-      studentId: 1,
-      studentName: 'Ahmad Ridho Pratama',
-      nisn: '0031234567',
-      className: 'XI-A',
-      date: '2025-01-30',
-      type: 'Pelanggaran Ringan',
-      description: 'Tidak mengerjakan PR',
-      consequence: 'Teguran lisan',
-      witness: 'Bapak Suryanto',
-      notes: 'Siswa lupa membawa buku PR',
-    },
-    {
-      id: 2,
-      studentId: 2,
-      studentName: 'Siti Nurhaliza',
-      nisn: '0031234568',
-      className: 'XI-A',
-      date: '2025-01-28',
-      type: 'Pelanggaran Sedang',
-      description: 'Berbicara tidak sopan kepada guru',
-      consequence: 'Peringatan tertulis',
-      witness: 'Bu Sarah Wijaya',
-      notes: 'Diajak konsultasi dengan BK',
-    },
-    {
-      id: 3,
-      studentId: 3,
-      studentName: 'Budi Santoso',
-      nisn: '0031234569',
-      className: 'XI-B',
-      date: '2025-01-25',
-      type: 'Pelanggaran Ringan',
-      description: 'Memakai seragam tidak sesuai',
-      consequence: 'Teguran lisan',
-      witness: 'Pak Hendra',
-      notes: 'Baju tidak tertutup rapi',
-    },
-    {
-      id: 4,
-      studentId: 4,
-      studentName: 'Dina Kusuma',
-      nisn: '0031234570',
-      className: 'XI-B',
-      date: '2025-01-20',
-      type: 'Pelanggaran Berat',
-      description: 'Menyontek saat ujian',
-      consequence: 'Nilai ujian dibatalkan + SP1',
-      witness: 'Bu Siti Aisyah',
-      notes: 'Terbukti membawa catatan kecil',
-    },
-    {
-      id: 5,
-      studentId: 5,
-      studentName: 'Eka Putra',
-      nisn: '0031234571',
-      className: 'XI-C',
-      date: '2025-01-18',
-      type: 'Pelanggaran Sedang',
-      description: 'Membawa HP ke dalam kelas',
-      consequence: 'HP disita 1 minggu',
-      witness: 'Pak Rudi Hartono',
-      notes: 'HP akan dikembalikan ke orang tua',
-    },
-  ])
 
-  // Sample students data
-  const students: Student[] = [
-    { id: 1, name: 'Ahmad Ridho Pratama', nisn: '0031234567', className: 'XI-A', spHistory: [] },
-    { id: 2, name: 'Siti Nurhaliza', nisn: '0031234568', className: 'XI-A', spHistory: [] },
-    { id: 3, name: 'Budi Santoso', nisn: '0031234569', className: 'XI-B', spHistory: [] },
-    { id: 4, name: 'Dina Kusuma', nisn: '0031234570', className: 'XI-B', spHistory: [] },
-    { id: 5, name: 'Eka Putra', nisn: '0031234571', className: 'XI-C', spHistory: [] },
-    { id: 6, name: 'Farah Azizah', nisn: '0031234572', className: 'XI-C', spHistory: [] },
-  ]
+  // API State
+  const [violations, setViolations] = useState<ViolationRecord[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [syncing, setSyncing] = useState(false)
 
-  const classes = ['XI-A', 'XI-B', 'XI-C']
-  const violationTypes = ['Pelanggaran Ringan', 'Pelanggaran Sedang', 'Pelanggaran Berat']
-
-  // Filter violations
-  const filteredViolations = useMemo(() => {
-    let filtered = violations
-
-    if (selectedClass !== 'all') {
-      filtered = filtered.filter(v => v.className === selectedClass)
-    }
-
-    if (selectedStudent !== 'all') {
-      const student = students.find(s => s.id.toString() === selectedStudent)
-      if (student) {
-        filtered = filtered.filter(v => v.studentName === student.name)
+  // Fetch violations
+  useEffect(() => {
+    const fetchViolations = async () => {
+      try {
+        setLoading(true)
+        setError(null)
+        const response = await getViolationRecords({ page: 1, limit: 1000 })
+        setViolations(response.data || [])
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Gagal memuat data pelanggaran')
+        console.error('Error fetching violations:', err)
+      } finally {
+        setLoading(false)
       }
     }
+    fetchViolations()
+  }, [])
 
-    if (selectedType !== 'all') {
-      filtered = filtered.filter(v => v.type === selectedType)
+  // Handle sync
+  const handleSync = async () => {
+    try {
+      setSyncing(true)
+      setError(null)
+      await syncViolationsFromWalas({
+        startDate: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
+        endDate: new Date(),
+      })
+      // Refresh data
+      const response = await getViolationRecords({ page: 1, limit: 1000 })
+      setViolations(response.data || [])
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Gagal sinkronisasi pelanggaran')
+      console.error('Error syncing violations:', err)
+    } finally {
+      setSyncing(false)
     }
+  }
 
-    return filtered.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-  }, [selectedClass, selectedStudent, selectedType, violations])
+  // Extract unique classes and students from violations data
+  const classes = useMemo(() => Array.from(new Set(violations.map(v => v.className))), [violations])
+  const violationTypes = ['Pelanggaran Ringan', 'Pelanggaran Sedang', 'Pelanggaran Berat']
 
-  // Calculate stats
-  const stats: ViolationStats = useMemo(() => {
-    return {
-      totalViolations: violations.length,
-      lightViolations: violations.filter(v => v.type === 'Pelanggaran Ringan').length,
-      mediumViolations: violations.filter(v => v.type === 'Pelanggaran Sedang').length,
-      severeViolations: violations.filter(v => v.type === 'Pelanggaran Berat').length,
-    }
-  }, [violations])
+  const filteredStudents = useMemo(() => {
+    if (selectedClass === 'all') return []
+    const uniqueMap = new Map()
+    violations
+      .filter(v => v.className === selectedClass)
+      .forEach(v => {
+        if (!uniqueMap.has(v.studentId)) {
+          uniqueMap.set(v.studentId, { id: v.studentId, name: v.studentName, nisn: v.nisn, className: v.className })
+        }
+      })
+    return Array.from(uniqueMap.values())
+  }, [violations, selectedClass])
+
 
   const handleAddViolation = (formData: any) => {
     const selectedStudentData = students.find(s => s.id.toString() === formData.studentId)
@@ -266,37 +218,74 @@ const PelanggaranPage: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <div className="bg-white rounded-xl border border-gray-200 p-6">
-        {/* Header */}
-        <div className="bg-gradient-to-r from-red-500 to-pink-500 rounded-2xl p-8 text-white mb-8">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className="w-16 h-16 bg-white/20 rounded-xl flex items-center justify-center">
-                <AlertTriangle className="w-8 h-8" />
-              </div>
-              <div>
-                <h2 className="text-3xl font-bold mb-2">Pencatatan Pelanggaran</h2>
-                <p className="text-pink-50">Catat dan pantau pelanggaran siswa terhadap tata tertib sekolah</p>
-              </div>
-            </div>
-            <div className="flex gap-3">
+      {/* Loading State */}
+      {loading && (
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-6 text-center">
+          <div className="inline-block">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+          </div>
+          <p className="mt-2 text-blue-900 font-medium">Memuat data pelanggaran...</p>
+        </div>
+      )}
+
+      {/* Error State */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-xl p-6">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+            <div>
+              <h4 className="font-semibold text-red-900 mb-1">Terjadi Kesalahan</h4>
+              <p className="text-sm text-red-800">{error}</p>
               <button
-                onClick={() => setIsFormModalOpen(true)}
-                className="flex items-center gap-2 px-6 py-3 bg-white text-red-600 font-semibold rounded-lg hover:bg-gray-50 transition-all hover:shadow-lg"
+                onClick={() => window.location.reload()}
+                className="mt-2 text-sm text-red-700 hover:text-red-800 font-medium underline"
               >
-                <Plus className="w-5 h-5" />
-                Catat Pelanggaran
-              </button>
-              <button
-                onClick={() => setIsSpModalOpen(true)}
-                className="flex items-center gap-2 px-6 py-3 bg-orange-400 hover:bg-orange-500 text-white font-semibold rounded-lg transition-all hover:shadow-lg"
-              >
-                <AlertCircle className="w-5 h-5" />
-                Beri SP
+                Coba lagi
               </button>
             </div>
           </div>
         </div>
+      )}
+
+      {!loading && !error && (
+        <div className="bg-white rounded-xl border border-gray-200 p-6">
+          {/* Header */}
+          <div className="bg-gradient-to-r from-red-500 to-pink-500 rounded-2xl p-8 text-white mb-8">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="w-16 h-16 bg-white/20 rounded-xl flex items-center justify-center">
+                  <AlertTriangle className="w-8 h-8" />
+                </div>
+                <div>
+                  <h2 className="text-3xl font-bold mb-2">Pencatatan Pelanggaran</h2>
+                  <p className="text-pink-50">Catat dan pantau pelanggaran siswa terhadap tata tertib sekolah</p>
+                </div>
+              </div>
+              <div className="flex gap-3">
+                <button
+                  onClick={handleSync}
+                  disabled={syncing}
+                  className="px-6 py-3 bg-white/20 text-white font-semibold rounded-lg hover:bg-white/30 disabled:opacity-50 transition-all"
+                >
+                  {syncing ? 'Sinkronisasi...' : 'Sinkronisasi'}
+                </button>
+                <button
+                  onClick={() => setIsFormModalOpen(true)}
+                  className="flex items-center gap-2 px-6 py-3 bg-white text-red-600 font-semibold rounded-lg hover:bg-gray-50 transition-all hover:shadow-lg"
+                >
+                  <Plus className="w-5 h-5" />
+                  Catat Pelanggaran
+                </button>
+                <button
+                  onClick={() => setIsSpModalOpen(true)}
+                  className="flex items-center gap-2 px-6 py-3 bg-orange-400 hover:bg-orange-500 text-white font-semibold rounded-lg transition-all hover:shadow-lg"
+                >
+                  <AlertCircle className="w-5 h-5" />
+                  Beri SP
+                </button>
+              </div>
+            </div>
+          </div>
 
         {/* Stats */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
@@ -505,13 +494,46 @@ const PelanggaranPage: React.FC = () => {
         </>
       )}
 
-      {/* SP Modal */}
-      <SpFormModal
-        isOpen={isSpModalOpen}
-        onClose={() => setIsSpModalOpen(false)}
-        onSubmit={handleAddSp}
-        students={students}
-      />
+          {/* Violation Form Modal */}
+          <ViolationFormModal
+            isOpen={isFormModalOpen}
+            onClose={() => setIsFormModalOpen(false)}
+            onSubmit={handleAddViolation}
+            students={filteredStudents}
+          />
+
+          {/* Violation Detail Modal */}
+          <>
+            <div className="fixed inset-0 z-40 bg-black/20 backdrop-blur-sm" aria-hidden="true" />
+            {selectedViolation && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                <ViolationDetailModal
+                  isOpen={isDetailModalOpen}
+                  onClose={() => {
+                    setIsDetailModalOpen(false)
+                    setSelectedViolation(undefined)
+                  }}
+                  violationType={selectedViolation.type}
+                  description={selectedViolation.description}
+                  consequence={selectedViolation.consequence}
+                  date={selectedViolation.date}
+                  studentName={selectedViolation.studentName}
+                  witness={selectedViolation.witness}
+                  notes={selectedViolation.notes}
+                />
+              </div>
+            )}
+          </>
+
+          {/* SP Modal */}
+          <SpFormModal
+            isOpen={isSpModalOpen}
+            onClose={() => setIsSpModalOpen(false)}
+            onSubmit={handleAddSp}
+            students={filteredStudents}
+          />
+        </div>
+      )}
     </div>
   )
 }

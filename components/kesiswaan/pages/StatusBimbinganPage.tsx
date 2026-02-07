@@ -3,7 +3,13 @@
 import React, { useState, useMemo, useEffect } from 'react'
 import { BookOpen, CheckCircle, TrendingUp, Award, User, MessageSquare, Filter, AlertCircle, X } from 'lucide-react'
 import SessionDetailModal from '../modals/SessionDetailModal'
-import api from '@/lib/api'
+import {
+  getGuidanceReferrals,
+  getGuidanceSessions,
+  createGuidanceSession,
+  getCriticalReferrals,
+  syncGuidanceFromWalas,
+} from '@/lib/bimbinganAPI'
 
 interface Referral {
   id: string
@@ -273,7 +279,9 @@ const StatCard: React.FC<{ icon: React.ReactNode; label: string; value: number |
 
 const StatusBimbinganPage: React.FC = () => {
   // ===== STATE MANAGEMENT =====
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [syncing, setSyncing] = useState(false)
   const [activeTab, setActiveTab] = useState<'overview' | 'referrals' | 'sessions' | 'notes' | 'interventions' | 'progress' | 'targets'>('overview')
 
   // Data states
@@ -319,15 +327,13 @@ const StatusBimbinganPage: React.FC = () => {
   const loadAllData = async () => {
     try {
       setLoading(true)
+      setError(null)
       await Promise.all([
         loadReferrals(),
         loadSessions(),
-        loadCaseNotes(),
-        loadInterventions(),
-        loadProgress(),
-        loadTargets(),
-        loadStatuses(),
       ])
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Gagal memuat data bimbingan')
     } finally {
       setLoading(false)
     }
@@ -335,12 +341,8 @@ const StatusBimbinganPage: React.FC = () => {
 
   const loadReferrals = async () => {
     try {
-      const response = await api.get('/kesiswaan/bimbingan/referrals', {
-        params: { limit: 100 },
-      })
-      if (response.data.success) {
-        setReferrals(response.data.data)
-      }
+      const response = await getGuidanceReferrals({ page: 1, limit: 100 })
+      setReferrals(response.data || [])
     } catch (error) {
       console.error('Gagal memuat data referral', error)
     }
@@ -348,59 +350,34 @@ const StatusBimbinganPage: React.FC = () => {
 
   const loadSessions = async () => {
     try {
-      const response = await api.get('/kesiswaan/bimbingan/sesi', {
-        params: { limit: 100 },
-      })
-      if (response.data.success) {
-        setSessions(response.data.data)
-      }
+      const response = await getGuidanceSessions({ page: 1, limit: 100 })
+      setSessions(response.data || [])
     } catch (error) {
       console.error('Gagal memuat data sesi', error)
     }
   }
 
-  const loadCaseNotes = async () => {
+  const handleSync = async () => {
     try {
-      const response = await api.get('/kesiswaan/bimbingan/catat', {
-        params: { limit: 100 },
+      setSyncing(true)
+      setError(null)
+      await syncGuidanceFromWalas({
+        startDate: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
+        endDate: new Date(),
       })
-      if (response.data.success) {
-        setCaseNotes(response.data.data)
-      }
-    } catch (error) {
-      console.error('Gagal memuat catatan', error)
-    }
-  }
-
-  const loadInterventions = async () => {
-    try {
-      const response = await api.get('/kesiswaan/bimbingan/intervensi', {
-        params: { limit: 100 },
-      })
-      if (response.data.success) {
-        setInterventions(response.data.data)
-      }
-    } catch (error) {
-      console.error('Gagal memuat intervensi', error)
-    }
-  }
-
-  const loadProgress = async () => {
-    try {
-      const response = await api.get('/kesiswaan/bimbingan/perkembangan', {
-        params: { limit: 100 },
-      })
-      if (response.data.success) {
-        setProgress(response.data.data)
-      }
-    } catch (error) {
-      console.error('Gagal memuat perkembangan', error)
+      // Refresh data after sync
+      await loadAllData()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Gagal sinkronisasi data')
+      console.error('Error syncing guidance:', err)
+    } finally {
+      setSyncing(false)
     }
   }
 
   const loadTargets = async () => {
     try {
-      const response = await api.get('/kesiswaan/bimbingan/target', {
+      const response = await api.get('/v1/kesiswaan/bimbingan/target', {
         params: { limit: 100 },
       })
       if (response.data.success) {
@@ -413,7 +390,7 @@ const StatusBimbinganPage: React.FC = () => {
 
   const loadStatuses = async () => {
     try {
-      const response = await api.get('/kesiswaan/bimbingan/statuses', {
+      const response = await api.get('/v1/kesiswaan/bimbingan/statuses', {
         params: { limit: 100 },
       })
       if (response.data.success) {
@@ -428,7 +405,7 @@ const StatusBimbinganPage: React.FC = () => {
   const handleCreateReferral = async (e: React.FormEvent) => {
     e.preventDefault()
     try {
-      const response = await api.post('/kesiswaan/bimbingan/referrals', {
+      const response = await api.post('/v1/kesiswaan/bimbingan/referrals', {
         ...formData,
         tahun: new Date().getFullYear(),
       })
@@ -447,7 +424,7 @@ const StatusBimbinganPage: React.FC = () => {
     e.preventDefault()
     if (!selectedReferral) return
     try {
-      const response = await api.post('/kesiswaan/bimbingan/sesi', {
+      const response = await api.post('/v1/kesiswaan/bimbingan/sesi', {
         ...sessionFormData,
         referral_id: selectedReferral.id,
         student_id: selectedReferral.student_id,
@@ -467,7 +444,7 @@ const StatusBimbinganPage: React.FC = () => {
   const handleCompleteSession = async (sesiId: string) => {
     if (!confirm('Tandai sesi ini sebagai selesai?')) return
     try {
-      const response = await api.patch(`/kesiswaan/bimbingan/sesi/${sesiId}/complete`, {
+      const response = await api.patch(`/v1/kesiswaan/bimbingan/sesi/${sesiId}/complete`, {
         siswa_hadir: true,
         hasil_akhir: 'Sesi selesai',
       })
@@ -553,21 +530,58 @@ const StatusBimbinganPage: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <div className="bg-white rounded-xl border border-gray-200 p-6">
-        {/* Header */}
-        <div className="bg-gradient-to-r from-purple-500 to-pink-500 rounded-2xl p-8 text-white">
-          <div className="flex items-center gap-4">
-            <div className="w-16 h-16 bg-white/20 rounded-xl flex items-center justify-center">
-              <BookOpen className="w-8 h-8" />
-            </div>
+      {/* Loading State */}
+      {loading && (
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-6 text-center">
+          <div className="inline-block">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+          </div>
+          <p className="mt-2 text-blue-900 font-medium">Memuat data bimbingan...</p>
+        </div>
+      )}
+
+      {/* Error State */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-xl p-6">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
             <div>
-              <h2 className="text-3xl font-bold mb-2">Status Bimbingan</h2>
-              <p className="text-pink-50">
-                Progres dan riwayat sesi bimbingan dengan data real-time dari konselor BK
-              </p>
+              <h4 className="font-semibold text-red-900 mb-1">Terjadi Kesalahan</h4>
+              <p className="text-sm text-red-800">{error}</p>
+              <button
+                onClick={() => window.location.reload()}
+                className="mt-2 text-sm text-red-700 hover:text-red-800 font-medium underline"
+              >
+                Coba lagi
+              </button>
             </div>
           </div>
         </div>
+      )}
+
+      {!loading && !error && (
+        <div className="bg-white rounded-xl border border-gray-200 p-6">
+          {/* Header */}
+          <div className="bg-gradient-to-r from-purple-500 to-pink-500 rounded-2xl p-8 text-white">
+            <div className="flex items-center gap-4">
+              <div className="w-16 h-16 bg-white/20 rounded-xl flex items-center justify-center">
+                <BookOpen className="w-8 h-8" />
+              </div>
+              <div>
+                <h2 className="text-3xl font-bold mb-2">Status Bimbingan</h2>
+                <p className="text-pink-50">
+                  Progres dan riwayat sesi bimbingan dengan data real-time dari konselor BK
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={handleSync}
+              disabled={syncing}
+              className="mt-4 px-6 py-2 bg-white/20 text-white rounded-lg hover:bg-white/30 disabled:opacity-50 transition-colors disabled:cursor-not-allowed font-medium"
+            >
+              {syncing ? 'Sinkronisasi...' : 'Sinkronisasi dari Walas'}
+            </button>
+          </div>
 
         {/* Stats */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mt-6">
