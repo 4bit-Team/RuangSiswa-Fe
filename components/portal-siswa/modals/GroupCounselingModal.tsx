@@ -685,7 +685,7 @@ const GroupCounselingModal: React.FC<GroupCounselingModalProps> = ({
             onClick={step === 5 ? handleConfirm : handleNext}
             disabled={
               (step === 1 && !formData.sessionType) ||
-              (step === 2 && selectedStudents.length < 2) ||
+              (step === 2 && selectedStudents.length < 1) ||
               (step === 3 && (!selectedTopic || !formData.groupName)) ||
               (step === 4 && (!formData.date || !formData.time || !formData.counselorId))
             }

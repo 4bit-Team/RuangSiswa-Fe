@@ -1,8 +1,9 @@
 'use client'
 
 import React, { useState, useEffect } from 'react';
-import { Menu, LogOut, User, Settings } from 'lucide-react';
+import { Menu, Bell, LogOut, User, Settings, Mail, Phone, HelpCircle } from 'lucide-react';
 import { apiRequest } from '@/lib/api'
+import { useNotification } from '@/lib/useNotification';
 
 interface HeaderProps {
   title: string;
@@ -13,7 +14,9 @@ interface HeaderProps {
 const Header: React.FC<HeaderProps> = ({ title, subtitle, onMenuClick }) => {
   const [user, setUser] = useState<any>(null)
   const [isMobile, setIsMobile] = useState(true);
+  const [notificationOpen, setNotificationOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const { notifications, getNotifications, markAsRead, unreadCount } = useNotification();
 
   const handleLogout = async () => {
     try {
@@ -48,6 +51,12 @@ const Header: React.FC<HeaderProps> = ({ title, subtitle, onMenuClick }) => {
   }, [])
 
   useEffect(() => {
+    if (user?.id) {
+      getNotifications(user.id);
+    }
+  }, [user?.id, getNotifications])
+
+  useEffect(() => {
     const checkIsMobile = () => {
       setIsMobile(window.innerWidth < 768);
     };
@@ -56,6 +65,8 @@ const Header: React.FC<HeaderProps> = ({ title, subtitle, onMenuClick }) => {
     window.addEventListener('resize', checkIsMobile);
     return () => window.removeEventListener('resize', checkIsMobile);
   }, []);
+
+
 
   return (
     <header className="fixed top-0 left-0 right-0 bg-white z-30">
@@ -76,53 +87,156 @@ const Header: React.FC<HeaderProps> = ({ title, subtitle, onMenuClick }) => {
             </div>
           </div>
 
-          {/* Profile Dropdown */}
-          <div className="relative flex-shrink-0">
-            <button
-              onClick={() => setProfileOpen(!profileOpen)}
-              className="flex items-center space-x-2 p-2 hover:bg-gray-100 rounded-lg"
-            >
-              <div className="w-8 h-8 bg-indigo-600 rounded-full flex items-center justify-center text-white text-sm font-bold">
-                {user?.fullName?.charAt(0)?.toUpperCase() || 'A'}
-              </div>
-              {!isMobile && (
-                <div className="text-left">
-                  <p className="text-sm font-medium text-gray-900">{user?.fullName || 'Admin'}</p>
-                  <p className="text-xs text-gray-500">{user?.role || 'Administrator'}</p>
-                </div>
-              )}
-            </button>
+          <div className="flex items-center space-x-2 md:space-x-4 flex-shrink-0">
+            {/* Notifications Bell */}
+            <div className="relative">
+              <button
+                onClick={() => {
+                  setNotificationOpen(!notificationOpen);
+                  setProfileOpen(false);
+                }}
+                className="relative p-2 text-gray-600 hover:bg-gray-100 rounded-lg"
+              >
+                <Bell size={20} />
+                <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
+              </button>
 
-            {/* Dropdown Menu */}
-            {profileOpen && (
-              <>
-                <div
-                  className="fixed inset-0 z-30"
-                  onClick={() => setProfileOpen(false)}
-                />
-                <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-40">
-                  <div className="p-3 border-b border-gray-200">
-                    <p className="text-sm font-medium text-gray-900">{user?.fullName || 'Admin'}</p>
-                    <p className="text-xs text-gray-500">{user?.email || 'admin@ruangsiswa.com'}</p>
+              {/* Notification Dropdown */}
+              {notificationOpen && (
+                <>
+                  <div
+                    className="fixed inset-0 z-30"
+                    onClick={() => setNotificationOpen(false)}
+                  />
+                  <div className="absolute right-0 mt-2 w-96 bg-white rounded-lg shadow-lg border border-gray-200 z-40 max-h-96 overflow-y-auto">
+                    <div className="p-4 border-b border-gray-200 flex items-center justify-between sticky top-0 bg-white">
+                      <h3 className="font-semibold text-gray-900">Notifikasi</h3>
+                      {unreadCount > 0 && (
+                        <span className="text-sm font-medium text-red-500">{unreadCount} Baru</span>
+                      )}
+                    </div>
+
+                    <div className="divide-y divide-gray-100">
+                      {notifications.length > 0 ? (
+                        notifications.map((notif) => (
+                          <button
+                            key={notif.id}
+                            onClick={() => markAsRead(notif.id)}
+                            className="w-full p-4 hover:bg-gray-50 text-left transition-colors flex items-start gap-3 border-l-4 border-transparent hover:border-indigo-500"
+                          >
+                            <div className="flex-shrink-0 text-xl mt-1">{notif.icon}</div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-start justify-between gap-2">
+                                <p className="font-medium text-gray-900 text-sm">{notif.title}</p>
+                                {!notif.read && (
+                                  <div className="w-2 h-2 bg-red-500 rounded-full flex-shrink-0 mt-1"></div>
+                                )}
+                              </div>
+                              <p className="text-xs text-gray-600 mt-0.5">{notif.description}</p>
+                              <p className="text-xs text-gray-400 mt-1">{notif.time}</p>
+                            </div>
+                          </button>
+                        ))
+                      ) : (
+                        <div className="p-4 text-center text-gray-500 text-sm">
+                          Tidak ada notifikasi
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="p-3 border-t border-gray-200 flex gap-2 sticky bottom-0 bg-white">
+                      <button className="flex-1 text-sm text-indigo-600 hover:text-indigo-700 font-medium">
+                        ✓ Tandai Semua Dibaca
+                      </button>
+                      <button className="flex-1 text-sm text-gray-600 hover:text-gray-700 font-medium">
+                        Lihat Semua
+                      </button>
+                    </div>
                   </div>
-                  <button className="w-full flex items-center space-x-3 px-4 py-2 text-gray-700 hover:bg-gray-50 border-b border-gray-200">
-                    <User size={16} />
-                    <span className="text-sm">Profil</span>
-                  </button>
-                  <button className="w-full flex items-center space-x-3 px-4 py-2 text-gray-700 hover:bg-gray-50 border-b border-gray-200">
-                    <Settings size={16} />
-                    <span className="text-sm">Pengaturan</span>
-                  </button>
-                  <button 
-                    onClick={handleLogout}
-                    className="w-full flex items-center space-x-3 px-4 py-2 text-red-600 hover:bg-red-50"
-                  >
-                    <LogOut size={16} />
-                    <span className="text-sm">Logout</span>
-                  </button>
-                </div>
-              </>
-            )}
+                </>
+              )}
+            </div>
+
+            {/* Profile Avatar */}
+            <div className="relative">
+              <button
+                onClick={() => {
+                  setProfileOpen(!profileOpen);
+                  setNotificationOpen(false);
+                }}
+                className="w-10 h-10 bg-indigo-600 rounded-full flex items-center justify-center text-white font-semibold text-sm hover:bg-indigo-700 transition-colors"
+              >
+                {user?.fullName?.[0]?.toUpperCase() || 'A'}
+              </button>
+
+              {/* Profile Dropdown */}
+              {profileOpen && (
+                <>
+                  <div
+                    className="fixed inset-0 z-30"
+                    onClick={() => setProfileOpen(false)}
+                  />
+                  <div className="absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-lg border border-gray-200 z-40 overflow-hidden">
+                    {/* Profile Header */}
+                    <div className="bg-gradient-to-r from-indigo-500 to-indigo-700 text-white p-6">
+                      <div className="flex items-center gap-4">
+                        <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center text-indigo-600 font-bold text-xl">
+                          {user?.fullName?.[0]?.toUpperCase() || 'A'}
+                        </div>
+                        <div>
+                          <h3 className="font-semibold text-lg">{user?.fullName || 'Admin'}</h3>
+                          <p className="text-indigo-100 text-sm">Administrator</p>
+                        </div>
+                      </div>
+                      <div className="mt-4 space-y-2 text-sm">
+                        <div className="flex items-center gap-2">
+                          <Mail size={16} />
+                          <span>{user?.email || '-'}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Phone size={16} />
+                          <span>{user?.phone || '-'}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Menu Items */}
+                    <div className="p-2 space-y-1">
+                      <button className="w-full flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-gray-50 rounded-lg transition-colors text-left">
+                        <User size={18} className="text-indigo-600" />
+                        <div>
+                          <p className="font-medium">Profil Saya</p>
+                          <p className="text-xs text-gray-500">Lihat dan edit profil</p>
+                        </div>
+                      </button>
+
+                      <button className="w-full flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-gray-50 rounded-lg transition-colors text-left">
+                        <Settings size={18} className="text-indigo-600" />
+                        <div>
+                          <p className="font-medium">Pengaturan</p>
+                          <p className="text-xs text-gray-500">Kelola preferensi akun</p>
+                        </div>
+                      </button>
+
+                      <button className="w-full flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-gray-50 rounded-lg transition-colors text-left">
+                        <HelpCircle size={18} className="text-indigo-600" />
+                        <div>
+                          <p className="font-medium">Bantuan & Dukungan</p>
+                          <p className="text-xs text-gray-500">FAQ dan kontak support</p>
+                        </div>
+                      </button>
+
+                      <div className="border-t border-gray-200 my-2"></div>
+
+                      <button onClick={handleLogout} className="w-full flex items-center gap-3 px-4 py-3 text-red-600 hover:bg-red-50 rounded-lg transition-colors text-left">
+                        <LogOut size={18} />
+                        <span className="font-medium">Keluar</span>
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         </div>
       </div>

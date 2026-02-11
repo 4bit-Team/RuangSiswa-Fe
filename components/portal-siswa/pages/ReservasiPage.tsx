@@ -141,6 +141,22 @@ const ReservasiPage: React.FC = () => {
     return ['pending', 'approved'].includes(status)
   }
 
+  // Helper function to calculate when QR/Chat will be generated (15 minutes before session)
+  const getSessionInitializationTime = (preferredDate: string, preferredTime: string) => {
+    const [hours, minutes] = preferredTime.split(':').map(Number)
+    const sessionDate = new Date(preferredDate)
+    sessionDate.setHours(hours, minutes, 0)
+    
+    // 15 minutes before
+    const initTime = new Date(sessionDate.getTime() - 15 * 60 * 1000)
+    
+    return {
+      date: initTime.toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }),
+      time: `${String(initTime.getHours()).padStart(2, '0')}:${String(initTime.getMinutes()).padStart(2, '0')}`,
+      fullDate: initTime
+    }
+  }
+
   const handleScanQR = (id: number) => {
     setScanningForReservasi(id)
     setQrScannerOpen(true)
@@ -247,7 +263,7 @@ const ReservasiPage: React.FC = () => {
                 {res.status === 'approved' && (
                   <div className="flex gap-2 pt-4 border-t border-gray-200">
                     {/* QR Code Display */}
-                    {res.qrCode && (
+                    {res.qrCode ? (
                       <>
                         {!res.attendanceConfirmed && (
                           <button
@@ -272,12 +288,21 @@ const ReservasiPage: React.FC = () => {
                           </div>
                         )}
                       </>
-                    )}
-
-                    {!res.qrCode && (
-                      <div className="flex-1 flex items-center justify-center px-3 py-2 bg-yellow-100 text-yellow-700 rounded-lg text-xs font-medium">
-                        ⏳ QR Code akan tersedia saat disetujui
-                      </div>
+                    ) : (
+                      (() => {
+                        const initTime = getSessionInitializationTime(res.preferredDate, res.preferredTime)
+                        const sessionType = res.type === 'chat' ? 'Chat' : 'QR'
+                        return (
+                          <div className="flex-1 flex flex-col items-center justify-center px-3 py-2 bg-gray-200 text-gray-700 rounded-lg text-xs font-medium">
+                            <div className="text-center">
+                              <p>{sessionType} Akan Generate pada</p>
+                              <p className="font-semibold mt-1">{initTime.date}</p>
+                              <p className="text-gray-600">Pukul {initTime.time}</p>
+                              <p className="text-xs mt-1">Harap kembali lagi</p>
+                            </div>
+                          </div>
+                        )
+                      })()
                     )}
                   </div>
                 )}

@@ -1,4 +1,4 @@
-import { apiRequest } from './api';
+import { apiRequest } from '../api';
 
 export interface ViolationRecord {
   id: string;
@@ -195,6 +195,42 @@ export async function getCriticalViolations(
   return apiRequest(
     '/v1/kesiswaan/violations/critical',
     'GET',
+    undefined,
+    token
+  );
+}
+
+/**
+ * Update violation record
+ */
+export async function updateViolation(
+  violationId: string | number,
+  data: {
+    description?: string;
+    severity?: number;
+    status?: string;
+    catatan_petugas?: string;
+  },
+  token?: string | null
+): Promise<any> {
+  return apiRequest(
+    `/v1/kesiswaan/violations/${violationId}`,
+    'PATCH',
+    data,
+    token
+  );
+}
+
+/**
+ * Delete violation record
+ */
+export async function deleteViolation(
+  violationId: string | number,
+  token?: string | null
+): Promise<any> {
+  return apiRequest(
+    `/v1/kesiswaan/violations/${violationId}`,
+    'DELETE',
     undefined,
     token
   );

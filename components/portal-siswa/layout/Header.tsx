@@ -1,11 +1,21 @@
 'use client'
 
-import React from 'react';
+import React, { useEffect } from 'react';
+import { Bell, Mail, Phone, HelpCircle, User, Settings, LogOut } from 'lucide-react'
 import { HeaderProps } from '@types';
+import { useNotification } from '@/lib/useNotification';
 
 const Header: React.FC<HeaderProps & { onToggleSidebar?: () => void }> = ({ title, subtitle, profile, onToggleSidebar }) => {
 
   const [showDropdown, setShowDropdown] = React.useState(false);
+  const [notificationOpen, setNotificationOpen] = React.useState(false);
+  const { notifications, getNotifications, markAsRead, unreadCount } = useNotification();
+
+  useEffect(() => {
+    if (profile?.id) {
+      getNotifications(profile.id);
+    }
+  }, [profile?.id, getNotifications]);
 
   const handleToggleSidebar = () => {
     if (typeof onToggleSidebar === 'function') {
@@ -21,6 +31,8 @@ const Header: React.FC<HeaderProps & { onToggleSidebar?: () => void }> = ({ titl
       // ignore
     }
   };
+
+
 
   return (
     <header className="fixed top-0 right-0 left-0 md:left-64 z-10 bg-white border-b border-gray-200">
@@ -46,7 +58,76 @@ const Header: React.FC<HeaderProps & { onToggleSidebar?: () => void }> = ({ titl
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-4">
+          {/* Notifications Bell */}
+          <div className="relative">
+            <button
+              onClick={() => {
+                setNotificationOpen(!notificationOpen);
+                setShowDropdown(false);
+              }}
+              className="relative p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+            >
+              <Bell size={20} />
+              <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
+            </button>
+
+            {/* Notification Dropdown */}
+            {notificationOpen && (
+              <>
+                <div
+                  className="fixed inset-0 z-30"
+                  onClick={() => setNotificationOpen(false)}
+                />
+                <div className="absolute right-0 mt-2 w-96 bg-white rounded-lg shadow-lg border border-gray-200 z-40 max-h-96 overflow-y-auto">
+                  <div className="p-4 border-b border-gray-200 flex items-center justify-between sticky top-0 bg-white">
+                    <h3 className="font-semibold text-gray-900">Notifikasi</h3>
+                    {unreadCount > 0 && (
+                      <span className="text-sm font-medium text-red-500">{unreadCount} Baru</span>
+                    )}
+                  </div>
+
+                  <div className="divide-y divide-gray-100">
+                    {notifications.length > 0 ? (
+                      notifications.map((notif) => (
+                        <button
+                          key={notif.id}
+                          onClick={() => markAsRead(notif.id)}
+                          className="w-full p-4 hover:bg-gray-50 text-left transition-colors flex items-start gap-3 border-l-4 border-transparent hover:border-blue-500"
+                        >
+                          <div className="flex-shrink-0 text-xl mt-1">{notif.icon}</div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-start justify-between gap-2">
+                              <p className="font-medium text-gray-900 text-sm">{notif.title}</p>
+                              {!notif.read && (
+                                <div className="w-2 h-2 bg-red-500 rounded-full flex-shrink-0 mt-1"></div>
+                              )}
+                            </div>
+                            <p className="text-xs text-gray-600 mt-0.5">{notif.description}</p>
+                            <p className="text-xs text-gray-400 mt-1">{notif.time}</p>
+                          </div>
+                        </button>
+                      ))
+                    ) : (
+                      <div className="p-4 text-center text-gray-500 text-sm">
+                        Tidak ada notifikasi
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="p-3 border-t border-gray-200 flex gap-2 sticky bottom-0 bg-white">
+                    <button className="flex-1 text-sm text-blue-600 hover:text-blue-700 font-medium">
+                      ✓ Tandai Semua Dibaca
+                    </button>
+                    <button className="flex-1 text-sm text-gray-600 hover:text-gray-700 font-medium">
+                      Lihat Semua
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+
           <div className="flex items-center gap-3 bg-gray-50 px-3 py-1 rounded-lg border border-gray-100 relative">
             <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center">
               <span className="text-white font-semibold text-sm">
@@ -56,33 +137,80 @@ const Header: React.FC<HeaderProps & { onToggleSidebar?: () => void }> = ({ titl
             {/* avatar-only button on very small screens */}
             <button
               className="sm:hidden p-1 focus:outline-none"
-              onClick={() => setShowDropdown((prev) => !prev)}
+              onClick={() => {
+                setShowDropdown((prev) => !prev);
+                setNotificationOpen(false);
+              }}
               aria-label="Open profile menu"
             />
             {/* name + role hidden on very small screens to avoid wrapping */}
             <button
               className="hidden sm:flex flex-col items-start focus:outline-none"
-              onClick={() => setShowDropdown((prev) => !prev)}
+              onClick={() => {
+                setShowDropdown((prev) => !prev);
+                setNotificationOpen(false);
+              }}
             >
               <span className="font-medium text-gray-900 text-sm">{profile?.username || "Anda"}</span>
               <span className="text-xs text-gray-500">{profile?.role || "Siswa"}</span>
             </button>
             {showDropdown && (
-              <div className="absolute right-0 top-14 w-64 bg-white border border-gray-200 rounded-lg shadow-lg z-20 overflow-hidden">
-                <div className="p-4 flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-full bg-gradient-to-br from-indigo-500 to-pink-500 flex items-center justify-center text-white font-semibold">
-                    {profile?.username ? profile.username.charAt(0).toUpperCase() : 'A'}
+              <div className="absolute right-0 top-14 w-80 bg-white border border-gray-200 rounded-lg shadow-lg z-40 overflow-hidden">
+                {/* Profile Header */}
+                <div className="bg-gradient-to-r from-blue-500 to-blue-700 text-white p-6">
+                  <div className="flex items-center gap-4">
+                    <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center text-blue-600 font-bold text-xl">
+                      {profile?.username ? profile.username.charAt(0).toUpperCase() : 'A'}
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-lg">{profile?.username || 'Siswa'}</h3>
+                      <p className="text-blue-100 text-sm">{profile?.role || 'Pelajar'}</p>
+                    </div>
                   </div>
-                  <div className="flex-1">
-                    <div className="font-semibold text-sm text-gray-900">{profile?.username || 'Nama'}</div>
-                    <div className="text-xs text-gray-500 mt-1">{profile?.email || '-'}</div>
-                    <div className="mt-2">
-                      <span className="text-xs bg-blue-50 text-blue-600 px-2 py-1 rounded-full">{profile?.role || 'Siswa'}</span>
+                  <div className="mt-4 space-y-2 text-sm">
+                    <div className="flex items-center gap-2">
+                      <Mail size={16} />
+                      <span>{profile?.email || '-'}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Phone size={16} />
+                      <span>{profile?.phone || '-'}</span>
                     </div>
                   </div>
                 </div>
-                <div className="border-t border-gray-100 px-3 py-1 bg-gray-50 flex gap-2">
-                  <a href="/home/siswa/profil" className="flex-1 text-center text-sm py-2 rounded-md hover:bg-gray-100">Lihat Profil</a>
+
+                {/* Menu Items */}
+                <div className="p-2 space-y-1">
+                  <a href="/home/siswa/profil" className="w-full flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-gray-50 rounded-lg transition-colors">
+                    <User size={18} className="text-blue-600" />
+                    <div>
+                      <p className="font-medium">Profil Saya</p>
+                      <p className="text-xs text-gray-500">Lihat dan edit profil</p>
+                    </div>
+                  </a>
+
+                  <button className="w-full flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-gray-50 rounded-lg transition-colors text-left">
+                    <Settings size={18} className="text-blue-600" />
+                    <div>
+                      <p className="font-medium">Pengaturan</p>
+                      <p className="text-xs text-gray-500">Kelola preferensi akun</p>
+                    </div>
+                  </button>
+
+                  <button className="w-full flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-gray-50 rounded-lg transition-colors text-left">
+                    <HelpCircle size={18} className="text-blue-600" />
+                    <div>
+                      <p className="font-medium">Bantuan & Dukungan</p>
+                      <p className="text-xs text-gray-500">FAQ dan kontak support</p>
+                    </div>
+                  </button>
+
+                  <div className="border-t border-gray-200 my-2"></div>
+
+                  <button className="w-full flex items-center gap-3 px-4 py-3 text-red-600 hover:bg-red-50 rounded-lg transition-colors">
+                    <LogOut size={18} />
+                    <span className="font-medium">Keluar</span>
+                  </button>
                 </div>
               </div>
             )}

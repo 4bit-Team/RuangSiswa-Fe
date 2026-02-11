@@ -1,7 +1,9 @@
 'use client'
 
-import React, { useState } from 'react';
-import { Calendar, Users, FileText, Bell, BarChart3, Clock, MapPin, User, Plus, CheckCircle, X, Eye } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Calendar, Users, FileText, Bell, BarChart3, Clock, MapPin, User, Plus, CheckCircle, X, Eye, Loader } from 'lucide-react';
+import { useAuth } from '@hooks/useAuth';
+import { apiRequest } from '@lib/api';
 
 // Prop types
 interface StatCardProps {
@@ -109,19 +111,197 @@ const PriorityStudentCard: React.FC<PriorityStudentCardProps> = ({ name, class: 
 );
 
 const DashboardBKPage: React.FC = () => {
+  const { user, token } = useAuth();
   const [openModal, setOpenModal] = useState<string | null>(null);
+  
+  // States for dynamic data
+  const [stats, setStats] = useState({
+    totalStudents: 0,
+    consultationToday: {
+      completed: 0,
+      scheduled: 0,
+      total: 0
+    },
+    needAttention: 0,
+    progressPercentage: 0
+  });
+  
+  const [consultationStats, setConsultationStats] = useState([
+    { label: 'Akademik', value: 0, color: 'bg-pink-500' },
+    { label: 'Sosial', value: 0, color: 'bg-green-500' },
+    { label: 'Karir', value: 0, color: 'bg-orange-500' },
+    { label: 'Keluarga', value: 0, color: 'bg-purple-500' },
+  ]);
+  
+  const [priorityStudents, setPriorityStudents] = useState<any[]>([]);
+  const [schedules, setSchedules] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const schedules = [
-    { time: '08:00', student: 'Ahmad Fauzi', class: 'XII IPA 1', topic: 'Konsultasi Karir', room: 'Ruang BK 1', duration: '08:00 - 09:00', status: 'Selesai', initial: 'A', bgColor: 'bg-indigo-600' },
-    { time: '09:30', student: 'Siti Nurhaliza', class: 'XI IPS 2', topic: 'Masalah Akademik', room: 'Ruang BK 1', duration: '09:30 - 10:30', status: 'Selesai', initial: 'S', bgColor: 'bg-purple-600' },
-    { time: '11:00', student: 'Budi Santoso', class: 'X MIPA 3', topic: 'Adaptasi Sosial', room: 'Ruang BK 2', duration: '11:00 - 12:00', status: 'Terjadwal', initial: 'B', bgColor: 'bg-blue-600' },
-  ];
+  // Fetch all dashboard data
+  useEffect(() => {
+    if (user && token) {
+      fetchDashboardData();
+    }
+  }, [user, token]);
 
-  const priorityStudents = [
-    { name: 'Andi Wijaya', class: 'XI IPA 1', issue: 'Penurunan nilai signifikan', priority: 'Tinggi', initial: 'A', bgColor: 'bg-red-200' },
-    { name: 'Maya Putri', class: 'X IPS 2', issue: 'Absensi tinggi (7 hari)', priority: 'Tinggi', initial: 'M', bgColor: 'bg-red-200' },
-    { name: 'Fajar Rahman', class: 'XII IPA 2', issue: 'Laporan perilaku dari guru', priority: 'Sedang', initial: 'F', bgColor: 'bg-orange-200' },
-  ];
+  const fetchDashboardData = async () => {
+    setLoading(true);
+    try {
+      await Promise.all([
+        fetchStats(),
+        fetchConsultationStats(),
+        fetchPriorityStudents(),
+        fetchTodaySchedule()
+      ]);
+    } catch (error) {
+      console.error('Error fetching dashboard data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchStats = async () => {
+    try {
+      // Fetch total users with role siswa
+      const usersRes = await apiRequest('/users?role=siswa', 'GET', undefined, token);
+      const totalStudents = Array.isArray(usersRes) ? usersRes.length : usersRes?.data?.length || 0;
+
+      // Fetch today's reservations
+      const today = new Date().toISOString().split('T')[0];
+      const reservasiRes = await apiRequest(`/reservasi`, 'GET', undefined, token);
+      const allReservations = Array.isArray(reservasiRes) ? reservasiRes : reservasiRes?.data || [];
+      
+      const todayReservations = allReservations.filter((r: any) => {
+        const resDate = new Date(r.preferredDate).toISOString().split('T')[0];
+        return resDate === today;
+      });
+      
+      const completed = todayReservations.filter((r: any) => r.status === 'completed').length;
+      const scheduled = todayReservations.filter((r: any) => r.status === 'approved').length;
+
+      // Fetch students needing attention (violations/issues)
+      const violationsRes = await apiRequest('/violations', 'GET', undefined, token);
+      const allViolations = Array.isArray(violationsRes) ? violationsRes : violationsRes?.data || [];
+      const needAttentionCount = allViolations.filter((v: any) => v.status === 'pending').length;
+
+      // Calculate progress percentage
+      const totalConsultations = allReservations.length;
+      const completedConsultations = allReservations.filter((r: any) => r.status === 'completed').length;
+      const progressPercentage = totalConsultations > 0 ? Math.round((completedConsultations / totalConsultations) * 100) : 0;
+
+      setStats({
+        totalStudents,
+        consultationToday: {
+          completed,
+          scheduled,
+          total: completed + scheduled
+        },
+        needAttention: needAttentionCount,
+        progressPercentage
+      });
+    } catch (error) {
+      console.error('Error fetching stats:', error);
+    }
+  };
+
+  const fetchConsultationStats = async () => {
+    try {
+      const reservasiRes = await apiRequest('/reservasi', 'GET', undefined, token);
+      const allReservations = Array.isArray(reservasiRes) ? reservasiRes : reservasiRes?.data || [];
+
+      // Count by category
+      const categoryCounts = {
+        Akademik: 0,
+        Sosial: 0,
+        Karir: 0,
+        Keluarga: 0
+      };
+
+      allReservations.forEach((r: any) => {
+        const topic = typeof r.topic === 'string' ? r.topic : r.topic?.name || '';
+        if (topic.toLowerCase().includes('akademik')) categoryCounts.Akademik++;
+        else if (topic.toLowerCase().includes('sosial')) categoryCounts.Sosial++;
+        else if (topic.toLowerCase().includes('karir')) categoryCounts.Karir++;
+        else if (topic.toLowerCase().includes('keluarga')) categoryCounts.Keluarga++;
+      });
+
+      setConsultationStats([
+        { label: 'Akademik', value: categoryCounts.Akademik, color: 'bg-pink-500' },
+        { label: 'Sosial', value: categoryCounts.Sosial, color: 'bg-green-500' },
+        { label: 'Karir', value: categoryCounts.Karir, color: 'bg-orange-500' },
+        { label: 'Keluarga', value: categoryCounts.Keluarga, color: 'bg-purple-500' },
+      ]);
+    } catch (error) {
+      console.error('Error fetching consultation stats:', error);
+    }
+  };
+
+  const fetchPriorityStudents = async () => {
+    try {
+      const violationsRes = await apiRequest('/violations', 'GET', undefined, token);
+      const allViolations = Array.isArray(violationsRes) ? violationsRes : violationsRes?.data || [];
+
+      // Get pending and high priority violations
+      const priorityViolations = allViolations.filter((v: any) => v.status === 'pending').slice(0, 3);
+
+      const students = priorityViolations.map((violation: any) => {
+        const initial = violation.studentName?.charAt(0)?.toUpperCase() || 'S';
+        const priority = violation.severity === 'high' ? 'Tinggi' : 'Sedang';
+        const bgColor = priority === 'Tinggi' ? 'bg-red-200' : 'bg-orange-200';
+
+        return {
+          name: violation.studentName || 'Unknown Student',
+          class: violation.studentClass || 'Unknown Class',
+          issue: violation.description || 'No description',
+          priority,
+          initial,
+          bgColor
+        };
+      });
+
+      setPriorityStudents(students);
+    } catch (error) {
+      console.error('Error fetching priority students:', error);
+    }
+  };
+
+  const fetchTodaySchedule = async () => {
+    try {
+      const reservasiRes = await apiRequest('/reservasi', 'GET', undefined, token);
+      const allReservations = Array.isArray(reservasiRes) ? reservasiRes : reservasiRes?.data || [];
+
+      // Filter today's schedules
+      const today = new Date().toISOString().split('T')[0];
+      const todaySchedules = allReservations
+        .filter((r: any) => {
+          const resDate = new Date(r.preferredDate).toISOString().split('T')[0];
+          return resDate === today;
+        })
+        .slice(0, 3)
+        .map((r: any) => {
+          const studentName = r.student?.fullName || r.studentName || 'Unknown Student';
+          const initial = studentName.charAt(0).toUpperCase();
+          const bgColor = ['bg-indigo-600', 'bg-purple-600', 'bg-blue-600', 'bg-green-600', 'bg-pink-600'][Math.floor(Math.random() * 5)];
+          const duration = `${r.preferredTime} - ${r.preferredTime}`; // Simple time, could be enhanced
+          
+          return {
+            time: r.preferredTime || '00:00',
+            student: studentName,
+            class: r.student?.studentCard?.class?.name || 'Unknown Class',
+            topic: typeof r.topic === 'string' ? r.topic : r.topic?.name || 'Consultation',
+            room: 'Ruang BK 1', // Default, could be fetched from backend
+            duration: duration,
+            status: r.status === 'completed' ? 'Selesai' : r.status === 'approved' ? 'Terjadwal' : 'Pending',
+            initial,
+            bgColor
+          };
+        });
+
+      setSchedules(todaySchedules);
+    } catch (error) {
+      console.error('Error fetching today schedule:', error);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -136,28 +316,28 @@ const DashboardBKPage: React.FC = () => {
         <StatCard 
           icon={Users} 
           label="Total Siswa" 
-          value="342" 
+          value={stats.totalStudents} 
           description="+12 dari bulan lalu"
           color="bg-red-600"
         />
         <StatCard 
           icon={Calendar} 
           label="Konsultasi Hari Ini" 
-          value="8" 
-          description="3 selesai, 5 terjadwal"
+          value={stats.consultationToday.total} 
+          description={`${stats.consultationToday.completed} selesai, ${stats.consultationToday.scheduled} terjadwal`}
           color="bg-green-600"
         />
         <StatCard 
           icon={Bell} 
           label="Perlu Perhatian" 
-          value="15" 
+          value={stats.needAttention} 
           description="Siswa dengan masalah prioritas"
           color="bg-orange-600"
         />
         <StatCard 
           icon={BarChart3} 
           label="Progres Penanganan" 
-          value="89%" 
+          value={`${stats.progressPercentage}%`} 
           description="+5% dari bulan lalu"
           color="bg-blue-600"
         />
@@ -197,33 +377,38 @@ const DashboardBKPage: React.FC = () => {
         <div className="lg:col-span-2 bg-white rounded-xl p-6 border border-gray-200">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Statistik Konsultasi (6 Bulan Terakhir)</h3>
           <div className="space-y-4">
-            {[
-              { label: 'Akademik', value: 42, color: 'bg-pink-500' },
-              { label: 'Sosial', value: 32, color: 'bg-green-500' },
-              { label: 'Karir', value: 30, color: 'bg-orange-500' },
-              { label: 'Keluarga', value: 22, color: 'bg-purple-500' },
-            ].map((item, idx) => (
-              <div key={idx}>
-                <div className="flex items-center justify-between text-sm mb-2">
-                  <span className="text-gray-600">{item.label}</span>
-                  <span className="font-semibold">{item.value}</span>
+            {consultationStats.map((item, idx) => {
+              const maxValue = Math.max(...consultationStats.map(s => s.value), 1);
+              const percentage = (item.value / maxValue) * 100;
+              return (
+                <div key={idx}>
+                  <div className="flex items-center justify-between text-sm mb-2">
+                    <span className="text-gray-600">{item.label}</span>
+                    <span className="font-semibold">{item.value}</span>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div className={`${item.color} h-2 rounded-full`} style={{ width: `${percentage}%` }}></div>
+                  </div>
                 </div>
-                <div className="w-full bg-gray-200 rounded-full h-2">
-                  <div className={`${item.color} h-2 rounded-full`} style={{ width: `${item.value}%` }}></div>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
 
         {/* Priority Students */}
         <div className="bg-white rounded-xl p-6 border border-gray-200">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Siswa Perlu Perhatian</h3>
-          <div className="space-y-4">
-            {priorityStudents.map((student, idx) => (
-              <PriorityStudentCard key={idx} {...student} />
-            ))}
-          </div>
+          {priorityStudents.length > 0 ? (
+            <div className="space-y-4">
+              {priorityStudents.map((student, idx) => (
+                <PriorityStudentCard key={idx} {...student} />
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-8 text-gray-500">
+              <p>Tidak ada siswa yang memerlukan perhatian khusus</p>
+            </div>
+          )}
         </div>
       </div>
 
@@ -234,11 +419,21 @@ const DashboardBKPage: React.FC = () => {
           <button className="text-sm text-indigo-600 hover:text-indigo-700 font-medium">Lihat Semua</button>
         </div>
         
-        <div className="space-y-4">
-          {schedules.map((schedule, idx) => (
-            <ScheduleItem key={idx} {...schedule} />
-          ))}
-        </div>
+        {loading ? (
+          <div className="flex justify-center py-8">
+            <Loader className="animate-spin text-indigo-600" size={32} />
+          </div>
+        ) : schedules.length > 0 ? (
+          <div className="space-y-4">
+            {schedules.map((schedule, idx) => (
+              <ScheduleItem key={idx} {...schedule} />
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-8 text-gray-500">
+            <p>Tidak ada konsultasi terjadwal hari ini</p>
+          </div>
+        )}
       </div>
 
       {/* Modal: Buat Janji Baru */}
@@ -647,23 +842,29 @@ const DashboardBKPage: React.FC = () => {
 
               {/* Content */}
               <div className="px-6 py-6">
-                <div className="space-y-4">
-                  {schedules.map((schedule, idx) => (
-                    <div key={idx} className="p-4 border border-gray-200 rounded-lg">
-                      <div className="flex items-start justify-between mb-2">
-                        <div>
-                          <p className="font-semibold text-gray-900">{schedule.student} ({schedule.class})</p>
-                          <p className="text-sm text-gray-600">{schedule.duration}</p>
+                {schedules.length > 0 ? (
+                  <div className="space-y-4">
+                    {schedules.map((schedule, idx) => (
+                      <div key={idx} className="p-4 border border-gray-200 rounded-lg">
+                        <div className="flex items-start justify-between mb-2">
+                          <div>
+                            <p className="font-semibold text-gray-900">{schedule.student} ({schedule.class})</p>
+                            <p className="text-sm text-gray-600">{schedule.duration}</p>
+                          </div>
+                          <span className={`text-xs px-3 py-1 ${schedule.status === 'Selesai' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'} rounded-full font-medium`}>
+                            {schedule.status}
+                          </span>
                         </div>
-                        <span className={`text-xs px-3 py-1 ${schedule.status === 'Selesai' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'} rounded-full font-medium`}>
-                          {schedule.status}
-                        </span>
+                        <p className="text-sm text-gray-600 mb-1">{schedule.topic}</p>
+                        <p className="text-xs text-gray-500">{schedule.room}</p>
                       </div>
-                      <p className="text-sm text-gray-600 mb-1">{schedule.topic}</p>
-                      <p className="text-xs text-gray-500">{schedule.room}</p>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-gray-500">
+                    <p>Tidak ada jadwal konsultasi</p>
+                  </div>
+                )}
               </div>
             </div>
           </div>

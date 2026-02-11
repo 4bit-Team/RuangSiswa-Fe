@@ -269,9 +269,9 @@ const ProfilPage: React.FC = () => {
           </div>
         </div>
         {/* Kartu Pelajar Siswa dipindah ke bawah riwayat konseling */}
-        {user?.id && (
+        {/* {user?.id && (
           <StudentCardView userId={user.id} />
-        )}
+        )} */}
       </div>
 
       <div className="bg-white rounded-xl border border-gray-200">

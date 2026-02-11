@@ -6,11 +6,17 @@ import SessionDetailModal from '../modals/SessionDetailModal'
 import {
   getGuidanceReferrals,
   getGuidanceSessions,
+  createGuidanceReferral,
   createGuidanceSession,
   getCriticalReferrals,
   syncGuidanceFromWalas,
-} from '@/lib/bimbinganAPI'
+  updateGuidanceReferral,
+  deleteGuidanceReferral,
+  deleteGuidanceSession,
+  completeGuidanceSession,
+} from '@/lib/backup/bimbinganAPI'
 import { apiRequest } from '@/lib/api'
+import { useAuth } from '@/hooks/useAuth'
 
 interface Referral {
   id: string
@@ -284,11 +290,15 @@ const StatCard: React.FC<{ icon: React.ReactNode; label: string; value: number |
 )
 
 const StatusBimbinganPage: React.FC = () => {
+  // ===== AUTH =====
+  const { token } = useAuth()
+
   // ===== STATE MANAGEMENT =====
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [syncing, setSyncing] = useState(false)
-  const [activeTab, setActiveTab] = useState<'overview' | 'referrals' | 'sessions' | 'notes' | 'interventions' | 'progress' | 'targets'>('overview')
+  const [submitting, setSubmitting] = useState(false)
+  const [activeTab, setActiveTab] = useState<'overview' | 'referrals' | 'notes' | 'progress'>('overview')
 
   // Data states
   const [referrals, setReferrals] = useState<Referral[]>([])
@@ -421,55 +431,166 @@ const StatusBimbinganPage: React.FC = () => {
   const handleCreateReferral = async (e: React.FormEvent) => {
     e.preventDefault()
     try {
-      const response = await apiRequest('/v1/kesiswaan/bimbingan/referrals', 'POST', {
-        ...formData,
+      setSubmitting(true)
+      setError(null)
+
+      const response = await createGuidanceReferral({
+        student_id: parseInt(formData.student_id),
+        student_name: formData.student_name,
+        class_id: 1, // Adjust if needed
         tahun: new Date().getFullYear(),
-      })
+        referral_reason: formData.referral_reason,
+        risk_level: formData.risk_level,
+      }, token)
+
       if (response.success) {
         alert('Referral berhasil dibuat')
         setShowReferralForm(false)
         setFormData({ student_id: '', student_name: '', referral_reason: '', risk_level: 'yellow' })
         await loadReferrals()
+      } else {
+        throw new Error(response.message || 'Gagal membuat referral')
       }
     } catch (error) {
-      alert('Gagal membuat referral')
+      const errorMsg = error instanceof Error ? error.message : 'Gagal membuat referral'
+      setError(errorMsg)
+      alert(`Error: ${errorMsg}`)
+      console.error('Error creating referral:', error)
+    } finally {
+      setSubmitting(false)
     }
   }
 
   const handleCreateSession = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!selectedReferral) return
+    if (!selectedReferral) {
+      alert('Pilih referral terlebih dahulu')
+      return
+    }
     try {
-      const response = await apiRequest('/v1/kesiswaan/bimbingan/sesi', 'POST', {
-        ...sessionFormData,
-        referral_id: selectedReferral.id,
-        student_id: selectedReferral.student_id,
-        student_name: selectedReferral.student_name,
-      })
+      setSubmitting(true)
+      setError(null)
+
+      const response = await createGuidanceSession(
+        selectedReferral.id,
+        {
+          student_id: selectedReferral.student_id,
+          counselor_id: 'system', // Adjust if needed
+          counselor_name: 'System',
+          tanggal_sesi: sessionFormData.tanggal_sesi,
+          topik_pembahasan: sessionFormData.topik_pembahasan,
+        },
+        token
+      )
+
       if (response.success) {
         alert('Sesi berhasil dijadwalkan')
         setShowSessionForm(false)
         setSessionFormData({ tanggal_sesi: '', jam_sesi: '', topik_pembahasan: '' })
         await loadSessions()
+      } else {
+        throw new Error(response.message || 'Gagal menjadwalkan sesi')
       }
     } catch (error) {
-      alert('Gagal menjadwalkan sesi')
+      const errorMsg = error instanceof Error ? error.message : 'Gagal menjadwalkan sesi'
+      setError(errorMsg)
+      alert(`Error: ${errorMsg}`)
+      console.error('Error creating session:', error)
+    } finally {
+      setSubmitting(false)
     }
   }
 
   const handleCompleteSession = async (sesiId: string) => {
     if (!confirm('Tandai sesi ini sebagai selesai?')) return
+    
+    if (!selectedReferral) {
+      alert('Referral tidak ditemukan')
+      return
+    }
+
     try {
-      const response = await apiRequest(`/v1/kesiswaan/bimbingan/sesi/${sesiId}/complete`, 'PATCH', {
-        siswa_hadir: true,
-        hasil_akhir: 'Sesi selesai',
-      })
+      setSubmitting(true)
+      setError(null)
+
+      const response = await completeGuidanceSession(
+        selectedReferral.id,
+        sesiId,
+        {
+          siswa_hadir: true,
+          hasil_akhir: 'Sesi selesai',
+        },
+        token
+      )
+
       if (response.success) {
         alert('Sesi berhasil ditandai selesai')
         await loadSessions()
+      } else {
+        throw new Error(response.message || 'Gagal menyelesaikan sesi')
       }
     } catch (error) {
-      alert('Gagal menyelesaikan sesi')
+      const errorMsg = error instanceof Error ? error.message : 'Gagal menyelesaikan sesi'
+      setError(errorMsg)
+      alert(`Error: ${errorMsg}`)
+      console.error('Error completing session:', error)
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const handleDeleteReferral = async (referralId: string) => {
+    if (!confirm('Hapus referral ini? Tindakan ini tidak dapat dibatalkan.')) return
+
+    try {
+      setSubmitting(true)
+      setError(null)
+
+      const response = await deleteGuidanceReferral(referralId, token)
+
+      if (response.success) {
+        alert('Referral berhasil dihapus')
+        await loadReferrals()
+      } else {
+        throw new Error(response.message || 'Gagal menghapus referral')
+      }
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : 'Gagal menghapus referral'
+      setError(errorMsg)
+      alert(`Error: ${errorMsg}`)
+      console.error('Error deleting referral:', error)
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const handleDeleteSession = async (sessionId: string) => {
+    if (!confirm('Hapus sesi ini? Tindakan ini tidak dapat dibatalkan.')) return
+
+    if (!selectedReferral) {
+      alert('Referral tidak ditemukan')
+      return
+    }
+
+    try {
+      setSubmitting(true)
+      setError(null)
+
+      const response = await deleteGuidanceSession(selectedReferral.id, sessionId, token)
+
+      if (response.success) {
+        alert('Sesi berhasil dihapus')
+        await loadSessions()
+      } else {
+        throw new Error(response.message || 'Gagal menghapus sesi')
+      }
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : 'Gagal menghapus sesi'
+      setError(errorMsg)
+      alert(`Error: ${errorMsg}`)
+      console.error('Error deleting session:', error)
+    } finally {
+      setSubmitting(false)
     }
   }
 
@@ -600,7 +721,7 @@ const StatusBimbinganPage: React.FC = () => {
           </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mt-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mt-6">
           <StatCard
             icon={<BookOpen className="w-12 h-12" />}
             label="Total Sesi"
@@ -619,38 +740,22 @@ const StatusBimbinganPage: React.FC = () => {
             value={progressData.upcomingSessions}
             color="bg-gradient-to-br from-orange-400 to-orange-600"
           />
-          <StatCard
-            icon={<Award className="w-12 h-12" />}
-            label="Progress"
-            value={`${progressData.progressPercentage}%`}
-            color="bg-gradient-to-br from-purple-400 to-purple-600"
-          />
         </div>
 
         {/* Tab Navigation */}
         <div className="mt-6 border-b border-gray-200">
           <div className="flex gap-8 overflow-x-auto">
             {[
-              { id: 'overview', label: '📊 Ringkasan' },
-              { id: 'referrals', label: '⚠️ Referral' },
-              { id: 'sessions', label: '📅 Sesi' },
-              { id: 'notes', label: '📝 Catatan' },
-              { id: 'interventions', label: '✅ Intervensi' },
-              { id: 'progress', label: '📈 Perkembangan' },
-              { id: 'targets', label: '🎯 Target' },
+              { id: 'overview', label: 'Ringkasan' },
+              { id: 'referrals', label: 'Referral' },
+              { id: 'notes', label: 'Catatan' },
+              { id: 'progress', label: 'Perkembangan' },
             ].map((tab) => (
               <button
                 key={tab.id}
                 onClick={() =>
                   setActiveTab(
-                    tab.id as
-                      | 'overview'
-                      | 'referrals'
-                      | 'sessions'
-                      | 'notes'
-                      | 'interventions'
-                      | 'progress'
-                      | 'targets'
+                    tab.id as 'overview' | 'referrals' | 'notes' | 'progress'
                   )
                 }
                 className={`px-4 py-3 font-semibold whitespace-nowrap border-b-2 transition-colors ${
@@ -669,7 +774,7 @@ const StatusBimbinganPage: React.FC = () => {
         {activeTab === 'overview' && (
           <div className="mt-6 space-y-6">
             {/* Progress Summary */}
-            <section className="bg-gray-50 rounded-xl p-6">
+            {/* <section className="bg-gray-50 rounded-xl p-6">
               <h3 className="font-bold text-gray-900 text-lg mb-4">
                 Ringkasan Progress Bimbingan
               </h3>
@@ -712,7 +817,7 @@ const StatusBimbinganPage: React.FC = () => {
                   </div>
                 </div>
               </div>
-            </section>
+            </section> */}
 
             {/* Current Status */}
             <section>
@@ -864,100 +969,6 @@ const StatusBimbinganPage: React.FC = () => {
           </section>
         )}
 
-        {/* Sessions Tab */}
-        {activeTab === 'sessions' && (
-          <section className="mt-6">
-            <h3 className="font-bold text-gray-900 text-lg mb-4">Daftar Sesi</h3>
-            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-gray-50 border-b border-gray-200">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">
-                        Tanggal
-                      </th>
-                      <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">
-                        Sesi
-                      </th>
-                      <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">
-                        Topik
-                      </th>
-                      <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">
-                        Siswa
-                      </th>
-                      <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">
-                        Konselor
-                      </th>
-                      <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">
-                        Status
-                      </th>
-                      <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">
-                        Aksi
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-200">
-                    {sessions.length > 0 ? (
-                      sessions.map((sesi) => (
-                        <tr key={sesi.id} className="hover:bg-gray-50 transition-colors">
-                          <td className="px-6 py-4 text-sm text-gray-700">
-                            {new Date(sesi.tanggal_sesi).toLocaleDateString('id-ID')}
-                          </td>
-                          <td className="px-6 py-4 text-sm font-semibold text-gray-900">
-                            Sesi {sesi.sesi_ke}
-                          </td>
-                          <td className="px-6 py-4 text-sm text-gray-700">
-                            {sesi.topik_pembahasan}
-                          </td>
-                          <td className="px-6 py-4 text-sm text-gray-700">
-                            {sesi.student_name}
-                          </td>
-                          <td className="px-6 py-4 text-sm text-gray-700">
-                            {sesi.counselor_name}
-                          </td>
-                          <td className="px-6 py-4">
-                            <span
-                              className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                                sesi.status === 'completed'
-                                  ? 'bg-green-100 text-green-800'
-                                  : sesi.status === 'scheduled'
-                                    ? 'bg-blue-100 text-blue-800'
-                                    : 'bg-orange-100 text-orange-800'
-                              }`}
-                            >
-                              {sesi.status === 'completed'
-                                ? 'Selesai'
-                                : sesi.status === 'scheduled'
-                                  ? 'Terjadwal'
-                                  : 'Dalam Proses'}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4">
-                            {sesi.status === 'scheduled' && (
-                              <button
-                                onClick={() => handleCompleteSession(sesi.id)}
-                                className="px-3 py-1 bg-green-50 text-green-600 rounded-lg hover:bg-green-100 transition-colors text-sm font-semibold"
-                              >
-                                Selesaikan
-                              </button>
-                            )}
-                          </td>
-                        </tr>
-                      ))
-                    ) : (
-                      <tr>
-                        <td colSpan={7} className="px-6 py-8 text-center text-gray-500">
-                          Tidak ada sesi
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </section>
-        )}
-
         {/* Notes Tab */}
         {activeTab === 'notes' && (
           <section className="mt-6">
@@ -990,51 +1001,6 @@ const StatusBimbinganPage: React.FC = () => {
                 ))
               ) : (
                 <div className="text-center py-8 text-gray-500">Tidak ada catatan</div>
-              )}
-            </div>
-          </section>
-        )}
-
-        {/* Interventions Tab */}
-        {activeTab === 'interventions' && (
-          <section className="mt-6">
-            <h3 className="font-bold text-gray-900 text-lg mb-4">Daftar Intervensi</h3>
-            <div className="space-y-4">
-              {interventions.length > 0 ? (
-                interventions.map((interv) => (
-                  <div
-                    key={interv.id}
-                    className="bg-white border border-gray-200 rounded-xl p-6"
-                  >
-                    <div className="flex items-start justify-between mb-3">
-                      <div>
-                        <h4 className="font-semibold text-gray-900">
-                          {interv.jenis_intervensi}
-                        </h4>
-                        <p className="text-sm text-gray-600">
-                          {new Date(interv.tanggal_intervensi).toLocaleDateString('id-ID')}
-                        </p>
-                      </div>
-                      <span
-                        className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                          interv.status === 'completed'
-                            ? 'bg-green-100 text-green-800'
-                            : 'bg-blue-100 text-blue-800'
-                        }`}
-                      >
-                        {interv.status === 'completed' ? 'Selesai' : 'Aktif'}
-                      </span>
-                    </div>
-                    <p className="text-sm text-gray-700 mb-3">
-                      {interv.deskripsi_intervensi}
-                    </p>
-                    {interv.efektivitas && (
-                      <p className="text-sm text-gray-600">Efektivitas: {interv.efektivitas}</p>
-                    )}
-                  </div>
-                ))
-              ) : (
-                <div className="text-center py-8 text-gray-500">Tidak ada intervensi</div>
               )}
             </div>
           </section>
@@ -1097,61 +1063,6 @@ const StatusBimbinganPage: React.FC = () => {
                 ))
               ) : (
                 <div className="text-center py-8 text-gray-500">Tidak ada data perkembangan</div>
-              )}
-            </div>
-          </section>
-        )}
-
-        {/* Targets Tab */}
-        {activeTab === 'targets' && (
-          <section className="mt-6">
-            <h3 className="font-bold text-gray-900 text-lg mb-4">Target Bimbingan</h3>
-            <div className="space-y-4">
-              {targets.length > 0 ? (
-                targets.map((target) => (
-                  <div
-                    key={target.id}
-                    className="bg-white border border-gray-200 rounded-xl p-6"
-                  >
-                    <div className="flex items-start justify-between mb-3">
-                      <div>
-                        <h4 className="font-semibold text-gray-900">
-                          {target.area_target}
-                        </h4>
-                        <p className="text-sm text-gray-700 mt-2">{target.target_spesifik}</p>
-                      </div>
-                      <span
-                        className={`px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap ${
-                          target.status === 'achieved'
-                            ? 'bg-green-100 text-green-800'
-                            : target.status === 'active'
-                              ? 'bg-blue-100 text-blue-800'
-                              : target.status === 'partially_achieved'
-                                ? 'bg-orange-100 text-orange-800'
-                                : 'bg-red-100 text-red-800'
-                        }`}
-                      >
-                        {target.status?.replace('_', ' ').toUpperCase()}
-                      </span>
-                    </div>
-                    <div className="grid grid-cols-2 gap-4 pt-4 border-t border-gray-200 text-sm">
-                      <div>
-                        <p className="text-gray-600 mb-1">Mulai</p>
-                        <p className="font-semibold text-gray-900">
-                          {new Date(target.tanggal_mulai).toLocaleDateString('id-ID')}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-gray-600 mb-1">Target</p>
-                        <p className="font-semibold text-gray-900">
-                          {new Date(target.tanggal_target).toLocaleDateString('id-ID')}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <div className="text-center py-8 text-gray-500">Tidak ada target</div>
               )}
             </div>
           </section>

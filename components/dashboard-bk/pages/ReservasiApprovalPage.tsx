@@ -29,6 +29,31 @@ interface Reservasi {
   updatedAt?: string;
 }
 
+interface GroupReservasi {
+  id: number;
+  groupName: string;
+  creatorId: number;
+  students?: { id: number; username: string; fullName: string }[];
+  counselorId: number;
+  preferredDate: string;
+  preferredTime: string;
+  type: 'chat' | 'tatap-muka';
+  topic?: { id: number; name: string } | null;
+  topicId?: number | null;
+  notes?: string;
+  status: 'pending' | 'approved' | 'rejected' | 'in_counseling' | 'completed' | 'cancelled';
+  conversationId?: number;
+  rejectionReason?: string;
+  room?: string;
+  qrCode?: string;
+  attendanceConfirmed?: boolean;
+  completedAt?: string;
+  creator?: { id: number; fullName: string; username: string };
+  counselor?: { fullName: string };
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 interface ReservasiCardProps {
   reservasi: Reservasi;
   onViewDetail: (reservasi: Reservasi) => void;
@@ -390,59 +415,82 @@ const DetailModal: React.FC<DetailModalProps> = ({ reservasi, isOpen, onClose, o
 const ReservasiApprovalPage: React.FC = () => {
   const { token } = useAuth();
   const [reservasiList, setReservasiList] = useState<Reservasi[]>([]);
+  const [groupReservasiList, setGroupReservasiList] = useState<GroupReservasi[]>([]);
   const [filteredReservasi, setFilteredReservasi] = useState<Reservasi[]>([]);
+  const [filteredGroupReservasi, setFilteredGroupReservasi] = useState<GroupReservasi[]>([]);
   const [loading, setLoading] = useState(false);
   const [searching, setSearching] = useState(false);
-  const [selectedDetail, setSelectedDetail] = useState<Reservasi | null>(null);
+  const [selectedDetail, setSelectedDetail] = useState<Reservasi | GroupReservasi | null>(null);
   const [detailModalOpen, setDetailModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
   const [filterType, setFilterType] = useState('all');
+  const [activeTab, setActiveTab] = useState<'individual' | 'group'>('individual');
 
-  // Load reservasi
+  // Load both reservasi and group reservasi on mount
   useEffect(() => {
     if (token) {
       loadReservasi();
+      loadGroupReservasi();
     }
   }, [token]);
 
-  // Filter reservasi saat search/filter berubah
+  // Apply filters when search/filter changes
   useEffect(() => {
     applyFilters();
-  }, [searchQuery, filterStatus, filterType, reservasiList]);
+  }, [searchQuery, filterStatus, filterType, reservasiList, groupReservasiList]);
 
+  // Load individual reservasi
   const loadReservasi = async () => {
     try {
       setLoading(true);
-      console.log('📥 Fetching reservasi...');
+      console.log('📥 Loading individual reservasi...');
       const response = await apiRequest('/reservasi', 'GET', undefined, token);
-      console.log('✅ Reservasi loaded:', response);
+      console.log('✅ Individual Reservasi loaded:', response);
       setReservasiList(Array.isArray(response) ? response : []);
     } catch (error: any) {
-      console.error('❌ Error loading reservasi:', error);
+      console.error('❌ Error loading individual reservasi:', error);
       setReservasiList([]);
     } finally {
       setLoading(false);
     }
   };
 
+  // Load group reservasi
+  const loadGroupReservasi = async () => {
+    try {
+      setLoading(true);
+      console.log('📥 Loading group reservasi...');
+      const response = await apiRequest('/reservasi/group', 'GET', undefined, token);
+      console.log('✅ Group Reservasi loaded:', response);
+      setGroupReservasiList(Array.isArray(response) ? response : []);
+    } catch (error: any) {
+      console.error('❌ Error loading group reservasi:', error);
+      setGroupReservasiList([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Apply filters to both individual and group reservasi
   const applyFilters = () => {
-    let filtered = [...reservasiList];
+    // Filter individual reservasi
+    let filteredIndividual = [...reservasiList];
 
     // Filter by status
     if (filterStatus !== 'all') {
-      filtered = filtered.filter((r) => r.status === filterStatus);
+      filteredIndividual = filteredIndividual.filter((r) => r.status === filterStatus);
     }
 
     // Filter by type
     if (filterType !== 'all') {
-      filtered = filtered.filter((r) => r.type === filterType);
+      filteredIndividual = filteredIndividual.filter((r) => r.type === filterType);
     }
 
     // Filter by search query
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(
+      filteredIndividual = filteredIndividual.filter(
         (r) =>
           r.student?.fullName?.toLowerCase().includes(query) ||
           r.student?.email?.toLowerCase().includes(query) ||
@@ -450,17 +498,46 @@ const ReservasiApprovalPage: React.FC = () => {
       );
     }
 
-    setFilteredReservasi(filtered);
+    setFilteredReservasi(filteredIndividual);
+
+    // Filter group reservasi
+    let filteredGroup = [...groupReservasiList];
+
+    // Filter by status
+    if (filterStatus !== 'all') {
+      filteredGroup = filteredGroup.filter((r) => r.status === filterStatus);
+    }
+
+    // Filter by type
+    if (filterType !== 'all') {
+      filteredGroup = filteredGroup.filter((r) => r.type === filterType);
+    }
+
+    // Filter by search query
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filteredGroup = filteredGroup.filter(
+        (r) =>
+          r.groupName.toLowerCase().includes(query) ||
+          r.creator?.fullName?.toLowerCase().includes(query) ||
+          (typeof r.topic === 'object' ? r.topic?.name?.toLowerCase().includes(query) : false) ||
+          (r.students && r.students.some(s => s.fullName?.toLowerCase().includes(query)))
+      );
+    }
+
+    setFilteredGroupReservasi(filteredGroup);
   };
 
-  const handleApprove = async (reservasiId: number) => {
+  const handleApprove = async (reservasiId: number, isGroup: boolean = false) => {
     try {
       setSearching(true);
-      console.log('✅ Approving reservasi:', reservasiId);
-      await apiRequest(`/reservasi/${reservasiId}/status`, 'PUT', { status: 'approved' }, token);
+      const endpoint = isGroup ? `/reservasi/group/${reservasiId}/status` : `/reservasi/${reservasiId}/status`;
+      console.log('✅ Approving reservasi:', reservasiId, 'isGroup:', isGroup);
+      await apiRequest(endpoint, 'PUT', { status: 'approved' }, token);
 
-      // Reload & close modal
+      // Reload both lists & close modal
       await loadReservasi();
+      await loadGroupReservasi();
       setDetailModalOpen(false);
       setSelectedDetail(null);
     } catch (error: any) {
@@ -471,14 +548,16 @@ const ReservasiApprovalPage: React.FC = () => {
     }
   };
 
-  const handleReject = async (reservasiId: number, reason: string = '') => {
+  const handleReject = async (reservasiId: number, reason: string = '', isGroup: boolean = false) => {
     try {
       setSearching(true);
-      console.log('❌ Rejecting reservasi:', reservasiId);
-      await apiRequest(`/reservasi/${reservasiId}/status`, 'PUT', { status: 'rejected', rejectionReason: reason }, token);
+      const endpoint = isGroup ? `/reservasi/group/${reservasiId}/status` : `/reservasi/${reservasiId}/status`;
+      console.log('❌ Rejecting reservasi:', reservasiId, 'isGroup:', isGroup);
+      await apiRequest(endpoint, 'PUT', { status: 'rejected', rejectionReason: reason }, token);
 
-      // Reload & close modal
+      // Reload both lists & close modal
       await loadReservasi();
+      await loadGroupReservasi();
       setDetailModalOpen(false);
       setSelectedDetail(null);
     } catch (error: any) {
@@ -496,6 +575,7 @@ const ReservasiApprovalPage: React.FC = () => {
       const response = await apiRequest(`/reservasi/${id}/complete`, 'PATCH', undefined, token);
       console.log('✅ Session marked complete:', response);
       await loadReservasi();
+      await loadGroupReservasi();
       setDetailModalOpen(false);
       setSelectedDetail(null);
       alert('Sesi berhasil ditandai sebagai selesai!');
@@ -507,10 +587,10 @@ const ReservasiApprovalPage: React.FC = () => {
     }
   };
 
-  const pendingCount = reservasiList.filter((r) => r.status === 'pending').length;
-  const approvedCount = reservasiList.filter((r) => r.status === 'approved').length;
-  const rejectedCount = reservasiList.filter((r) => r.status === 'rejected').length;
-  const completedCount = reservasiList.filter((r) => r.status === 'completed').length;
+  const pendingCount = reservasiList.filter((r) => r.status === 'pending').length + groupReservasiList.filter((r) => r.status === 'pending').length;
+  const approvedCount = reservasiList.filter((r) => r.status === 'approved').length + groupReservasiList.filter((r) => r.status === 'approved').length;
+  const rejectedCount = reservasiList.filter((r) => r.status === 'rejected').length + groupReservasiList.filter((r) => r.status === 'rejected').length;
+  const completedCount = reservasiList.filter((r) => r.status === 'completed').length + groupReservasiList.filter((r) => r.status === 'completed').length;
 
   return (
     <div className="space-y-6">
@@ -567,6 +647,30 @@ const ReservasiApprovalPage: React.FC = () => {
 
       {/* Search and Filter */}
       <div className="bg-white rounded-xl p-6 border border-gray-200">
+        {/* Tabs */}
+        <div className="flex gap-2 mb-6 border-b border-gray-200">
+          <button
+            onClick={() => setActiveTab('individual')}
+            className={`px-4 py-3 font-medium border-b-2 transition-colors ${
+              activeTab === 'individual'
+                ? 'border-blue-600 text-blue-600'
+                : 'border-transparent text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            Konseling Individu ({filteredReservasi.length})
+          </button>
+          <button
+            onClick={() => setActiveTab('group')}
+            className={`px-4 py-3 font-medium border-b-2 transition-colors ${
+              activeTab === 'group'
+                ? 'border-green-600 text-green-600'
+                : 'border-transparent text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            Konseling Kelompok ({filteredGroupReservasi.length})
+          </button>
+        </div>
+
         <div className="flex items-center space-x-3 mb-6">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
@@ -609,25 +713,118 @@ const ReservasiApprovalPage: React.FC = () => {
               <p className="text-gray-600">Memuat reservasi...</p>
             </div>
           </div>
-        ) : filteredReservasi.length === 0 ? (
+        ) : activeTab === 'individual' ? (
+          filteredReservasi.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12">
+              <AlertCircle className="w-12 h-12 text-gray-300 mb-4" />
+              <p className="text-gray-600">Tidak ada reservasi individu</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {filteredReservasi.map((reservasi) => (
+                <ReservasiCard
+                  key={reservasi.id}
+                  reservasi={reservasi}
+                  onViewDetail={(res) => {
+                    setSelectedDetail(res);
+                    setDetailModalOpen(true);
+                  }}
+                  onApprove={handleApprove}
+                  onReject={handleReject}
+                  loading={searching}
+                />
+              ))}
+            </div>
+          )
+        ) : filteredGroupReservasi.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12">
             <AlertCircle className="w-12 h-12 text-gray-300 mb-4" />
-            <p className="text-gray-600">Tidak ada reservasi</p>
+            <p className="text-gray-600">Tidak ada reservasi kelompok</p>
           </div>
         ) : (
           <div className="space-y-4">
-            {filteredReservasi.map((reservasi) => (
-              <ReservasiCard
-                key={reservasi.id}
-                reservasi={reservasi}
-                onViewDetail={(res) => {
-                  setSelectedDetail(res);
-                  setDetailModalOpen(true);
-                }}
-                onApprove={handleApprove}
-                onReject={handleReject}
-                loading={searching}
-              />
+            {filteredGroupReservasi.map((groupRes) => (
+              <div key={groupRes.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+                <div className="flex items-center space-x-4 flex-1">
+                  {/* Avatar */}
+                  <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-teal-600 rounded-full flex items-center justify-center text-white font-semibold flex-shrink-0">
+                    {groupRes.groupName.charAt(0).toUpperCase()}
+                  </div>
+
+                  {/* Info */}
+                  <div className="flex-1">
+                    <div className="flex items-center space-x-3 mb-1">
+                      <p className="font-semibold text-gray-900">{groupRes.groupName}</p>
+                      <span className={`text-xs px-2 py-1 rounded-full font-medium ${getStatusColor(groupRes.status)}`}>
+                        {groupRes.status === 'pending' ? 'Menunggu' : groupRes.status === 'approved' ? 'Diterima' : groupRes.status === 'rejected' ? 'Ditolak' : groupRes.status === 'in_counseling' ? 'Sedang Berlangsung' : 'Selesai'}
+                      </span>
+                    </div>
+                    <div className="flex items-center space-x-4 text-xs text-gray-500">
+                      <span className={`px-2 py-1 rounded ${getTypeColor(groupRes.type)}`}>
+                        {groupRes.type === 'chat' ? 'Chat' : 'Tatap Muka'}
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <MessageCircle size={12} />
+                        {typeof groupRes.topic === 'object' ? groupRes.topic?.name : (groupRes.topicId ? `Topic #${groupRes.topicId}` : '-')}
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <Calendar size={12} />
+                        {formatDate(groupRes.preferredDate)}
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <Clock size={12} />
+                        {groupRes.preferredTime}
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <User size={12} />
+                        {groupRes.students?.length || 0} siswa
+                      </span>
+                      {groupRes.type === 'tatap-muka' && (
+                        <span className="flex items-center gap-1">
+                          <MapPin size={12} />
+                          {groupRes.room || '-'}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Actions */}
+                <div className="flex items-center space-x-2">
+                  {/* View detail button - Note: DetailModal is designed for individual reservasi only */}
+                  {/* Skipping detail view for group reservasi for now */}
+
+                  {groupRes.status === 'pending' && (
+                    <>
+                      <button
+                        onClick={() => {
+                          if (window.confirm('Setujui reservasi ini?')) {
+                            handleApprove(groupRes.id, true);
+                          }
+                        }}
+                        className="p-2 hover:bg-green-200 rounded-lg transition-colors"
+                        disabled={searching}
+                        title="Setujui"
+                      >
+                        <CheckCircle size={18} className="text-green-600" />
+                      </button>
+                      <button
+                        onClick={() => {
+                          const reason = window.prompt('Alasan penolakan:');
+                          if (reason !== null) {
+                            handleReject(groupRes.id, reason, true);
+                          }
+                        }}
+                        className="p-2 hover:bg-red-200 rounded-lg transition-colors"
+                        disabled={searching}
+                        title="Tolak"
+                      >
+                        <XCircle size={18} className="text-red-600" />
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
             ))}
           </div>
         )}
@@ -635,7 +832,7 @@ const ReservasiApprovalPage: React.FC = () => {
 
       {/* Detail Modal */}
       <DetailModal
-        reservasi={selectedDetail}
+        reservasi={selectedDetail as Reservasi | null}
         isOpen={detailModalOpen}
         onClose={() => {
           setDetailModalOpen(false);

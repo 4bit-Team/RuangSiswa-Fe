@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react'
 import { Plus, Edit2, Trash2, Users, TrendingUp, Activity, Award, Search, ChevronRight, Eye, AlertCircle, CheckCircle, AlertTriangle, FileText } from 'lucide-react'
 import DashboardFormModal from '../modals/DashboardFormModal'
 import ProblemTrackerModal from '../modals/ProblemTrackerModal'
+import { generateDummyDashboardStudents, generateDummyDashboardStats } from '../../../lib/backup/dummyData'
 
 interface FollowUpAction {
   id: number
@@ -126,91 +127,7 @@ const ProblemCategoryBadge: React.FC<{ category: 'Presensi' | 'Disiplin' | 'Akad
 }
 
 const DashboardPage: React.FC = () => {
-  const [students, setStudents] = useState<DashboardItem[]>([
-    {
-      id: 1,
-      studentName: 'Ahmad Ridho Pratama',
-      nisn: '0031234567',
-      className: 'XI-RPL-A',
-      jurusan: 'RPL',
-      status: 'Aktif',
-      phoneNumber: '085123456789',
-      dateOfBirth: '2007-05-15',
-      address: 'Jl. Merdeka No. 45, Jakarta Selatan',
-      parentName: 'Budi Pratama',
-      parentPhone: '081234567890',
-      totalAttendance: 95,
-      totalTardiness: 3,
-      totalViolations: 0,
-      guidanceStatus: 'Normal',
-      problemRecords: [],
-    },
-    {
-      id: 2,
-      studentName: 'Siti Nurhaliza',
-      nisn: '0031234568',
-      className: 'XI-TKJ-B',
-      jurusan: 'TKJ',
-      status: 'Aktif',
-      phoneNumber: '085234567890',
-      dateOfBirth: '2007-08-22',
-      address: 'Jl. Ahmad Yani No. 12, Bandung',
-      parentName: 'Heru Wijaya',
-      parentPhone: '081345678901',
-      totalAttendance: 85,
-      totalTardiness: 8,
-      totalViolations: 1,
-      guidanceStatus: 'Peringatan',
-      problemRecords: [
-        {
-          id: 1,
-          category: 'Presensi',
-          description: 'Sering terlambat masuk sekolah',
-          referenceFrom: 'Wali Kelas',
-          problemType: 'Attendance',
-          dateReported: '2025-01-20',
-          resolutionStatus: 'Tidak Tuntas',
-          guidanceHistory: [
-            {
-              id: 1,
-              date: '2025-01-25',
-              counselor: 'Bu Sarah Wijaya',
-              notes: 'Sesi pertama bimbingan, mengidentifikasi penyebab keterlambatan',
-            },
-          ],
-          followUpActions: [
-            {
-              id: 1,
-              type: 'Pangilan Orang Tua',
-              date: '2025-02-01',
-              description: 'Menghubungi orang tua untuk diskusi masalah keterlambatan',
-              result: 'Orang tua setuju membantu mengatasi',
-              status: 'Selesai',
-            },
-          ],
-          referralStatus: 'Belum',
-        },
-      ],
-    },
-    {
-      id: 3,
-      studentName: 'Budi Santoso',
-      nisn: '0031234569',
-      className: 'XI-MM-C',
-      jurusan: 'MM',
-      status: 'Aktif',
-      phoneNumber: '085345678901',
-      dateOfBirth: '2007-03-10',
-      address: 'Jl. Sudirman No. 88, Tangerang',
-      parentName: 'Suyanto',
-      parentPhone: '081456789012',
-      totalAttendance: 92,
-      totalTardiness: 4,
-      totalViolations: 0,
-      guidanceStatus: 'Normal',
-      problemRecords: [],
-    },
-  ])
+  const [students, setStudents] = useState<DashboardItem[]>(generateDummyDashboardStudents())
 
   const [filteredStudents, setFilteredStudents] = useState<DashboardItem[]>(students)
   const [searchTerm, setSearchTerm] = useState('')
@@ -305,13 +222,13 @@ const DashboardPage: React.FC = () => {
               <h2 className="text-3xl font-bold mb-2">Dashboard Kesiswaan</h2>
               <p className="text-pink-50">Kelola data siswa dan pantau status kesiswaan secara real-time</p>
             </div>
-            <button
+            {/* <button
               onClick={handleAddClick}
               className="flex items-center gap-2 px-6 py-3 bg-white text-purple-600 font-semibold rounded-lg hover:bg-gray-50 transition-all hover:shadow-lg"
             >
               <Plus className="w-5 h-5" />
               Tambah Data
-            </button>
+            </button> */}
           </div>
         </div>
 
@@ -328,7 +245,6 @@ const DashboardPage: React.FC = () => {
             label="Siswa Aktif"
             value={stats.activeStudents}
             color="bg-gradient-to-br from-green-400 to-green-600"
-            trend={`${Math.round((stats.activeStudents / stats.totalStudents) * 100)}% dari total`}
           />
           <StatCard
             icon={<Award className="w-12 h-12" />}
@@ -365,13 +281,6 @@ const DashboardPage: React.FC = () => {
               <Users className="w-16 h-16 text-gray-300 mx-auto mb-4" />
               <h3 className="text-lg font-semibold text-gray-900 mb-2">Tidak ada data siswa</h3>
               <p className="text-gray-600 mb-6">Mulai tambahkan data siswa untuk melihatnya di sini</p>
-              <button
-                onClick={handleAddClick}
-                className="inline-flex items-center gap-2 px-6 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-all"
-              >
-                <Plus className="w-4 h-4" />
-                Tambah Data Pertama
-              </button>
             </div>
           ) : (
             <>
@@ -381,7 +290,6 @@ const DashboardPage: React.FC = () => {
                     <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Nama Siswa</th>
                     <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">NISN / Kelas</th>
                     <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Status</th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Monitoring</th>
                     <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Bimbingan</th>
                     <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Masalah</th>
                     <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Aksi</th>
@@ -400,13 +308,6 @@ const DashboardPage: React.FC = () => {
                       </td>
                       <td className="px-6 py-4">
                         <StatusBadge status={student.status} />
-                      </td>
-                      <td className="px-6 py-4 text-sm">
-                        <div className="space-y-1">
-                          <div className="text-gray-700">📍 H: <span className="font-semibold">{student.totalAttendance}%</span></div>
-                          <div className="text-gray-700">⏰ T: <span className="font-semibold">{student.totalTardiness}x</span></div>
-                          <div className="text-gray-700">⚠️  P: <span className="font-semibold">{student.totalViolations}x</span></div>
-                        </div>
                       </td>
                       <td className="px-6 py-4">
                         <GuidanceStatusBadge status={student.guidanceStatus} />
@@ -511,7 +412,6 @@ const DashboardPage: React.FC = () => {
           <div className="bg-blue-50 border border-blue-200 rounded-xl p-6">
             <h4 className="font-semibold text-blue-900 mb-2">📋 Panduan Penggunaan Dashboard</h4>
             <ul className="text-sm text-blue-800 space-y-1">
-              <li>• Klik tombol "Tambah Data" untuk menambahkan data siswa baru</li>
               <li>• Gunakan fitur pencarian untuk menemukan siswa berdasarkan nama, NISN, atau kelas</li>
               <li>• Klik ikon "Track Problem" untuk mencatat dan memantau masalah siswa (Presensi, Disiplin, Akademik)</li>
               <li>• Setiap masalah dapat dilacak status penyelesaiannya: Tuntas atau Tidak Tuntas</li>

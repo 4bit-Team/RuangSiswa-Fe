@@ -18,6 +18,10 @@ export function redirectIfLoggedInFromCookie() {
       window.location.href = "/home/kesiswaan";
     } else if (role === "bk") {
       window.location.href = "/home/bk";
+    } else if (role === "waka") {
+      window.location.href = "/home/waka";
+    } else if (role === "ortu") {
+      window.location.href = "/home/ortu";
     } else if (role === "admin") {
       window.location.href = "/home/admin";
     }

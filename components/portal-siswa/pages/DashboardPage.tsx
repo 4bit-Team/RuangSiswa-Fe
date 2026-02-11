@@ -8,6 +8,8 @@ import NewsDetailModal from '../modals/NewsDetailModal';
 import { NewsItemProps } from '@types';
 import NewsAPI, { getCleanPreview } from '@lib/newsAPI';
 import { formatTimeRelative } from '@lib/timeFormat';
+import { useAuth } from '@hooks/useAuth';
+import { apiRequest } from '@lib/api';
 
 
 const StatCard: React.FC<StatCardProps> = ({ icon: Icon, label, value, color }) => (
@@ -27,121 +29,31 @@ const ContentWrapper: React.FC<{ children: React.ReactNode }> = ({ children }) =
   </div>
 );
 
-const GuidanceProgressSection: React.FC<{
-  completedSessions: number;
-  totalSessions: number;
-  guidanceStatus: 'Normal' | 'Peringatan' | 'Perlu Tindak Lanjut';
-  currentFocus: string;
-  counselor: string;
-}> = ({ completedSessions, totalSessions, guidanceStatus, currentFocus, counselor }) => {
-  const progress = Math.round((completedSessions / totalSessions) * 100);
 
-  const statusConfig = {
-    'Normal': { bg: 'bg-green-50', border: 'border-green-200', icon: 'text-green-600', text: 'text-green-700', label: 'Status Baik' },
-    'Peringatan': { bg: 'bg-yellow-50', border: 'border-yellow-200', icon: 'text-yellow-600', text: 'text-yellow-700', label: 'Perlu Perhatian' },
-    'Perlu Tindak Lanjut': { bg: 'bg-red-50', border: 'border-red-200', icon: 'text-red-600', text: 'text-red-700', label: 'Perlu Tindak Lanjut' }
-  };
-
-  const config = statusConfig[guidanceStatus];
-
-  return (
-    <div className={`${config.bg} border ${config.border} rounded-xl p-6`}>
-      <div className="space-y-5">
-        {/* Header dengan Status */}
-        <div className="flex items-start justify-between">
-          <div>
-            <h3 className="font-bold text-gray-900 text-lg mb-1">📊 Status Bimbingan Anda</h3>
-            <p className="text-sm text-gray-600">Progres konseling dengan {counselor}</p>
-          </div>
-          <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg ${config.bg} border ${config.border}`}>
-            {guidanceStatus === 'Normal' && <CheckCircle className={`w-4 h-4 ${config.icon}`} />}
-            {guidanceStatus === 'Peringatan' && <AlertCircle className={`w-4 h-4 ${config.icon}`} />}
-            {guidanceStatus === 'Perlu Tindak Lanjut' && <AlertCircle className={`w-4 h-4 ${config.icon}`} />}
-            <span className={`text-xs font-semibold ${config.text}`}>{config.label}</span>
-          </div>
-        </div>
-
-        {/* Progress Bar */}
-        <div>
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-sm font-medium text-gray-700">Progres Sesi Bimbingan</p>
-            <span className="text-sm font-bold text-gray-900">{progress}%</span>
-          </div>
-          <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
-            <div
-              className="bg-gradient-to-r from-blue-500 to-purple-600 h-3 rounded-full transition-all duration-300"
-              style={{ width: `${progress}%` }}
-            />
-          </div>
-          <p className="text-xs text-gray-600 mt-2">
-            {completedSessions} dari {totalSessions} sesi telah selesai
-          </p>
-        </div>
-
-        {/* Focus & Counselor Info */}
-        <div className="grid grid-cols-2 gap-3 border-t border-gray-300 pt-4">
-          <div className="flex items-center gap-2">
-            <Target className={`w-4 h-4 ${config.icon}`} />
-            <div>
-              <p className="text-xs text-gray-600">Fokus Utama</p>
-              <p className="text-sm font-semibold text-gray-900">{currentFocus}</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <Users className={`w-4 h-4 ${config.icon}`} />
-            <div>
-              <p className="text-xs text-gray-600">Konselor BK</p>
-              <p className="text-sm font-semibold text-gray-900">{counselor}</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Recommendation */}
-        <div className={`p-3 rounded-lg ${config.bg} border ${config.border}`}>
-          {guidanceStatus === 'Normal' && (
-            <p className="text-xs text-green-700">
-              ✅ <strong>Bagus!</strong> Anda menunjukkan progress yang baik. Lanjutkan konsistensi dalam mengikuti sesi.
-            </p>
-          )}
-          {guidanceStatus === 'Peringatan' && (
-            <p className="text-xs text-yellow-700">
-              ⚠️ <strong>Catatan:</strong> Ada beberapa aspek yang perlu ditingkatkan. Diskusikan dengan konselor untuk strategi lebih baik.
-            </p>
-          )}
-          {guidanceStatus === 'Perlu Tindak Lanjut' && (
-            <p className="text-xs text-red-700">
-              🔴 <strong>Penting!</strong> Ada masalah yang memerlukan perhatian khusus. Segera hubungi konselor untuk pertemuan intensif.
-            </p>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-};
 
 // Kesiswaan Integration Component
-const KesiswaanIntegrationSection: React.FC<{ onNavigate?: (page: string) => void }> = ({ onNavigate }) => {
+const KesiswaanIntegrationSection: React.FC<{ onNavigate?: (page: string) => void; kesiswaanData?: any }> = ({ onNavigate, kesiswaanData }) => {
   const router = useRouter();
 
-  // Sample data from Kesiswaan system
-  const kesiswaanData = {
+  // Default data if not provided
+  const data = kesiswaanData || {
     attendance: {
-      percentage: 90,
-      status: 'Sangat Baik',
-      recentDays: 18,
-      totalDays: 20
+      percentage: 0,
+      status: 'Memuat...',
+      recentDays: 0,
+      totalDays: 0
     },
     tardiness: {
-      currentMonth: 2,
-      lastMonth: 4,
-      trend: 'decreasing' as const,
-      status: 'Membaik'
+      currentMonth: 0,
+      lastMonth: 0,
+      trend: 'decreasing' as 'decreasing' | 'increasing',
+      status: 'Memuat...'
     },
     violations: {
-      total: 4,
-      pending: 1,
-      inProgress: 1,
-      resolved: 2
+      total: 0,
+      pending: 0,
+      inProgress: 0,
+      resolved: 0
     }
   };
 
@@ -175,15 +87,15 @@ const KesiswaanIntegrationSection: React.FC<{ onNavigate?: (page: string) => voi
               </div>
               <div>
                 <p className="text-sm text-gray-600">Kehadiran</p>
-                <p className="text-2xl font-bold text-green-600">{kesiswaanData.attendance.percentage}%</p>
+                <p className="text-2xl font-bold text-green-600">{data.attendance.percentage}%</p>
               </div>
             </div>
             <ArrowRight className="w-5 h-5 text-green-600" />
           </div>
           <p className="text-xs text-gray-600">
-            {kesiswaanData.attendance.recentDays}/{kesiswaanData.attendance.totalDays} hari hadir
+            {data.attendance.recentDays}/{data.attendance.totalDays} hari hadir
           </p>
-          <p className="text-xs font-semibold text-green-700 mt-1">✅ {kesiswaanData.attendance.status}</p>
+          {/* <p className="text-xs font-semibold text-green-700 mt-1">✅ {data.attendance.status}</p> */}
         </div>
 
         {/* Tardiness Card */}
@@ -198,15 +110,15 @@ const KesiswaanIntegrationSection: React.FC<{ onNavigate?: (page: string) => voi
               </div>
               <div>
                 <p className="text-sm text-gray-600">Keterlambatan</p>
-                <p className="text-2xl font-bold text-orange-600">{kesiswaanData.tardiness.currentMonth}</p>
+                <p className="text-2xl font-bold text-orange-600">{data.tardiness.currentMonth}</p>
               </div>
             </div>
             <ArrowRight className="w-5 h-5 text-orange-600" />
           </div>
           <p className="text-xs text-gray-600">
-            Bulan ini (sebelumnya: {kesiswaanData.tardiness.lastMonth})
+            Bulan ini (sebelumnya: {data.tardiness.lastMonth})
           </p>
-          <p className="text-xs font-semibold text-green-700 mt-1">↓ {kesiswaanData.tardiness.status}</p>
+          {/* <p className="text-xs font-semibold text-green-700 mt-1">↓ {data.tardiness.status}</p> */}
         </div>
 
         {/* Violations Card */}
@@ -221,31 +133,31 @@ const KesiswaanIntegrationSection: React.FC<{ onNavigate?: (page: string) => voi
               </div>
               <div>
                 <p className="text-sm text-gray-600">Pelanggaran</p>
-                <p className="text-2xl font-bold text-red-600">{kesiswaanData.violations.total}</p>
+                <p className="text-2xl font-bold text-red-600">{data.violations.total}</p>
               </div>
             </div>
             <ArrowRight className="w-5 h-5 text-red-600" />
           </div>
           <p className="text-xs text-gray-600">
-            {kesiswaanData.violations.resolved} selesai, {kesiswaanData.violations.pending} menunggu
+            {data.violations.resolved} selesai, {data.violations.pending} menunggu
           </p>
-          {kesiswaanData.violations.pending > 0 ? (
+          {/* {data.violations.pending > 0 ? (
             <p className="text-xs font-semibold text-red-700 mt-1">⚠️ Ada yang perlu diperhatian</p>
           ) : (
             <p className="text-xs font-semibold text-green-700 mt-1">✅ Semua terkelola</p>
-          )}
+          )} */}
         </div>
       </div>
 
       {/* Quick Summary */}
-      {kesiswaanData.violations.pending > 0 && (
+      {data.violations.pending > 0 && (
         <div className="bg-red-50 border-2 border-red-200 rounded-xl p-4">
           <div className="flex items-start gap-3">
             <AlertTriangle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
             <div>
               <p className="font-semibold text-red-900">Ada yang memerlukan perhatian</p>
               <p className="text-sm text-red-700 mt-1">
-                Anda memiliki {kesiswaanData.violations.pending} pelanggaran yang menunggu proses bimbingan. 
+                Anda memiliki {data.violations.pending} pelanggaran yang menunggu proses bimbingan. 
                 Segera hubungi Guru BK untuk memulai sesi bimbingan.
               </p>
               <button
@@ -335,25 +247,140 @@ const NewsPreviewCard: React.FC<{
 
 const DashboardPage: React.FC<{ setActivePage?: (page: string) => void }> = ({ setActivePage }) => {
   const router = useRouter();
+  const { user, token } = useAuth();
   const [selectedNews, setSelectedNews] = useState<NewsItemProps | null>(null);
   const [isNewsModalOpen, setIsNewsModalOpen] = useState(false);
   const [latestNews, setLatestNews] = useState<NewsItemProps[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
-
-  // Guidance Progress State
-  const [guidanceData] = useState({
-    completedSessions: 7,
-    totalSessions: 10,
-    guidanceStatus: 'Normal' as const,
-    currentFocus: 'Manajemen Stress & Waktu',
-    counselor: 'Bu Sarah Wijaya'
+  
+  // Stats State
+  const [stats, setStats] = useState({
+    totalCounselingSessions: 0,
+    thisMonthConsultations: 0,
+    activeReservations: 0
+  });
+  
+  // Kesiswaan Data State
+  const [kesiswaanData, setKesiswaanData] = useState({
+    attendance: {
+      percentage: 0,
+      recentDays: 0,
+      totalDays: 0
+    },
+    tardiness: {
+      currentMonth: 0,
+      lastMonth: 0,
+      trend: 'decreasing' as 'decreasing' | 'increasing',
+    },
+    violations: {
+      total: 0,
+      pending: 0,
+      inProgress: 0,
+      resolved: 0
+    }
   });
 
-  // Fetch latest news
+  // Fetch data on component mount
   useEffect(() => {
-    fetchLatestNews();
-  }, [refreshTrigger]);
+    if (user && token) {
+      fetchLatestNews();
+      fetchStats();
+      fetchKesiswaanData();
+    }
+  }, [user, token, refreshTrigger]);
+
+  const fetchStats = async () => {
+    try {
+      // Fetch total counseling sessions
+      const sessionsRes = await apiRequest('/reservasi/student/my-reservations', 'GET', undefined, token);
+      const totalSessions = Array.isArray(sessionsRes) ? sessionsRes.length : 0;
+      
+      // Fetch group reservations
+      const groupRes = await apiRequest('/reservasi/group/student/my-group-reservations', 'GET', undefined, token);
+      const thisMonthConsultations = Array.isArray(groupRes) ? groupRes.length : 0;
+      
+      // Fetch active reservations (approved status)
+      const allRes = Array.isArray(sessionsRes) ? sessionsRes : [];
+      const activeReservations = allRes.filter((r: any) => r.status === 'approved').length;
+      
+      setStats({
+        totalCounselingSessions: totalSessions,
+        thisMonthConsultations: thisMonthConsultations,
+        activeReservations: activeReservations
+      });
+    } catch (error) {
+      console.error('Error fetching stats:', error);
+    }
+  };
+  
+  const fetchKesiswaanData = async () => {
+    try {
+      // Fetch attendance data
+      const attendanceRes = await apiRequest('/attendance', 'GET', undefined, token);
+      const tardinessRes = await apiRequest('/tardiness', 'GET', undefined, token);
+      const violationsRes = await apiRequest('/violations', 'GET', undefined, token);
+      
+      // Process attendance
+      let attendanceData = {
+        percentage: 0,
+        status: 'Tidak Ada Data',
+        recentDays: 0,
+        totalDays: 0
+      };
+      
+      if (attendanceRes && attendanceRes.percentage !== undefined) {
+        attendanceData = {
+          percentage: Math.round(attendanceRes.percentage),
+          status: attendanceRes.percentage >= 90 ? 'Sangat Baik' : attendanceRes.percentage >= 80 ? 'Baik' : 'Perlu Ditingkatkan',
+          recentDays: attendanceRes.presentDays || 0,
+          totalDays: attendanceRes.totalDays || 0
+        };
+      }
+      
+      // Process tardiness
+      let tardinessData = {
+        currentMonth: 0,
+        lastMonth: 0,
+        trend: 'decreasing' as 'decreasing' | 'increasing',
+        status: 'Tidak Ada Data'
+      };
+      
+      if (tardinessRes && tardinessRes.currentMonth !== undefined) {
+        tardinessData = {
+          currentMonth: tardinessRes.currentMonth || 0,
+          lastMonth: tardinessRes.lastMonth || 0,
+          trend: (tardinessRes.currentMonth || 0) < (tardinessRes.lastMonth || 0) ? 'decreasing' : 'increasing',
+          status: (tardinessRes.currentMonth || 0) < (tardinessRes.lastMonth || 0) ? 'Membaik' : 'Meningkat'
+        };
+      }
+      
+      // Process violations
+      let violationsData = {
+        total: 0,
+        pending: 0,
+        inProgress: 0,
+        resolved: 0
+      };
+      
+      if (violationsRes && Array.isArray(violationsRes)) {
+        violationsData = {
+          total: violationsRes.length,
+          pending: violationsRes.filter((v: any) => v.status === 'pending').length,
+          inProgress: violationsRes.filter((v: any) => v.status === 'in_progress').length,
+          resolved: violationsRes.filter((v: any) => v.status === 'resolved').length
+        };
+      }
+      
+      setKesiswaanData({
+        attendance: attendanceData,
+        tardiness: tardinessData,
+        violations: violationsData
+      });
+    } catch (error) {
+      console.error('Error fetching kesiswaan data:', error);
+    }
+  };
 
   // Listen for refresh events from other components
   useEffect(() => {
@@ -420,20 +447,12 @@ const DashboardPage: React.FC<{ setActivePage?: (page: string) => void }> = ({ s
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-          <StatCard icon={Heart} label="Sesi Konseling" value="12" color="bg-pink-50 text-pink-600" />
-          <StatCard icon={MessageCircle} label="Konsultasi Bulan Ini" value="8" color="bg-green-50 text-green-600" />
-          <StatCard icon={Calendar} label="Reservasi Aktif" value="3" color="bg-orange-50 text-orange-600" />
+          <StatCard icon={Heart} label="Sesi Konseling" value={stats.totalCounselingSessions.toString()} color="bg-pink-50 text-pink-600" />
+          <StatCard icon={MessageCircle} label="Konsultasi Bulan Ini" value={stats.thisMonthConsultations.toString()} color="bg-green-50 text-green-600" />
+          <StatCard icon={Calendar} label="Reservasi Aktif" value={stats.activeReservations.toString()} color="bg-orange-50 text-orange-600" />
         </div>
 
-        <GuidanceProgressSection
-          completedSessions={guidanceData.completedSessions}
-          totalSessions={guidanceData.totalSessions}
-          guidanceStatus={guidanceData.guidanceStatus}
-          currentFocus={guidanceData.currentFocus}
-          counselor={guidanceData.counselor}
-        />
-
-        <KesiswaanIntegrationSection onNavigate={setActivePage} />
+        <KesiswaanIntegrationSection onNavigate={setActivePage} kesiswaanData={kesiswaanData} />
 
         <div className="bg-white rounded-xl border border-gray-200 p-6">
           <div className="flex items-center justify-between mb-6">

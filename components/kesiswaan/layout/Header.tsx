@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { apiRequest } from '@/lib/api'
+import { useNotification } from '@/lib/useNotification';
 import { Search, Bell, Menu, Mail, Phone, LogOut, User, Settings, HelpCircle } from 'lucide-react';
 
 interface HeaderProps {
@@ -15,6 +16,7 @@ const Header: React.FC<HeaderProps> = ({ title, subtitle, onMenuClick }) => {
   const [isMobile, setIsMobile] = useState(true);
   const [notificationOpen, setNotificationOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const { notifications, getNotifications, markAsRead, unreadCount } = useNotification();
 
   const handleLogout = async () => {
     try {
@@ -52,6 +54,12 @@ const Header: React.FC<HeaderProps> = ({ title, subtitle, onMenuClick }) => {
   }, [])
 
   useEffect(() => {
+    if (user?.id) {
+      getNotifications(user.id);
+    }
+  }, [user?.id, getNotifications])
+
+  useEffect(() => {
     const checkIsMobile = () => {
       setIsMobile(window.innerWidth < 768);
     };
@@ -61,32 +69,7 @@ const Header: React.FC<HeaderProps> = ({ title, subtitle, onMenuClick }) => {
     return () => window.removeEventListener('resize', checkIsMobile);
   }, []);
 
-  const notifications = [
-    {
-      id: 1,
-      title: 'Kehadiran Tercatat',
-      description: 'Kehadiran Anda hari ini telah tercatat dalam sistem',
-      time: '5 menit yang lalu',
-      icon: '✓',
-      read: false,
-    },
-    {
-      id: 2,
-      title: 'Sesi Bimbingan Terjadwal',
-      description: 'Anda memiliki jadwal bimbingan besok pukul 10:00',
-      time: '1 jam yang lalu',
-      icon: '📅',
-      read: false,
-    },
-    {
-      id: 3,
-      title: 'Jadwal Diperbarui',
-      description: 'Jadwal konseling kesiswaan telah diperbarui',
-      time: '2 jam yang lalu',
-      icon: '📋',
-      read: true,
-    },
-  ];
+
 
   return (
     <header className="fixed top-0 left-0 right-0 bg-white z-30">
@@ -141,28 +124,37 @@ const Header: React.FC<HeaderProps> = ({ title, subtitle, onMenuClick }) => {
                   <div className="absolute right-0 mt-2 w-96 bg-white rounded-lg shadow-lg border border-gray-200 z-40 max-h-96 overflow-y-auto">
                     <div className="p-4 border-b border-gray-200 flex items-center justify-between sticky top-0 bg-white">
                       <h3 className="font-semibold text-gray-900">Notifikasi</h3>
-                      <span className="text-sm font-medium text-red-500">2 Baru</span>
+                      {unreadCount > 0 && (
+                        <span className="text-sm font-medium text-red-500">{unreadCount} Baru</span>
+                      )}
                     </div>
 
                     <div className="divide-y divide-gray-100">
-                      {notifications.map((notif) => (
-                        <button
-                          key={notif.id}
-                          className="w-full p-4 hover:bg-gray-50 text-left transition-colors flex items-start gap-3 border-l-4 border-transparent hover:border-blue-500"
-                        >
-                          <div className="flex-shrink-0 text-xl mt-1">{notif.icon}</div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-start justify-between gap-2">
-                              <p className="font-medium text-gray-900 text-sm">{notif.title}</p>
-                              {!notif.read && (
-                                <div className="w-2 h-2 bg-red-500 rounded-full flex-shrink-0 mt-1"></div>
-                              )}
+                      {notifications.length > 0 ? (
+                        notifications.map((notif) => (
+                          <button
+                            key={notif.id}
+                            onClick={() => markAsRead(notif.id)}
+                            className="w-full p-4 hover:bg-gray-50 text-left transition-colors flex items-start gap-3 border-l-4 border-transparent hover:border-blue-500"
+                          >
+                            <div className="flex-shrink-0 text-xl mt-1">{notif.icon}</div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-start justify-between gap-2">
+                                <p className="font-medium text-gray-900 text-sm">{notif.title}</p>
+                                {!notif.read && (
+                                  <div className="w-2 h-2 bg-red-500 rounded-full flex-shrink-0 mt-1"></div>
+                                )}
+                              </div>
+                              <p className="text-xs text-gray-600 mt-0.5">{notif.description}</p>
+                              <p className="text-xs text-gray-400 mt-1">{notif.time}</p>
                             </div>
-                            <p className="text-xs text-gray-600 mt-0.5">{notif.description}</p>
-                            <p className="text-xs text-gray-400 mt-1">{notif.time}</p>
-                          </div>
-                        </button>
-                      ))}
+                          </button>
+                        ))
+                      ) : (
+                        <div className="p-4 text-center text-gray-500 text-sm">
+                          Tidak ada notifikasi
+                        </div>
+                      )}
                     </div>
 
                     <div className="p-3 border-t border-gray-200 flex gap-2 sticky bottom-0 bg-white">

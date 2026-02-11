@@ -28,6 +28,11 @@ import {
   importLaporanBkExcel,
 } from '@/lib/laporanBkAPI';
 
+type Option = {
+  id: number;
+  nama: string;
+};
+
 const initialFormData: LaporanBkFormData = {
   namaKonseling: '',
   tanggalDiprosesAiBk: new Date().toISOString().split('T')[0],
@@ -45,8 +50,33 @@ const LaporanPage: React.FC = () => {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [kelasList, setKelasList] = useState<Option[]>([]);
+  const [jurusanList, setJurusanList] = useState<Option[]>([]);
 
-  // Fetch all laporan
+  // useEffect ambil kelas & jurusan
+  useEffect(() => {
+    const fetchKelasJurusan = async () => {
+      try {
+        const [kelasRes, jurusanRes] = await Promise.all([
+          fetch(`${process.env.NEXT_PUBLIC_API_URL}/kelas`, {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+          fetch(`${process.env.NEXT_PUBLIC_API_URL}/jurusan`, {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+        ]);
+
+        setKelasList(await kelasRes.json());
+        setJurusanList(await jurusanRes.json());
+      } catch (err) {
+        console.error('Gagal mengambil kelas & jurusan');
+      }
+    };
+
+      if (token) fetchKelasJurusan();
+  }, [token]);
+
+  //useEffect ambil laporan
   useEffect(() => {
     const fetchLaporan = async () => {
       setLoading(true);
@@ -62,9 +92,7 @@ const LaporanPage: React.FC = () => {
       }
     };
 
-    if (token) {
-      fetchLaporan();
-    }
+      if (token) fetchLaporan();
   }, [token]);
 
   // Search filter
@@ -511,27 +539,37 @@ const LaporanPage: React.FC = () => {
                       <label className="block text-sm font-medium text-gray-700 mb-2">
                         Kelas ID
                       </label>
-                      <input
-                        type="number"
+                      <select
                         name="kelasId"
                         value={formData.kelasId || ''}
                         onChange={handleFormChange}
-                        placeholder="ID Kelas"
                         className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      />
+                      >
+                        <option value="">Pilih Kelas</option>
+                        {kelasList.map((kelas) => (
+                          <option key={kelas.id} value={kelas.id}>
+                            {kelas.nama}
+                          </option>
+                        ))}
+                      </select>
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
                         Jurusan ID
                       </label>
-                      <input
-                        type="number"
+                      <select
                         name="jurusanId"
                         value={formData.jurusanId || ''}
                         onChange={handleFormChange}
-                        placeholder="ID Jurusan"
                         className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      />
+                      >
+                        <option value="">Pilih Jurusan</option>
+                        {jurusanList.map((jurusan) => (
+                          <option key={jurusan.id} value={jurusan.id}>
+                            {jurusan.nama}
+                          </option>
+                        ))}
+                      </select>
                     </div>
                   </div>
 
@@ -629,48 +667,35 @@ const LaporanPage: React.FC = () => {
                   {/* Pertemuan 1, 2, 3 */}
                   <div>
                     <h3 className="font-semibold text-gray-900 mb-4">Riwayat Pertemuan</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Pertemuan Ke-1
-                        </label>
-                        <textarea
-                          name="pertemuanKe1"
-                          value={formData.pertemuanKe1 || ''}
-                          onChange={handleFormChange}
-                          placeholder="Hasil dan catatan pertemuan pertama"
-                          rows={3}
-                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Pertemuan Ke-2
-                        </label>
-                        <textarea
-                          name="pertemuanKe2"
-                          value={formData.pertemuanKe2 || ''}
-                          onChange={handleFormChange}
-                          placeholder="Hasil dan catatan pertemuan kedua"
-                          rows={3}
-                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Pertemuan Ke-3
-                        </label>
-                        <textarea
-                          name="pertemuanKe3"
-                          value={formData.pertemuanKe3 || ''}
-                          onChange={handleFormChange}
-                          placeholder="Hasil dan catatan pertemuan ketiga"
-                          rows={3}
-                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        />
-                      </div>
+
+                    <div className="space-y-4">
+                      {[1, 2, 3].map((num) => (
+                        <div key={num} className="border border-gray-200 rounded-xl p-4 bg-gray-50">
+                          <div className="flex items-center justify-between mb-3">
+                            <label className="text-sm font-semibold text-gray-700">
+                              Pertemuan Ke-{num}
+                            </label>
+                            {formData[`pertemuanKe${num}` as keyof LaporanBkFormData] && (
+                              <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full">
+                                Sudah Diisi
+                              </span>
+                            )}
+                          </div>
+
+                          <textarea
+                            name={`pertemuanKe${num}`}
+                            value={
+                              (formData[`pertemuanKe${num}` as keyof LaporanBkFormData] as string) || ''
+                            }
+                            onChange={handleFormChange}
+                            placeholder={`Hasil dan catatan pertemuan ke-${num}`}
+                            rows={3}
+                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          />
+                        </div>
+                      ))}
                     </div>
-                  </div>
+                    </div>
 
                   {/* Hasil Pemantauan & Guru BK */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

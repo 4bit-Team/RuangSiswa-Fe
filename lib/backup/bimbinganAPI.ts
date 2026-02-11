@@ -1,4 +1,4 @@
-import { apiRequest } from './api';
+import { apiRequest } from '../api';
 
 export interface Referral {
   id: string;
@@ -178,6 +178,77 @@ export async function getCriticalReferrals(
   return apiRequest(
     '/v1/kesiswaan/bimbingan/stats/critical',
     'GET',
+    undefined,
+    token
+  );
+}
+/**
+ * Update guidance referral
+ */
+export async function updateGuidanceReferral(
+  referralId: string,
+  data: {
+    status?: string;
+    risk_level?: string;
+    notes?: string;
+  },
+  token?: string | null
+): Promise<any> {
+  return apiRequest(
+    `/v1/kesiswaan/bimbingan/${referralId}`,
+    'PATCH',
+    data,
+    token
+  );
+}
+
+/**
+ * Delete guidance referral
+ */
+export async function deleteGuidanceReferral(
+  referralId: string,
+  token?: string | null
+): Promise<any> {
+  return apiRequest(
+    `/v1/kesiswaan/bimbingan/${referralId}`,
+    'DELETE',
+    undefined,
+    token
+  );
+}
+
+/**
+ * Complete guidance session
+ */
+export async function completeGuidanceSession(
+  referralId: string,
+  sessionId: string,
+  data: {
+    siswa_hadir?: boolean;
+    orang_tua_hadir?: boolean;
+    hasil_akhir?: string;
+  },
+  token?: string | null
+): Promise<any> {
+  return apiRequest(
+    `/v1/kesiswaan/bimbingan/${referralId}/sessions/${sessionId}/complete`,
+    'PATCH',
+    data,
+    token
+  );
+}
+
+/**
+ * Delete guidance session
+ */
+export async function deleteGuidanceSession(
+  referralId: string,
+  sessionId: string,
+  token?: string | null
+): Promise<any> {
+  return apiRequest(
+    `/v1/kesiswaan/bimbingan/${referralId}/sessions/${sessionId}`,
+    'DELETE',
     undefined,
     token
   );

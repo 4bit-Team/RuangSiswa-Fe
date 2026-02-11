@@ -5,6 +5,7 @@ import Sidebar from '@/components/portal-siswa/layout/Sidebar'
 import Header from '@/components/portal-siswa/layout/Header'
 import { usePathname } from 'next/navigation'
 import { verifyAuthOrRedirect } from "@/lib/authRedirect"
+import { SocketProvider } from '@/lib/context/SocketContext'
 
 interface LayoutProps {
   children: React.ReactNode
@@ -36,15 +37,17 @@ const SiswaLayout: React.FC<LayoutProps> = ({ children }) => {
   const header = getTitleFromPath()
 
   return (
-    <div className="bg-gray-50 min-h-screen">
-      <Sidebar pathname={pathname} />
-      <div className="md:ml-64">
-        <Header title={header.title} subtitle={header.subtitle} profile={userProfile} />
-        <main className="pt-20 p-6">
-          <div className="max-w-7xl mx-auto">{children}</div>
-        </main>
+    <SocketProvider>
+      <div className="bg-gray-50 min-h-screen">
+        <Sidebar pathname={pathname} />
+        <div className="md:ml-64">
+          <Header title={header.title} subtitle={header.subtitle} profile={userProfile} />
+          <main className="pt-20 p-6">
+            <div className="max-w-7xl mx-auto">{children}</div>
+          </main>
+        </div>
       </div>
-    </div>
+    </SocketProvider>
   )
 }
 

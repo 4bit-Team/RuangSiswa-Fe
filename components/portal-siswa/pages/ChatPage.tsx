@@ -9,6 +9,7 @@ import { apiRequest, API_URL } from '@lib/api'
 import { formatMessageTime, getMessageDateLabel, shouldShowDateSeparator } from '@lib/messageFormatting'
 import { handleEmojiClick, startRecording, stopRecording, sendVoiceMessage, cancelRecording, getInitialBgColor, formatRecordingTime, formatCallDuration, formatTime, emojis, fetchEmojisFromAPI } from '@lib/chatUtils'
 import { useAuth } from '@/hooks/useAuth'
+import { useSocket } from '@/lib/context/SocketContext'
 import { io, Socket } from 'socket.io-client'
 import {
   createPeerConnection,
@@ -194,292 +195,176 @@ const ChatPage: React.FC = () => {
     loadEmojis()
   }, [])
 
-  // Initialize WebSocket connection
+  // Subscribe to context sockets and register event handlers
+  const { chatSocket, callSocket } = useSocket()
+
   useEffect(() => {
-    if (user && token && !authLoading) {
-      // Extract base URL from API_URL (remove /api suffix)
-      const baseUrl = API_URL.replace('/api', '')
-      const socket = io(`${baseUrl}/chat`, {
-        auth: {
-          token: token,
-        },
-        reconnection: true,
-        reconnectionDelay: 1000,
-        reconnectionDelayMax: 5000,
-        reconnectionAttempts: 5,
-        transports: ['websocket', 'polling'],
-      })
+    if (!callSocket) return
 
-      socket.on('connect', () => {
-        console.log('✅ [ChatPage] WebSocket connected')
-      })
+    console.log('✅ [ChatPage] Call Socket from context ready, registering handlers')
+    callSocketRef.current = callSocket as any
 
-      socket.on('disconnect', (reason: string) => {
-        console.log('❌ [ChatPage] WebSocket disconnected - Reason:', reason)
-        // Log more detailed disconnect reason
-        if (reason === 'io server disconnect') {
-          console.error('[ChatPage] Server explicitly disconnected this client')
-        } else if (reason === 'io client namespace disconnect') {
-          console.error('[ChatPage] Client explicitly disconnected')
-        } else if (reason === 'ping timeout') {
-          console.error('[ChatPage] Client did not respond to ping in time')
-        } else if (reason === 'transport close') {
-          console.error('[ChatPage] Connection closed abruptly')
-        }
-      })
-
-      socket.on('connect_error', (error: any) => {
-        console.error('❌ [ChatPage] Connection error:', error)
-      })
-
-      socket.on('message-received', (data: any) => {
-        console.log('📨 [ChatPage] Message received via WebSocket:', data)
-        
-        setMessages((prev: Message[]) => {
-          // Check if message already exists to prevent duplicates
-          const messageExists = prev.some((msg) => msg.id === data.message.id)
-          if (messageExists) {
-            console.log('⚠️ [ChatPage] Message already exists, skipping duplicate:', data.message.id)
-            return prev
-          }
-          
-          // Validate createdAt is a proper date string, not accidentally the duration value
-          let validCreatedAt = data.message.createdAt
-          // Accept both ISO format (with T) and backend format (with space)
-          if (!validCreatedAt || typeof validCreatedAt !== 'string' || (!validCreatedAt.includes('T') && !validCreatedAt.includes(' '))) {
-            console.warn('⚠️ Invalid createdAt from WebSocket:', validCreatedAt, 'for message:', data.message.id)
-            validCreatedAt = new Date().toISOString() // Fallback to current time
-          }
-          
-          const newMessage: Message = {
-            id: data.message.id,
-            sender: data.message.sender.id === user?.id ? 'user' : 'counselor',
-            content: data.message.isDeleted ? '[Pesan dihapus]' : data.message.content,
-            timestamp: formatMessageTime(validCreatedAt),
-            originalDate: validCreatedAt,
-            isEdited: data.message.isEdited,
-            isDeleted: data.message.isDeleted,
-            messageType: (data.message.messageType as 'text' | 'voice') || 'text',
-            voiceUrl: data.message.fileUrl,
-            duration: data.message.duration,
-          }
-          
-          return [...prev, newMessage]
-        })
-        
-        // Refresh conversation list to update last message (don't await)
-        fetchConversations()
-      })
-
-      socketRef.current = socket
-
-      return () => {
-        socket.disconnect()
-      }
+    const handleConnectCall = () => {
+      console.log('✅ [ChatPage Call Socket] Connected to /call namespace')
+      setIsReconnecting(false)
     }
-  }, [user, token, authLoading])
 
-  // Initialize Call WebSocket connection (separate namespace)
-  useEffect(() => {
-    if (user && token && !authLoading) {
-      // Extract base URL from API_URL (remove /api suffix)
-      const baseUrl = API_URL.replace('/api', '')
-      const callSocket = io(`${baseUrl}/call`, {
-        auth: {
-          token: token,
-        },
-        reconnection: true,
-        reconnectionDelay: 1000,
-        reconnectionDelayMax: 5000,
-        reconnectionAttempts: 5,
-        transports: ['websocket', 'polling'],
-      })
+    const handleDisconnectCall = (reason: string) => {
+      console.log('❌ [ChatPage Call Socket] Disconnected - Reason:', reason)
+    }
 
-      callSocket.on('connect', () => {
-        console.log('✅ [ChatPage Call Socket] Connected to /call namespace')
-        setIsReconnecting(false)
-      })
+    const handleConnectErrorCall = (error: any) => {
+      console.error('❌ [ChatPage Call] Connection error:', error)
+    }
 
-      callSocket.on('disconnect', (reason: string) => {
-        console.log('❌ [ChatPage Call Socket] Disconnected from /call namespace - Reason:', reason)
-        if (reason === 'io server disconnect') {
-          console.error('[ChatPage Call] Server explicitly disconnected this client')
-        } else if (reason === 'ping timeout') {
-          console.error('[ChatPage Call] Did not respond to ping in time')
+    const handleIncomingCall = (data: any) => {
+      console.log('📞 [ChatPage] Incoming call received:', data)
+      setIncomingCall(data)
+      setIncomingCallModalOpen(true)
+    }
+
+    const handleCallOffer = (data: any) => {
+      console.log('📞 [ChatPage] Call offer received:', { callId: data.callId, hasOffer: !!data.offer })
+      setIncomingCall((prev: any) => ({ ...(prev || {}), ...data, offer: data.offer }))
+    }
+
+    const handleCallAnswer = async (data: any) => {
+      console.log('📞 [ChatPage] Call answer received:', data)
+      try {
+        if (!peerConnectionRef.current) {
+          console.warn('⚠️ [ChatPage] Peer connection not ready for answer, ignoring')
+          return
         }
-      })
 
-      callSocket.on('connect_error', (error: any) => {
-        console.error('❌ [ChatPage Call] Connection error:', error)
-      })
+        if (peerConnectionRef.current.remoteDescription) {
+          console.warn('⚠️ [ChatPage] Remote description already set, ignoring duplicate answer')
+          return
+        }
 
-      // Receive incoming call notification
-      callSocket.on('call-incoming', (data: any) => {
-        console.log('📞 [ChatPage] Incoming call received:', data)
-        setIncomingCall(data)
-        setIncomingCallModalOpen(true)
-      })
+        const state = peerConnectionRef.current.signalingState
+        console.log(`📡 [ChatPage] Current signaling state: ${state}`)
+        
+        if (state !== 'have-local-offer') {
+          console.warn(`⚠️ [ChatPage] Cannot set remote answer in state ${state}, expected have-local-offer`)
+          return
+        }
 
-      // Receive SDP offer from caller (receiver side)
-      callSocket.on('call-offer', async (data: any) => {
-        console.log('📞 [ChatPage] Call offer received (storing in incomingCall):', { callId: data.callId, hasOffer: !!data.offer })
-        // ✅ CRITICAL FIX: Don't try to set SDP here (peer connection not created yet)
-        // Just store the offer in incomingCall state
-        // The actual SDP handling happens in handleAcceptIncomingCall after peer connection is ready
-        setIncomingCall((prev: any) => ({ ...(prev || {}), ...data, offer: data.offer }))
-      })
-
-      // Receive SDP answer from receiver (caller side)
-      callSocket.on('call-answer', async (data: any) => {
-        console.log('📞 [ChatPage] Call answer received:', data)
-        try {
-          if (!peerConnectionRef.current) {
-            console.warn('⚠️ [ChatPage] Peer connection not ready for answer, ignoring')
-            return
-          }
-
-          // ✅ CRITICAL: Check if answer already processed
-          if (peerConnectionRef.current.remoteDescription) {
-            console.warn('⚠️ [ChatPage] Remote description already set, ignoring duplicate answer')
-            return
-          }
-
-          // ✅ Check signaling state before setting remote description
-          const state = peerConnectionRef.current.signalingState
-          console.log(`📡 [ChatPage] Current signaling state: ${state}`)
+        if (data.answer) {
+          await handleRemoteAnswer(peerConnectionRef.current, data.answer)
           
-          if (state !== 'have-local-offer') {
-            console.warn(`⚠️ [ChatPage] Cannot set remote answer in state ${state}, expected have-local-offer`)
-            return
-          }
-
-          if (data.answer) {
-            await handleRemoteAnswer(peerConnectionRef.current, data.answer)
-            
-            // apply any ICE candidates sent along
-            if (Array.isArray(data.iceCandidates)) {
-              for (const c of data.iceCandidates) {
-                try {
-                  await addIceCandidate(peerConnectionRef.current, c)
-                } catch (e) {
-                  console.warn('Failed to add remote ICE candidate', e)
-                }
+          if (Array.isArray(data.iceCandidates)) {
+            for (const c of data.iceCandidates) {
+              try {
+                await addIceCandidate(peerConnectionRef.current, c)
+              } catch (e) {
+                console.warn('Failed to add remote ICE candidate', e)
               }
             }
-
-            setActiveCall((prev: any) => ({ ...(prev || {}), callId: data.callId }))
           }
-        } catch (error) {
-          console.error('Error handling remote answer:', error)
+
+          setActiveCall((prev: any) => ({ ...(prev || {}), callId: data.callId }))
         }
-      })
-
-      // Receive ICE candidate from other side
-      callSocket.on('ice-candidate', async (data: any) => {
-        console.log('📞 [ChatPage] ICE candidate received:', data)
-        try {
-          if (peerConnectionRef.current && data.candidate) {
-            await addIceCandidate(peerConnectionRef.current, data)
-          }
-        } catch (error) {
-          console.error('Error adding remote ICE candidate:', error)
-        }
-      })
-
-      callSocket.on('call-rejected', (data: any) => {
-        console.log('📞 [ChatPage] Call rejected:', data)
-        // cleanup UI
-        setIncomingCall(null)
-        setIncomingCallModalOpen(false)
-        setActiveCall(null)
-      })
-
-      callSocket.on('call-ended', (data: any) => {
-        console.log('📞 [ChatPage] Call ended:', data)
-        // cleanup
-        if (localStreamRef.current) stopMediaStream(localStreamRef.current)
-        if (peerConnectionRef.current) peerConnectionRef.current.close()
-        setActiveCall(null)
-        setCallDuration(0)
-      })
-
-      callSocketRef.current = callSocket
-
-      return () => {
-        callSocket.disconnect()
+      } catch (error) {
+        console.error('Error handling remote answer:', error)
       }
     }
-  }, [user, token, authLoading])
 
-  // Initialize WebSocket connection (for messaging)
+    const handleIceCandidate = async (data: any) => {
+      console.log('📞 [ChatPage] ICE candidate received:', data)
+      try {
+        if (peerConnectionRef.current && data.candidate) {
+          await addIceCandidate(peerConnectionRef.current, data)
+        }
+      } catch (error) {
+        console.error('Error adding remote ICE candidate:', error)
+      }
+    }
+
+    const handleCallRejected = (data: any) => {
+      console.log('📞 [ChatPage] Call rejected:', data)
+      setIncomingCall(null)
+      setIncomingCallModalOpen(false)
+      setActiveCall(null)
+    }
+
+    const handleCallEnded = (data: any) => {
+      console.log('📞 [ChatPage] Call ended:', data)
+      if (localStreamRef.current) stopMediaStream(localStreamRef.current)
+      if (peerConnectionRef.current) peerConnectionRef.current.close()
+      setActiveCall(null)
+      setCallDuration(0)
+    }
+
+    callSocket.on('connect', handleConnectCall)
+    callSocket.on('disconnect', handleDisconnectCall)
+    callSocket.on('connect_error', handleConnectErrorCall)
+    callSocket.on('call-incoming', handleIncomingCall)
+    callSocket.on('call-offer', handleCallOffer)
+    callSocket.on('call-answer', handleCallAnswer)
+    callSocket.on('ice-candidate', handleIceCandidate)
+    callSocket.on('call-rejected', handleCallRejected)
+    callSocket.on('call-ended', handleCallEnded)
+
+    return () => {
+      callSocket.off('connect', handleConnectCall)
+      callSocket.off('disconnect', handleDisconnectCall)
+      callSocket.off('connect_error', handleConnectErrorCall)
+      callSocket.off('call-incoming', handleIncomingCall)
+      callSocket.off('call-offer', handleCallOffer)
+      callSocket.off('call-answer', handleCallAnswer)
+      callSocket.off('ice-candidate', handleIceCandidate)
+      callSocket.off('call-rejected', handleCallRejected)
+      callSocket.off('call-ended', handleCallEnded)
+    }
+  }, [callSocket])
+
   useEffect(() => {
-    if (user && token && !authLoading) {
-      // Extract base URL from API_URL (remove /api suffix)
-      const baseUrl = API_URL.replace('/api', '')
-      const socket = io(`${baseUrl}/chat`, {
-        auth: {
-          token: token,
-        },
-        reconnection: true,
-        reconnectionDelay: 1000,
-        reconnectionDelayMax: 5000,
-        reconnectionAttempts: 5,
-      })
+    if (!chatSocket) return
 
-      socket.on('connect', () => {
-        console.log('✅ [ChatPage] WebSocket connected')
-      })
+    console.log('✅ [ChatPage] Chat Socket from context ready, registering handlers')
+    socketRef.current = chatSocket as any
 
-      socket.on('disconnect', () => {
-        console.log('❌ [ChatPage] WebSocket disconnected')
-      })
-
-      socket.on('message-received', (data: any) => {
-        console.log('📨 [ChatPage] Message received via WebSocket:', data)
+    const handleMessageReceived = (data: any) => {
+      console.log('📨 [ChatPage] Message received via WebSocket:', data)
+      
+      setMessages((prev: Message[]) => {
+        const messageExists = prev.some((msg) => msg.id === data.message.id)
+        if (messageExists) {
+          console.log('⚠️ [ChatPage] Message already exists, skipping duplicate:', data.message.id)
+          return prev
+        }
         
-        setMessages((prev: Message[]) => {
-          // Check if message already exists to prevent duplicates
-          const messageExists = prev.some((msg) => msg.id === data.message.id)
-          if (messageExists) {
-            console.log('⚠️ [ChatPage] Message already exists, skipping duplicate:', data.message.id)
-            return prev
-          }
-          
-          // Validate createdAt is a proper date string, not accidentally the duration value
-          let validCreatedAt = data.message.createdAt
-          // Accept both ISO format (with T) and backend format (with space)
-          if (!validCreatedAt || typeof validCreatedAt !== 'string' || (!validCreatedAt.includes('T') && !validCreatedAt.includes(' '))) {
-            console.warn('⚠️ Invalid createdAt from WebSocket:', validCreatedAt, 'for message:', data.message.id)
-            validCreatedAt = new Date().toISOString() // Fallback to current time
-          }
-          
-          const newMessage: Message = {
-            id: data.message.id,
-            sender: data.message.sender.id === user?.id ? 'user' : 'counselor',
-            content: data.message.isDeleted ? '[Pesan dihapus]' : data.message.content,
-            timestamp: formatMessageTime(validCreatedAt),
-            originalDate: validCreatedAt,
-            isEdited: data.message.isEdited,
-            isDeleted: data.message.isDeleted,
-            messageType: (data.message.messageType as 'text' | 'voice') || 'text',
-            voiceUrl: data.message.fileUrl,
-            duration: data.message.duration,
-          }
-          
-          return [...prev, newMessage]
-        })
+        let validCreatedAt = data.message.createdAt
+        if (!validCreatedAt || typeof validCreatedAt !== 'string' || (!validCreatedAt.includes('T') && !validCreatedAt.includes(' '))) {
+          console.warn('⚠️ Invalid createdAt from WebSocket:', validCreatedAt, 'for message:', data.message.id)
+          validCreatedAt = new Date().toISOString()
+        }
         
-        // Refresh conversation list to update last message (don't await)
-        fetchConversations()
+        const newMessage: Message = {
+          id: data.message.id,
+          sender: data.message.sender.id === user?.id ? 'user' : 'counselor',
+          content: data.message.isDeleted ? '[Pesan dihapus]' : data.message.content,
+          timestamp: formatMessageTime(validCreatedAt),
+          originalDate: validCreatedAt,
+          isEdited: data.message.isEdited,
+          isDeleted: data.message.isDeleted,
+          messageType: (data.message.messageType as 'text' | 'voice') || 'text',
+          voiceUrl: data.message.fileUrl,
+          duration: data.message.duration,
+        }
+        
+        return [...prev, newMessage]
       })
-
-      socketRef.current = socket
-
-      return () => {
-        socket.disconnect()
-      }
+      
+      fetchConversations()
     }
-  }, [user, token, authLoading])
+
+    chatSocket.on('message-received', handleMessageReceived)
+
+    return () => {
+      chatSocket.off('message-received', handleMessageReceived)
+    }
+  }, [chatSocket, user])
 
   // Restore call state from sessionStorage on mount
   useEffect(() => {

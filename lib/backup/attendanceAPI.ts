@@ -1,4 +1,4 @@
-import { apiRequest } from './api';
+import { apiRequest } from '../api';
 
 export interface AttendanceRecord {
   id: number;
