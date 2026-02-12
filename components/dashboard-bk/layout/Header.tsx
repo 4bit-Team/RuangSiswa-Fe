@@ -198,7 +198,7 @@ const Header: React.FC<HeaderProps> = ({ title, subtitle, onMenuClick }) => {
                         </div>
                         <div>
                           <h3 className="font-semibold text-lg">{user?.username || 'Nama belum diatur'}</h3>
-                          <p className="text-blue-100 text-sm">{user?.specialty || 'bk role'}</p>
+                          <p className="text-blue-100 text-sm">{user?.specialty || 'bk'}</p>
                         </div>
                       </div>
                       <div className="mt-4 space-y-2 text-sm">

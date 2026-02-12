@@ -1,51 +1,41 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
+import { Bell, User, LogOut, Mail, Phone, HelpCircle, Settings } from 'lucide-react'
 import { apiRequest } from '@/lib/api'
 import { useNotification } from '@/lib/useNotification'
-import { Bell, User, LogOut, Mail, Phone, Settings, HelpCircle, Menu } from 'lucide-react'
-import { useRouter } from 'next/navigation'
 
 interface HeaderProps {
-  title?: string
-  subtitle?: string
-  onMenuClick?: () => void
+  title: string
+  subtitle: string
 }
 
-const Header: React.FC<HeaderProps> = ({ 
-  title = 'Dashboard WAKA', 
-  subtitle = 'Wakil Kepala Kesiswaan', 
-  onMenuClick 
-}) => {
-  const router = useRouter()
+export default function Header({ title, subtitle }: HeaderProps) {
   const [user, setUser] = useState<any>(null)
   const [notificationOpen, setNotificationOpen] = useState(false)
   const [profileOpen, setProfileOpen] = useState(false)
   const { notifications, getNotifications, markAsRead, unreadCount } = useNotification()
-  
+
   const handleLogout = async () => {
     try {
       await apiRequest('/auth/logout', 'POST')
     } catch (err) {
-      // ignore errors but continue to clear client state
       console.error('Logout gagal:', err)
     }
-  
+
     localStorage.clear()
     sessionStorage.clear()
-  
-    // clear common cookies (best-effort)
+
     try {
       document.cookie = 'auth_profile=; path=/; domain=.ruangsiswa.my.id; expires=Thu, 01 Jan 1970 00:00:00 GMT'
       document.cookie = 'access_token=; path=/; domain=.ruangsiswa.my.id; expires=Thu, 01 Jan 1970 00:00:00 GMT'
     } catch (e) {
       // ignore
     }
-  
-    // navigate to login
+
     window.location.replace('/login')
   }
-  
+
   useEffect(() => {
     try {
       const match = document.cookie.match(/auth_profile=([^;]+)/)
@@ -64,43 +54,29 @@ const Header: React.FC<HeaderProps> = ({
     }
   }, [user?.id, getNotifications])
 
-
-
   return (
-    <header className="bg-white border-b border-gray-200 sticky top-0 z-40">
-      <div className="px-6 py-4 flex items-center justify-between">
-        {/* Left Side */}
-        <div className="flex items-center gap-4">
-          {onMenuClick && (
-            <button
-              onClick={onMenuClick}
-              className="md:hidden p-2 hover:bg-gray-100 rounded-lg"
-              aria-label="Toggle menu"
-            >
-              <Menu size={24} />
-            </button>
-          )}
-          <div>
-            <h1 className="text-xl font-bold text-gray-900">{title}</h1>
-            <p className="text-sm text-gray-600">{subtitle}</p>
-          </div>
+    <header className="fixed top-0 right-0 left-0 md:left-64 bg-white border-b border-gray-200 z-30">
+      <div className="flex items-center justify-between px-6 py-4">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">{title}</h1>
+          <p className="text-sm text-gray-600 mt-1">{subtitle}</p>
         </div>
 
-        {/* Right Side */}
         <div className="flex items-center gap-4">
-          {/* Notification Dropdown */}
+          {/* Notifications Bell */}
           <div className="relative">
             <button
               onClick={() => {
                 setNotificationOpen(!notificationOpen)
                 setProfileOpen(false)
               }}
-              className="relative p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+              className="relative p-2 text-gray-600 hover:bg-gray-100 rounded-lg"
             >
               <Bell size={20} />
               <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
             </button>
 
+            {/* Notification Dropdown */}
             {notificationOpen && (
               <>
                 <div
@@ -121,7 +97,7 @@ const Header: React.FC<HeaderProps> = ({
                         <button
                           key={notif.id}
                           onClick={() => markAsRead(notif.id)}
-                          className="w-full p-4 hover:bg-gray-50 text-left transition-colors flex items-start gap-3 border-l-4 border-transparent hover:border-blue-500"
+                          className="w-full p-4 hover:bg-gray-50 text-left transition-colors flex items-start gap-3 border-l-4 border-transparent hover:border-cyan-500"
                         >
                           <div className="flex-shrink-0 text-xl mt-1">{notif.icon}</div>
                           <div className="flex-1 min-w-0">
@@ -144,7 +120,7 @@ const Header: React.FC<HeaderProps> = ({
                   </div>
 
                   <div className="p-3 border-t border-gray-200 flex gap-2 sticky bottom-0 bg-white">
-                    <button className="flex-1 text-sm text-blue-600 hover:text-blue-700 font-medium">
+                    <button className="flex-1 text-sm text-cyan-600 hover:text-cyan-700 font-medium">
                       ✓ Tandai Semua Dibaca
                     </button>
                     <button className="flex-1 text-sm text-gray-600 hover:text-gray-700 font-medium">
@@ -156,18 +132,19 @@ const Header: React.FC<HeaderProps> = ({
             )}
           </div>
 
-          {/* User Profile Dropdown */}
+          {/* Profile Avatar */}
           <div className="relative">
             <button
               onClick={() => {
                 setProfileOpen(!profileOpen)
                 setNotificationOpen(false)
               }}
-              className="w-10 h-10 bg-blue-600 text-white rounded-lg flex items-center justify-center hover:bg-blue-700 transition-colors font-semibold"
+              className="w-10 h-10 bg-cyan-600 rounded-full flex items-center justify-center text-white font-semibold text-sm hover:bg-cyan-700 transition-colors"
             >
-              {user?.username?.[0]?.toUpperCase() || 'W'}
+              {user?.fullName?.[0]?.toUpperCase() || 'O'}
             </button>
 
+            {/* Profile Dropdown */}
             {profileOpen && (
               <>
                 <div
@@ -176,14 +153,14 @@ const Header: React.FC<HeaderProps> = ({
                 />
                 <div className="absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-lg border border-gray-200 z-40 overflow-hidden">
                   {/* Profile Header */}
-                  <div className="bg-gradient-to-r from-blue-500 to-blue-700 text-white p-6">
+                  <div className="bg-gradient-to-r from-cyan-500 to-cyan-700 text-white p-6">
                     <div className="flex items-center gap-4">
-                      <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center text-blue-600 font-bold text-xl">
-                        {user?.username?.[0]?.toUpperCase() || 'W'}
+                      <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center text-cyan-600 font-bold text-xl">
+                        {user?.username?.[0]?.toUpperCase() || 'O'}
                       </div>
                       <div>
-                        <h3 className="font-semibold text-lg">{user?.username || 'WAKA'}</h3>
-                        <p className="text-blue-100 text-sm">Wakil Kepala Kesiswaan</p>
+                        <h3 className="font-semibold text-lg">{user?.username || 'Orang Tua'}</h3>
+                        <p className="text-cyan-100 text-sm">Orang Tua</p>
                       </div>
                     </div>
                     <div className="mt-4 space-y-2 text-sm">
@@ -201,7 +178,7 @@ const Header: React.FC<HeaderProps> = ({
                   {/* Menu Items */}
                   <div className="p-2 space-y-1">
                     <button className="w-full flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-gray-50 rounded-lg transition-colors text-left">
-                      <User size={18} className="text-blue-600" />
+                      <User size={18} className="text-cyan-600" />
                       <div>
                         <p className="font-medium">Profil Saya</p>
                         <p className="text-xs text-gray-500">Lihat dan edit profil</p>
@@ -209,7 +186,7 @@ const Header: React.FC<HeaderProps> = ({
                     </button>
 
                     <button className="w-full flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-gray-50 rounded-lg transition-colors text-left">
-                      <Settings size={18} className="text-blue-600" />
+                      <Settings size={18} className="text-cyan-600" />
                       <div>
                         <p className="font-medium">Pengaturan</p>
                         <p className="text-xs text-gray-500">Kelola preferensi akun</p>
@@ -217,7 +194,7 @@ const Header: React.FC<HeaderProps> = ({
                     </button>
 
                     <button className="w-full flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-gray-50 rounded-lg transition-colors text-left">
-                      <HelpCircle size={18} className="text-blue-600" />
+                      <HelpCircle size={18} className="text-cyan-600" />
                       <div>
                         <p className="font-medium">Bantuan & Dukungan</p>
                         <p className="text-xs text-gray-500">FAQ dan kontak support</p>
@@ -226,7 +203,10 @@ const Header: React.FC<HeaderProps> = ({
 
                     <div className="border-t border-gray-200 my-2"></div>
 
-                    <button onClick={handleLogout} className="w-full flex items-center gap-3 px-4 py-3 text-red-600 hover:bg-red-50 rounded-lg transition-colors text-left">
+                    <button
+                      onClick={handleLogout}
+                      className="w-full flex items-center gap-3 px-4 py-3 text-red-600 hover:bg-red-50 rounded-lg transition-colors text-left"
+                    >
                       <LogOut size={18} />
                       <span className="font-medium">Keluar</span>
                     </button>
@@ -240,5 +220,3 @@ const Header: React.FC<HeaderProps> = ({
     </header>
   )
 }
-
-export default Header

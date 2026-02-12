@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
+import React from 'react'
 import Sidebar from '@/components/portal-siswa/layout/Sidebar'
 import Header from '@/components/portal-siswa/layout/Header'
 import { usePathname } from 'next/navigation'
@@ -12,13 +12,10 @@ interface LayoutProps {
 }
 
 const SiswaLayout: React.FC<LayoutProps> = ({ children }) => {
-  const [userProfile, setUserProfile] = useState<any>(null)
   const pathname = usePathname()
 
   React.useEffect(() => {
-    verifyAuthOrRedirect().then((user) => {
-      if (user) setUserProfile(user)
-    })
+    verifyAuthOrRedirect()
   }, [])
 
   const getTitleFromPath = () => {
@@ -41,7 +38,7 @@ const SiswaLayout: React.FC<LayoutProps> = ({ children }) => {
       <div className="bg-gray-50 min-h-screen">
         <Sidebar pathname={pathname} />
         <div className="md:ml-64">
-          <Header title={header.title} subtitle={header.subtitle} profile={userProfile} />
+          <Header title={header.title} subtitle={header.subtitle} />
           <main className="pt-20 p-6">
             <div className="max-w-7xl mx-auto">{children}</div>
           </main>

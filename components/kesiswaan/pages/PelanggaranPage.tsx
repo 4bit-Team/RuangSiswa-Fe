@@ -3,8 +3,36 @@
 import React, { useState, useMemo, useEffect } from 'react'
 import { AlertTriangle, Plus, Trash2, Filter, Eye, AlertCircle, BookOpen, X, BarChart3, Upload } from 'lucide-react'
 import ViolationDetailModal from '../modals/ViolationDetailModal'
+import { BKActionModal, OrtuActionModal, WakaActionModal } from '../modals/PembinaanModal'
+
+// Scanning animation styles
+const scanningStyles = `
+  @keyframes scanLine {
+    0% {
+      transform: translateY(-100%);
+      opacity: 1;
+    }
+    100% {
+      transform: translateY(100%);
+      opacity: 0.3;
+    }
+  }
+  
+  @keyframes scanPulse {
+    0%, 100% {
+      box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7);
+    }
+    50% {
+      box-shadow: 0 0 0 8px rgba(59, 130, 246, 0);
+    }
+  }
+  
+  .scan-active {
+    animation: scanPulse 2s infinite;
+  }
+`
 import { useAuth } from '@/hooks/useAuth'
-import { getPembinaan, fetchAndSyncPembinaan, updatePembinaan, createPembinaanReservasi, apiRequest } from '@/lib/api'
+import { getPembinaan, fetchAndSyncPembinaan, updatePembinaan, createPembinaanReservasi, apiRequest, createPembinaanRingan, createPembinaanOrtu, createPembinaanBerat } from '@/lib/api'
 
 interface PembinaanRecord {
   id: number
@@ -41,10 +69,13 @@ interface Student {
 
 interface PointPelanggaran {
   id: number
+  kode: string
   nama_pelanggaran: string
   category_point: string
   bobot: number
   deskripsi?: string
+  isSanksi?: boolean
+  isDo?: boolean
 }
 
 const PointBadge: React.FC<{ bobot: number; nama: string }> = ({ bobot, nama }) => {
@@ -78,6 +109,21 @@ const CategoryBadge: React.FC<{ category: string }> = ({ category }) => {
   )
 }
 
+// Category to code mapping (A-K)
+const CATEGORY_CODE_ORDER: Record<string, string> = {
+  'Keterlambatan': 'A',
+  'Kehadiran': 'B',
+  'Pakaian': 'C',
+  'Kepribadian': 'D',
+  'Ketertiban': 'E',
+  'Merokok': 'F',
+  'Pornografi': 'G',
+  'Senjata Tajam': 'H',
+  'Narkoba': 'I',
+  'Berkelahi': 'J',
+  'Intimidasi': 'K',
+}
+
 const StatCard: React.FC<{ icon: React.ReactNode; label: string; value: number; color: string }> = ({
   icon,
   label,
@@ -107,16 +153,9 @@ const PelanggaranPage: React.FC = () => {
   const [syncing, setSyncing] = useState(false)
   const [selectedPembinaan, setSelectedPembinaan] = useState<PembinaanRecord | null>(null)
   const [isDetailOpen, setIsDetailOpen] = useState(false)
-  const [isActionModalOpen, setIsActionModalOpen] = useState(false)
-  const [actionType, setActionType] = useState<'ringan' | 'berat' | null>(null)
-  const [actionData, setActionData] = useState({
-    hasil_pembinaan: '',
-    catatan_bk: '',
-    recommendation: '',
-    preferredDate: '',
-    preferredTime: '',
-    counselingType: 'khusus' as const,
-  })
+  const [isBKModalOpen, setIsBKModalOpen] = useState(false)
+  const [isOrtuModalOpen, setIsOrtuModalOpen] = useState(false)
+  const [isWakaModalOpen, setIsWakaModalOpen] = useState(false)
   // Point Library States
   const [points, setPoints] = useState<PointPelanggaran[]>([])
   const [pointLoading, setPointLoading] = useState(false)
@@ -125,7 +164,7 @@ const PelanggaranPage: React.FC = () => {
   const [editingPoint, setEditingPoint] = useState<PointPelanggaran | null>(null)
   const [pointFormData, setPointFormData] = useState({
     nama_pelanggaran: '',
-    category_point: 'kehadiran',
+    category_point: '',
     bobot: 10,
     deskripsi: '',
   })
@@ -134,6 +173,24 @@ const PelanggaranPage: React.FC = () => {
   const [pdfFile, setPdfFile] = useState<File | null>(null)
   const [pdfImporting, setPdfImporting] = useState(false)
   const [pdfImportResult, setPdfImportResult] = useState<any>(null)
+  const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string | null>(null)
+  const [pdfScanProgress, setPdfScanProgress] = useState<{
+    isScanning: boolean
+    currentPage: number
+    pointsPerPage: { [key: number]: number }
+    totalPointsFound: number
+    debugLog: string[]
+  }>({
+    isScanning: false,
+    currentPage: 0,
+    pointsPerPage: {},
+    totalPointsFound: 0,
+    debugLog: [],
+  })
+  // Point Library Filter States
+  const [pointSearchTerm, setPointSearchTerm] = useState('')
+  const [pointSelectedCategory, setPointSelectedCategory] = useState('all')
+  const [pointSortOrder, setPointSortOrder] = useState<'asc' | 'desc'>('asc')
 
   // Fetch pembinaan data dari backend
   const fetchPembinaan = async () => {
@@ -177,7 +234,7 @@ const PelanggaranPage: React.FC = () => {
       await apiRequest('/point-pelanggaran', 'POST', pointFormData, token)
       alert('Point pelanggaran berhasil ditambahkan!')
       setIsPointFormOpen(false)
-      setPointFormData({ nama_pelanggaran: '', category_point: 'kehadiran', bobot: 10, deskripsi: '' })
+      setPointFormData({ nama_pelanggaran: '', category_point: '', bobot: 10, deskripsi: '' })
       await fetchPoints()
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Gagal membuat point pelanggaran')
@@ -193,7 +250,7 @@ const PelanggaranPage: React.FC = () => {
       alert('Point pelanggaran berhasil diperbarui!')
       setIsPointFormOpen(false)
       setEditingPoint(null)
-      setPointFormData({ nama_pelanggaran: '', category_point: 'kehadiran', bobot: 10, deskripsi: '' })
+      setPointFormData({ nama_pelanggaran: '', category_point: '', bobot: 10, deskripsi: '' })
       await fetchPoints()
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Gagal mengupdate point pelanggaran')
@@ -224,7 +281,18 @@ const PelanggaranPage: React.FC = () => {
     setIsPointFormOpen(true)
   }
 
-  // Handle PDF Import
+  // Handle PDF file selection with preview
+  const handlePdfFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      setPdfFile(file)
+      // Create URL for PDF preview
+      const url = URL.createObjectURL(file)
+      setPdfPreviewUrl(url)
+    }
+  }
+
+  // Handle PDF Import with real-time progress
   const handleImportPdf = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!pdfFile) {
@@ -234,6 +302,14 @@ const PelanggaranPage: React.FC = () => {
 
     try {
       setPdfImporting(true)
+      setPdfScanProgress({
+        isScanning: true,
+        currentPage: 0,
+        pointsPerPage: {},
+        totalPointsFound: 0,
+        debugLog: ['📂 Memulai scan PDF...'],
+      })
+
       const formData = new FormData()
       formData.append('file', pdfFile)
 
@@ -252,14 +328,66 @@ const PelanggaranPage: React.FC = () => {
 
       const result = await response.json()
       setPdfImportResult(result)
+      
+      // Build detailed debug log
+      const debugLog: string[] = ['📂 Memulai scan PDF...']
+      
+      if (result.debugLog) {
+        debugLog.push(``)
+        debugLog.push(`=== DEBUG INFORMATION ===`)
+        debugLog.push(`📊 Total points ditemukan: ${result.debugLog.totalExtracted}`)
+        debugLog.push(``)
+        debugLog.push(`📄 Data Per Halaman:`)
+        Object.entries(result.debugLog.pointsPerPage).forEach(([page, count]) => {
+          debugLog.push(`   Halaman ${page}: ${count} point(s)`)
+        })
+      }
+
+      debugLog.push(``)
+      debugLog.push(`✅ Scan selesai!`)
+      debugLog.push(``)
+      debugLog.push(`📊 HASIL IMPORT:`)
+      debugLog.push(`Total points ditemukan: ${result.debugLog?.totalExtracted || result.total_imported + result.total_skipped}`)
+      debugLog.push(`✅ Berhasil diimport: ${result.total_imported}`)
+      debugLog.push(`⏭️  Dilewati (sudah ada): ${result.total_skipped}`)
+      debugLog.push(`❌ Error: ${result.errors.length}`)
+
+      // Update progress dengan hasil final
+      setPdfScanProgress((prev) => ({
+        ...prev,
+        isScanning: false,
+        totalPointsFound: result.debugLog?.totalExtracted || result.total_imported + result.total_skipped,
+        pointsPerPage: result.debugLog?.pointsPerPage || {},
+        debugLog,
+      }))
+
       alert(
         `Import berhasil! Diimport: ${result.total_imported}, Dilewati: ${result.total_skipped}, Error: ${result.errors.length}`,
       )
-      setIsImportPdfOpen(false)
-      setPdfFile(null)
+      
+      // Tutup form setelah delay
+      // setTimeout(() => {
+      //   setIsImportPdfOpen(false)
+      //   setPdfFile(null)
+      //   setPdfPreviewUrl(null)
+      //   setPdfScanProgress({
+      //     isScanning: false,
+      //     currentPage: 0,
+      //     pointsPerPage: {},
+      //     totalPointsFound: 0,
+      //     debugLog: [],
+      //   })
+      // }, 2000)
+
       await fetchPoints()
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Gagal mengimport PDF')
+      const errorMsg = err instanceof Error ? err.message : 'Gagal mengimport PDF'
+      alert(errorMsg)
+      setPdfScanProgress((prev) => ({
+        ...prev,
+        isScanning: false,
+        debugLog: [...prev.debugLog, `❌ Error: ${errorMsg}`],
+      }))
     } finally {
       setPdfImporting(false)
     }
@@ -329,61 +457,151 @@ const PelanggaranPage: React.FC = () => {
     })
   }, [pembinaans, selectedClass, selectedStudent, selectedStatus])
 
+  // Filter and sort points library
+  const filteredAndSortedPoints = useMemo(() => {
+    let filtered = points.filter((point) => {
+      const categoryMatch = pointSelectedCategory === 'all' || point.category_point === pointSelectedCategory
+      const searchMatch =
+        pointSearchTerm === '' ||
+        point.nama_pelanggaran.toLowerCase().includes(pointSearchTerm.toLowerCase()) ||
+        point.category_point.toLowerCase().includes(pointSearchTerm.toLowerCase()) ||
+        point.kode.toLowerCase().includes(pointSearchTerm.toLowerCase())
+      return categoryMatch && searchMatch
+    })
+
+    // Sort by bobot
+    filtered.sort((a, b) => {
+      if (pointSortOrder === 'asc') {
+        return a.bobot - b.bobot
+      } else {
+        return b.bobot - a.bobot
+      }
+    })
+
+    return filtered
+  }, [points, pointSelectedCategory, pointSearchTerm, pointSortOrder])
+
+  // Get unique categories from points, sorted by code (A-K)
+  const pointCategories = useMemo(() => {
+    const categories = Array.from(new Set(points.map((p) => p.category_point).filter(Boolean)))
+    
+    // Sort by code order (A-K)
+    return categories.sort((a, b) => {
+      const codeA = CATEGORY_CODE_ORDER[a] || 'Z'
+      const codeB = CATEGORY_CODE_ORDER[b] || 'Z'
+      return codeA.localeCompare(codeB)
+    })
+  }, [points])
+
   const filteredStudentsDropdown = useMemo(() => {
     if (selectedClass === 'all') return allStudents
     return allStudents.filter((s) => s.className === selectedClass)
   }, [selectedClass, allStudents])
 
-  const handleOpenActionModal = (pembinaan: PembinaanRecord, type: 'ringan' | 'berat') => {
+  const handleOpenActionModal = (pembinaan: PembinaanRecord, type: 'ringan' | 'ortu' | 'berat') => {
     setSelectedPembinaan(pembinaan)
-    setActionType(type)
-    setActionData({
-      hasil_pembinaan: '',
-      catatan_bk: '',
-      recommendation: '',
-      preferredDate: '',
-      preferredTime: '',
-      counselingType: 'khusus' as const,
-    })
-    setIsActionModalOpen(true)
+    if (type === 'ringan') setIsBKModalOpen(true)
+    else if (type === 'ortu') setIsOrtuModalOpen(true)
+    else if (type === 'berat') setIsWakaModalOpen(true)
   }
 
-  const handleSubmitAction = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!selectedPembinaan || !actionType || !user) return
+  const handleBKSubmit = async (data: any) => {
+    if (!selectedPembinaan || !user) return
 
     try {
-      // Step 1: Update pembinaan status
-      await updatePembinaan(selectedPembinaan.id, {
-        status: 'in_progress',
-        hasil_pembinaan: actionData.hasil_pembinaan,
-        catatan_bk: actionData.catatan_bk,
+      // Create pembinaan ringan record
+      await createPembinaanRingan({
+        reservasi_id: 0, // Will be created separately
+        pembinaan_id: selectedPembinaan.id,
+        student_id: selectedPembinaan.siswas_id,
+        student_name: selectedPembinaan.siswas_name,
+        counselor_id: data.counselor_id,
+        hasil_pembinaan: data.hasil_pembinaan || '',
+        catatan_bk: data.catatan_bk || '',
+        scheduled_date: data.scheduled_date,
+        scheduled_time: data.scheduled_time,
       }, token)
 
-      // Step 2: Create pembinaan reservasi
-      const reservasiPayload = {
-        pembinaan_id: selectedPembinaan.id,
-        counselorId: user.id,
-        pembinaanType: actionType,
-        preferredDate: actionData.preferredDate || new Date().toISOString().split('T')[0],
-        preferredTime: actionData.preferredTime || '09:00',
-        type: 'tatap-muka',
-        notes: actionData.catatan_bk,
-      }
+      // Update pembinaan status
+      await updatePembinaan(selectedPembinaan.id, {
+        status: 'in_progress',
+        hasil_pembinaan: data.hasil_pembinaan,
+        catatan_bk: data.catatan_bk,
+      }, token)
 
-      await createPembinaanReservasi(reservasiPayload, token)
-
-      alert(`Pembinaan ${actionType === 'ringan' ? 'ringan' : 'berat'} berhasil disimpan dan reservasi berhasil dibuat!`)
-      setIsActionModalOpen(false)
+      alert('Pembinaan ringan berhasil dibuat dan dikirim ke BK!')
+      setIsBKModalOpen(false)
       await fetchPembinaan()
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Gagal menyimpan tindak lanjut')
-      console.error('Error in handleSubmitAction:', err)
+      alert(err instanceof Error ? err.message : 'Gagal membuat pembinaan ringan')
+      console.error('Error in handleBKSubmit:', err)
+    }
+  }
+
+  const handleOrtuSubmit = async (data: any) => {
+    if (!selectedPembinaan || !user) return
+
+    try {
+      // Create pembinaan ortu record
+      await createPembinaanOrtu({
+        pembinaan_id: selectedPembinaan.id,
+        student_id: selectedPembinaan.siswas_id,
+        student_name: selectedPembinaan.siswas_name,
+        student_class: selectedPembinaan.class_name,
+        parent_name: data.parent_name,
+        parent_phone: data.parent_phone,
+        violation_details: data.violation_details,
+        letter_content: data.letter_content,
+        scheduled_date: data.scheduled_date,
+        scheduled_time: data.scheduled_time || '',
+        location: data.location || '',
+        communication_method: data.communication_method,
+      }, token)
+
+      // Update pembinaan status
+      await updatePembinaan(selectedPembinaan.id, {
+        status: 'in_progress',
+      }, token)
+
+      alert('Surat pemanggilan berhasil dibuat dan akan dikirim ke orang tua!')
+      setIsOrtuModalOpen(false)
+      await fetchPembinaan()
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Gagal membuat pemanggilan ortu')
+      console.error('Error in handleOrtuSubmit:', err)
+    }
+  }
+
+  const handleWakaSubmit = async (data: any) => {
+    if (!selectedPembinaan || !user) return
+
+    try {
+      // Create pembinaan berat record
+      await createPembinaanBerat({
+        pembinaan_id: selectedPembinaan.id,
+        recommendation: data.recommendation || '',
+        preferred_date: data.preferredDate,
+        preferred_time: data.preferredTime,
+      }, token)
+
+      // Update pembinaan status
+      await updatePembinaan(selectedPembinaan.id, {
+        status: 'in_progress',
+      }, token)
+
+      alert('Pembinaan berat berhasil dibuat dan dikirim ke WAKA!')
+      setIsWakaModalOpen(false)
+      await fetchPembinaan()
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Gagal membuat pembinaan berat')
+      console.error('Error in handleWakaSubmit:', err)
     }
   }
 
   return (
     <div className="space-y-6">
+      <style>{scanningStyles}</style>
+      
       {/* Loading State */}
       {loading && (
         <div className="bg-blue-50 border border-blue-200 rounded-xl p-6 text-center">
@@ -432,7 +650,7 @@ const PelanggaranPage: React.FC = () => {
                 disabled={syncing}
                 className="px-6 py-3 bg-white/20 text-white font-semibold rounded-lg hover:bg-white/30 disabled:opacity-50 transition-all"
               >
-                {syncing ? 'Sinkronisasi...' : 'Sinkronisasi dari WALASU'}
+                {syncing ? 'Sinkronisasi...' : 'Sinkronisasi dari WALAS'}
               </button>
             </div>
           </div>
@@ -466,65 +684,118 @@ const PelanggaranPage: React.FC = () => {
           </div>
 
           {/* Filter Section */}
-          <section className="bg-gray-50 rounded-xl p-6 border border-gray-200">
-            <div className="flex items-center gap-2 mb-4">
-              <Filter className="w-5 h-5 text-indigo-600" />
-              <h3 className="font-bold text-gray-900">Filter Data Pembinaan</h3>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Kelas</label>
-                <select
-                  value={selectedClass}
-                  onChange={(e) => {
-                    setSelectedClass(e.target.value)
-                    setSelectedStudent('all')
-                  }}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-gray-900"
-                >
-                  <option value="all">Semua Kelas</option>
-                  {classes.map((kls) => (
-                    <option key={kls} value={kls}>
-                      {kls}
-                    </option>
-                  ))}
-                </select>
+          {activeTab === 'pembinaan' && (
+            <section className="bg-gray-50 rounded-xl p-6 border border-gray-200">
+              <div className="flex items-center gap-2 mb-4">
+                <Filter className="w-5 h-5 text-indigo-600" />
+                <h3 className="font-bold text-gray-900">Filter Data Pembinaan</h3>
               </div>
 
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Siswa</label>
-                <select
-                  value={selectedStudent}
-                  onChange={(e) => setSelectedStudent(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-gray-900"
-                >
-                  <option value="all">Semua Siswa</option>
-                  {filteredStudentsDropdown.map((s) => (
-                    <option key={s.id} value={s.id.toString()}>
-                      {s.name}
-                    </option>
-                  ))}
-                </select>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Kelas</label>
+                  <select
+                    value={selectedClass}
+                    onChange={(e) => {
+                      setSelectedClass(e.target.value)
+                      setSelectedStudent('all')
+                    }}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-gray-900"
+                  >
+                    <option value="all">Semua Kelas</option>
+                    {classes.map((kls) => (
+                      <option key={kls} value={kls}>
+                        {kls}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Siswa</label>
+                  <select
+                    value={selectedStudent}
+                    onChange={(e) => setSelectedStudent(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-gray-900"
+                  >
+                    <option value="all">Semua Siswa</option>
+                    {filteredStudentsDropdown.map((s) => (
+                      <option key={s.id} value={s.id.toString()}>
+                        {s.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Status</label>
+                  <select
+                    value={selectedStatus}
+                    onChange={(e) => setSelectedStatus(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-gray-900"
+                  >
+                    <option value="all">Semua Status</option>
+                    {statuses.map((status) => (
+                      <option key={status} value={status}>
+                        {status.charAt(0).toUpperCase() + status.slice(1)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </section>
+          )}
+
+          {/* Point Library Filter Section */}
+          {activeTab === 'point-library' && (
+            <section className="bg-gray-50 rounded-xl p-6 border border-gray-200">
+              <div className="flex items-center gap-2 mb-4">
+                <Filter className="w-5 h-5 text-indigo-600" />
+                <h3 className="font-bold text-gray-900">Filter Point Library</h3>
               </div>
 
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Status</label>
-                <select
-                  value={selectedStatus}
-                  onChange={(e) => setSelectedStatus(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-gray-900"
-                >
-                  <option value="all">Semua Status</option>
-                  {statuses.map((status) => (
-                    <option key={status} value={status}>
-                      {status.charAt(0).toUpperCase() + status.slice(1)}
-                    </option>
-                  ))}
-                </select>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Cari</label>
+                  <input
+                    type="text"
+                    value={pointSearchTerm}
+                    onChange={(e) => setPointSearchTerm(e.target.value)}
+                    placeholder="Cari nama atau kategori pelanggaran..."
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-gray-900"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Kategori</label>
+                  <select
+                    value={pointSelectedCategory}
+                    onChange={(e) => setPointSelectedCategory(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-gray-900"
+                  >
+                    <option value="all">Semua Kategori</option>
+                    {pointCategories.map((cat) => (
+                      <option key={cat} value={cat}>
+                        {cat}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Urutkan Poin</label>
+                  <select
+                    value={pointSortOrder}
+                    onChange={(e) => setPointSortOrder(e.target.value as 'asc' | 'desc')}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-gray-900"
+                  >
+                    <option value="asc">Terkecil ke Terbesar</option>
+                    <option value="desc">Terbesar ke Terkecil</option>
+                  </select>
+                </div>
               </div>
-            </div>
-          </section>
+            </section>
+          )}
 
           {/* Tab Navigation */}
           <div className="flex gap-2 border-b border-gray-200">
@@ -632,6 +903,13 @@ const PelanggaranPage: React.FC = () => {
                                 Ringan
                               </button>
                               <button
+                                onClick={() => handleOpenActionModal(p, 'ortu')}
+                                className="px-3 py-1 bg-cyan-500 hover:bg-cyan-600 text-white text-xs rounded-lg transition-colors font-semibold"
+                                title="Pemanggilan Orang Tua"
+                              >
+                                Ortu
+                              </button>
+                              <button
                                 onClick={() => handleOpenActionModal(p, 'berat')}
                                 className="px-3 py-1 bg-red-500 hover:bg-red-600 text-white text-xs rounded-lg transition-colors font-semibold"
                                 title="Pembinaan Berat ke WAKA"
@@ -671,7 +949,7 @@ const PelanggaranPage: React.FC = () => {
                   <button
                     onClick={() => {
                       setEditingPoint(null)
-                      setPointFormData({ nama_pelanggaran: '', category_point: 'kehadiran', bobot: 10, deskripsi: '' })
+                      setPointFormData({ nama_pelanggaran: '', category_point: '', bobot: 10, deskripsi: '' })
                       setIsPointFormOpen(true)
                     }}
                     className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-semibold"
@@ -698,6 +976,7 @@ const PelanggaranPage: React.FC = () => {
                   <table className="w-full">
                     <thead className="bg-gray-50 border-b border-gray-200">
                       <tr>
+                        <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">Kode</th>
                         <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">Nama Pelanggaran</th>
                         <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">Kategori</th>
                         <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">Poin</th>
@@ -706,9 +985,14 @@ const PelanggaranPage: React.FC = () => {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-200">
-                      {points.length > 0 ? (
-                        points.map((point) => (
+                      {filteredAndSortedPoints.length > 0 ? (
+                        filteredAndSortedPoints.map((point) => (
                           <tr key={point.id} className="hover:bg-gray-50 transition-colors">
+                            <td className="px-6 py-4">
+                              <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold bg-indigo-100 text-indigo-800">
+                                {point.kode}
+                              </span>
+                            </td>
                             <td className="px-6 py-4 font-semibold text-gray-900">{point.nama_pelanggaran}</td>
                             <td className="px-6 py-4">
                               <CategoryBadge category={point.category_point} />
@@ -739,8 +1023,8 @@ const PelanggaranPage: React.FC = () => {
                         ))
                       ) : (
                         <tr>
-                          <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
-                            Belum ada point pelanggaran
+                          <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
+                            {points.length === 0 ? 'Belum ada point pelanggaran' : 'Tidak ada hasil yang sesuai dengan filter'}
                           </td>
                         </tr>
                       )}
@@ -839,119 +1123,27 @@ const PelanggaranPage: React.FC = () => {
         </>
       )}
 
-      {/* Action Modal */}
-      {isActionModalOpen && selectedPembinaan && (
-        <>
-          <div className="fixed inset-0 z-40 bg-black/20 backdrop-blur-sm" />
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-xl shadow-lg max-w-md w-full p-6 max-h-[90vh] overflow-y-auto">
-              <div className="flex items-center justify-between mb-6">
-                <h3 className="text-xl font-bold text-gray-900">
-                  Pembinaan {actionType === 'ringan' ? 'Ringan' : 'Berat'}
-                </h3>
-                <button
-                  onClick={() => setIsActionModalOpen(false)}
-                  className="text-gray-500 hover:text-gray-700"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
+      {/* Action Modals - BK, Ortu, WAKA */}
+      <BKActionModal
+        isOpen={isBKModalOpen}
+        pembinaan={selectedPembinaan}
+        onClose={() => setIsBKModalOpen(false)}
+        onSubmit={handleBKSubmit}
+      />
 
-              <div className="bg-gray-50 rounded-lg p-4 mb-6">
-                <p className="text-sm text-gray-600 mb-1">Siswa</p>
-                <p className="text-lg font-semibold text-gray-900">{selectedPembinaan.siswas_name}</p>
-                <p className="text-sm text-gray-600">Poin: {selectedPembinaan.point_pelanggaran?.bobot || 0}</p>
-              </div>
+      <OrtuActionModal
+        isOpen={isOrtuModalOpen}
+        pembinaan={selectedPembinaan}
+        onClose={() => setIsOrtuModalOpen(false)}
+        onSubmit={handleOrtuSubmit}
+      />
 
-              <form onSubmit={handleSubmitAction} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Hasil Pembinaan<span className="text-red-600">*</span>
-                  </label>
-                  <textarea
-                    value={actionData.hasil_pembinaan}
-                    onChange={(e) =>
-                      setActionData({ ...actionData, hasil_pembinaan: e.target.value })
-                    }
-                    rows={3}
-                    placeholder="Jelaskan hasil pembinaan yang telah dilakukan..."
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Catatan BK<span className="text-red-600">*</span>
-                  </label>
-                  <textarea
-                    value={actionData.catatan_bk}
-                    onChange={(e) => setActionData({ ...actionData, catatan_bk: e.target.value })}
-                    rows={3}
-                    placeholder="Catatan atau rekomendasi dari BK..."
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    required
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      Tanggal Jadwal
-                    </label>
-                    <input
-                      type="date"
-                      value={actionData.preferredDate}
-                      onChange={(e) => setActionData({ ...actionData, preferredDate: e.target.value })}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      Waktu Jadwal
-                    </label>
-                    <input
-                      type="time"
-                      value={actionData.preferredTime}
-                      onChange={(e) => setActionData({ ...actionData, preferredTime: e.target.value })}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    />
-                  </div>
-                </div>
-
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                  <p className="text-xs text-blue-800">
-                    <span className="font-semibold">ℹ️ Info:</span> Pembinaan ini akan{' '}
-                    {actionType === 'ringan'
-                      ? 'diteruskan ke BK untuk konseling lanjutan'
-                      : 'diteruskan ke WAKA untuk keputusan SP3/DO'}
-                  </p>
-                </div>
-
-                <div className="flex gap-3 pt-4 border-t border-gray-200">
-                  <button
-                    type="button"
-                    onClick={() => setIsActionModalOpen(false)}
-                    className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-semibold"
-                  >
-                    Batal
-                  </button>
-                  <button
-                    type="submit"
-                    className={`flex-1 px-4 py-2 text-white rounded-lg transition-colors font-semibold ${
-                      actionType === 'ringan'
-                        ? 'bg-orange-600 hover:bg-orange-700'
-                        : 'bg-red-600 hover:bg-red-700'
-                    }`}
-                  >
-                    Kirim
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        </>
-      )}
+      <WakaActionModal
+        isOpen={isWakaModalOpen}
+        pembinaan={selectedPembinaan}
+        onClose={() => setIsWakaModalOpen(false)}
+        onSubmit={handleWakaSubmit}
+      />
 
       {/* Point Form Modal */}
       {isPointFormOpen && (
@@ -1003,11 +1195,28 @@ const PelanggaranPage: React.FC = () => {
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
                     required
                   >
-                    <option value="kehadiran">Kehadiran</option>
-                    <option value="pakaian">Pakaian</option>
-                    <option value="kepribadian">Kepribadian</option>
-                    <option value="ketertiban">Ketertiban</option>
-                    <option value="kesehatan">Kesehatan</option>
+                    <option value="">-- Pilih Kategori --</option>
+                    {pointCategories.length > 0 ? (
+                      pointCategories.map((cat) => (
+                        <option key={cat} value={cat}>
+                          {cat}
+                        </option>
+                      ))
+                    ) : (
+                      <>
+                        <option value="Keterlambatan">A - Keterlambatan</option>
+                        <option value="Kehadiran">B - Kehadiran</option>
+                        <option value="Pakaian">C - Pakaian</option>
+                        <option value="Kepribadian">D - Kepribadian</option>
+                        <option value="Ketertiban">E - Ketertiban</option>
+                        <option value="Merokok">F - Merokok</option>
+                        <option value="Pornografi">G - Pornografi</option>
+                        <option value="Senjata Tajam">H - Senjata Tajam</option>
+                        <option value="Narkoba">I - Narkoba</option>
+                        <option value="Berkelahi">J - Berkelahi</option>
+                        <option value="Intimidasi">K - Intimidasi</option>
+                      </>
+                    )}
                   </select>
                 </div>
 
@@ -1072,14 +1281,21 @@ const PelanggaranPage: React.FC = () => {
         <>
           <div className="fixed inset-0 z-40 bg-black/20 backdrop-blur-sm" />
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-xl shadow-lg max-w-md w-full p-6 max-h-[90vh] overflow-y-auto">
+            <div className="bg-white rounded-xl shadow-lg max-w-5xl w-full p-6 max-h-[90vh] overflow-y-auto">
               <div className="flex items-center justify-between mb-6">
-                <h3 className="text-xl font-bold text-gray-900">Import Tata Tertib dari PDF</h3>
+                <h2 className="text-2xl font-bold text-gray-900">Import Point dari PDF</h2>
                 <button
                   onClick={() => {
                     setIsImportPdfOpen(false)
                     setPdfFile(null)
-                    setPdfImportResult(null)
+                    setPdfPreviewUrl(null)
+                    setPdfScanProgress({
+                      isScanning: false,
+                      currentPage: 0,
+                      pointsPerPage: {},
+                      totalPointsFound: 0,
+                      debugLog: [],
+                    })
                   }}
                   className="text-gray-500 hover:text-gray-700"
                 >
@@ -1087,78 +1303,234 @@ const PelanggaranPage: React.FC = () => {
                 </button>
               </div>
 
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-                <p className="text-sm text-blue-800 mb-2">
-                  <span className="font-semibold">ℹ️ Format PDF:</span>
-                </p>
-                <ul className="text-xs text-blue-700 space-y-1 list-disc list-inside">
-                  <li>Halaman 1: Nama sekolah dengan tahun (misal: SMKN 1 Cbn-CabDin.Wil 1/2023)</li>
-                  <li>Halaman 4-5: Tabel "DAFTAR KREDIT POIN PELANGGARAN SISWA"</li>
-                  <li>Kolom: JENIS PELANGGARAN | KODE | BOBOT</li>
-                </ul>
-              </div>
-
-              {pdfImportResult && (
-                <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
-                  <p className="text-sm font-semibold text-green-800 mb-2">✅ Import Berhasil!</p>
-                  <div className="text-xs text-green-700 space-y-1">
-                    <p>Diimport: <span className="font-bold">{pdfImportResult.total_imported}</span></p>
-                    <p>Dilewati: <span className="font-bold">{pdfImportResult.total_skipped}</span></p>
-                    <p>Error: <span className="font-bold">{pdfImportResult.errors.length}</span></p>
-                  </div>
-                </div>
-              )}
-
-              <form onSubmit={handleImportPdf} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Pilih File PDF<span className="text-red-600">*</span>
-                  </label>
-                  <input
-                    type="file"
-                    accept=".pdf"
-                    onChange={(e) => setPdfFile(e.target.files?.[0] || null)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
-                    required
-                  />
-                  {pdfFile && (
-                    <p className="text-xs text-gray-500 mt-2">
-                      📄 {pdfFile.name} ({(pdfFile.size / 1024).toFixed(2)} KB)
-                    </p>
-                  )}
-                </div>
-
-                <div className="flex gap-3 pt-4 border-t border-gray-200">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsImportPdfOpen(false)
-                      setPdfFile(null)
-                      setPdfImportResult(null)
-                    }}
-                    className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-semibold"
-                  >
-                    Batal
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={pdfImporting || !pdfFile}
-                    className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-semibold disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                  >
-                    {pdfImporting ? (
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                {/* PDF Preview Section */}
+                <div className="lg:col-span-1 space-y-4">
+                  <div className={`bg-gray-50 rounded-lg p-4 border-2 min-h-[400px] flex flex-col items-center justify-center transition-all relative overflow-hidden ${
+                    pdfScanProgress.isScanning 
+                      ? 'border-blue-500 border-dashed scan-active' 
+                      : 'border-dashed border-gray-300'
+                  }`}>
+                    {pdfScanProgress.isScanning && (
                       <>
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                        Mengimport...
-                      </>
-                    ) : (
-                      <>
-                        <Upload className="w-4 h-4" />
-                        Import
+                        <div className="absolute inset-0 rounded-lg pointer-events-none overflow-hidden">
+                          <div className="absolute inset-0 bg-gradient-to-b from-blue-400/20 via-transparent to-transparent animate-pulse"></div>
+                          
+                          {/* Scanning line that moves down */}
+                          <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-blue-500 to-transparent" style={{
+                            animation: 'scanLine 2s cubic-bezier(0.25, 0.46, 0.45, 0.94) infinite'
+                          }}></div>
+                          
+                          {/* Multiple scan lines for effect */}
+                          <div className="absolute top-1/4 left-0 right-0 h-0.5 bg-blue-400/30" style={{
+                            animation: 'scanLine 2.5s cubic-bezier(0.25, 0.46, 0.45, 0.94) infinite',
+                            animationDelay: '0.3s'
+                          }}></div>
+                          
+                          <div className="absolute top-1/2 left-0 right-0 h-0.5 bg-blue-300/20" style={{
+                            animation: 'scanLine 3s cubic-bezier(0.25, 0.46, 0.45, 0.94) infinite',
+                            animationDelay: '0.6s'
+                          }}></div>
+                        </div>
                       </>
                     )}
-                  </button>
+                    
+                    {pdfPreviewUrl ? (
+                      <div className="w-full h-full space-y-2 relative z-10">
+                        <div className="text-center">
+                          <p className="text-sm font-semibold text-gray-700 mb-2">PDF Dipilih</p>
+                          <p className="text-xs text-gray-600">{pdfFile?.name}</p>
+                          <p className="text-xs text-gray-600">
+                            Ukuran: {((pdfFile?.size || 0) / 1024).toFixed(2)} KB
+                          </p>
+                          {pdfScanProgress.isScanning && (
+                            <div className="mt-3 p-2 bg-blue-50 rounded-lg border border-blue-200">
+                              <p className="text-xs font-semibold text-blue-900">
+                                🔍 Sedang scan: Halaman {pdfScanProgress.currentPage}
+                              </p>
+                              <div className="w-full h-2 bg-gray-200 rounded mt-2 overflow-hidden">
+                                <div 
+                                  className="h-full bg-blue-500 transition-all duration-300 rounded animate-pulse"
+                                  style={{ width: '100%' }}
+                                ></div>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                        <div className="relative">
+                          <iframe
+                            src={pdfPreviewUrl + '#toolbar=0&navpanes=0'}
+                            className={`w-full h-80 rounded border transition-all ${
+                              pdfScanProgress.isScanning
+                                ? 'border-blue-400 shadow-lg shadow-blue-400/50'
+                                : 'border-gray-300'
+                            }`}
+                            style={{ minHeight: '400px' }}
+                          />
+                          
+                          {/* Scanning line overlay on PDF */}
+                          {pdfScanProgress.isScanning && (
+                            <div 
+                              className="absolute left-0 right-0 h-1 bg-gradient-to-r from-transparent via-blue-400 to-transparent pointer-events-none"
+                              style={{
+                                top: '50%',
+                                animation: 'scanLine 2s cubic-bezier(0.25, 0.46, 0.45, 0.94) infinite'
+                              }}
+                            ></div>
+                          )}
+                        </div>
+                        {pdfScanProgress.isScanning && (
+                          <div className="text-center mt-2">
+                            <div className="inline-flex items-center gap-2 px-3 py-1 bg-blue-100 text-blue-800 text-xs font-semibold rounded-full">
+                              <div className="w-2 h-2 bg-blue-600 rounded-full animate-pulse"></div>
+                              Memindai... ({Object.keys(pdfScanProgress.pointsPerPage).length} halaman ditemukan)
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="text-center">
+                        <Upload className="w-12 h-12 text-gray-400 mx-auto mb-2" />
+                        <p className="text-sm text-gray-600">Pilih file PDF untuk preview</p>
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </form>
+
+                {/* Scan Progress & Debug Info Section */}
+                <div className="lg:col-span-2 space-y-4">
+                  {/* File Upload */}
+                  <div className="space-y-2">
+                    <label className="block text-sm font-semibold text-gray-700">File PDF</label>
+                    <input
+                      type="file"
+                      accept=".pdf"
+                      onChange={handlePdfFileChange}
+                      disabled={pdfImporting}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                    {pdfFile && (
+                      <p className="text-xs text-green-600">{pdfFile.name} siap untuk diimport</p>
+                    )}
+                  </div>
+
+                  {/* Scan Progress */}
+                  {pdfScanProgress.isScanning && (
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-2">
+                      <div className="flex items-center gap-2">
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                        <p className="text-sm font-semibold text-blue-900">Sedang memindai PDF...</p>
+                      </div>
+                      <p className="text-xs text-blue-800">Halaman: {pdfScanProgress.currentPage}</p>
+                    </div>
+                  )}
+
+                  {/* Debug Log Section */}
+                  {/* <div className="bg-gray-50 rounded-lg p-4 border border-gray-200 space-y-2">
+                    <h4 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
+                      Debug Scan Information
+                    </h4>
+                    <div className="bg-white border border-gray-200 rounded p-3 max-h-80 overflow-y-auto font-mono text-xs space-y-1 relative">
+                      {pdfScanProgress.isScanning && (
+                        <div className="absolute left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-blue-500 to-transparent animate-pulse" style={{
+                          top: `${(pdfScanProgress.debugLog.length % 10) * 10}%`,
+                          transition: 'top 0.3s ease-in-out'
+                        }}></div>
+                      )}
+                      
+                      {pdfScanProgress.debugLog.length === 0 ? (
+                        <p className="text-gray-400">Log akan ditampilkan saat scan dimulai...</p>
+                      ) : (
+                        pdfScanProgress.debugLog.map((log, idx) => (
+                          <div 
+                            key={idx} 
+                            className={`transition-colors ${
+                              pdfScanProgress.isScanning && idx === pdfScanProgress.debugLog.length - 1
+                                ? 'bg-blue-100 text-blue-900 px-2 py-1 rounded font-semibold'
+                                : 'text-gray-700'
+                            }`}
+                          >
+                            {log}
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div> */}
+
+                  {/* Points Per Page Summary */}
+                  {Object.keys(pdfScanProgress.pointsPerPage).length > 0 && (
+                    <div className="bg-green-50 border border-green-200 rounded-lg p-4 space-y-2">
+                      <h4 className="text-sm font-semibold text-green-900">Data Ditemukan Per Halaman</h4>
+                      <div className="space-y-2">
+                        {Object.entries(pdfScanProgress.pointsPerPage).map(([page, count]) => (
+                          <div key={page} className="bg-white rounded p-3 border border-green-200">
+                            <div className="flex items-center justify-between mb-2">
+                              <div>
+                                <p className="text-xs text-gray-600 font-semibold">Halaman {page}</p>
+                                <p className="text-lg font-bold text-green-600">{count} point(s)</p>
+                              </div>
+                              {pdfScanProgress.isScanning && (
+                                <div className="animate-pulse">
+                                  <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+                                </div>
+                              )}
+                            </div>
+                            {/* Progress bar */}
+                            <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
+                              <div 
+                                className="h-full bg-green-500 transition-all duration-300 rounded-full"
+                                style={{ width: '100%' }}
+                              ></div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="bg-white rounded p-3 border border-green-200">
+                        <p className="text-xs text-gray-600 font-semibold mb-1">Total Points Ditemukan</p>
+                        <p className="text-2xl font-bold text-green-600">{pdfScanProgress.totalPointsFound}</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Form & Submit */}
+                  <form onSubmit={handleImportPdf} className="space-y-3 pt-4 border-t border-gray-200">
+                    <button
+                      type="submit"
+                      disabled={!pdfFile || pdfImporting}
+                      className="w-full px-4 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-semibold flex items-center justify-center gap-2"
+                    >
+                      {pdfImporting ? (
+                        <>
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                          Sedang mengimport...
+                        </>
+                      ) : (
+                        <>
+                          <Upload className="w-4 h-4" />
+                          Import PDF
+                        </>
+                      )}
+                    </button>
+                  </form>
+
+                  {/* Import Result */}
+                  {pdfImportResult && (
+                    <div className="bg-green-50 border border-green-200 rounded-lg p-4 space-y-2">
+                      <h4 className="text-sm font-semibold text-green-900">Hasil Import</h4>
+                      <div className="grid grid-cols-2 gap-2 text-sm">
+                        <div className="bg-white rounded p-2 border border-green-200">
+                          <p className="text-gray-600">Berhasil Diimport</p>
+                          <p className="text-xl font-bold text-green-600">{pdfImportResult.total_imported}</p>
+                        </div>
+                        <div className="bg-white rounded p-2 border border-green-200">
+                          <p className="text-gray-600">Dilewati</p>
+                          <p className="text-xl font-bold text-yellow-600">{pdfImportResult.total_skipped}</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
         </>

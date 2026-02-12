@@ -166,7 +166,7 @@ const Header: React.FC<HeaderProps> = ({ title, subtitle, onMenuClick }) => {
                 }}
                 className="w-10 h-10 bg-indigo-600 rounded-full flex items-center justify-center text-white font-semibold text-sm hover:bg-indigo-700 transition-colors"
               >
-                {user?.fullName?.[0]?.toUpperCase() || 'A'}
+                {user?.username?.[0]?.toUpperCase() || 'A'}
               </button>
 
               {/* Profile Dropdown */}
@@ -181,10 +181,10 @@ const Header: React.FC<HeaderProps> = ({ title, subtitle, onMenuClick }) => {
                     <div className="bg-gradient-to-r from-indigo-500 to-indigo-700 text-white p-6">
                       <div className="flex items-center gap-4">
                         <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center text-indigo-600 font-bold text-xl">
-                          {user?.fullName?.[0]?.toUpperCase() || 'A'}
+                          {user?.username?.[0]?.toUpperCase() || 'A'}
                         </div>
                         <div>
-                          <h3 className="font-semibold text-lg">{user?.fullName || 'Admin'}</h3>
+                          <h3 className="font-semibold text-lg">{user?.username || 'Admin'}</h3>
                           <p className="text-indigo-100 text-sm">Administrator</p>
                         </div>
                       </div>
@@ -195,7 +195,7 @@ const Header: React.FC<HeaderProps> = ({ title, subtitle, onMenuClick }) => {
                         </div>
                         <div className="flex items-center gap-2">
                           <Phone size={16} />
-                          <span>{user?.phone || '-'}</span>
+                          <span>{user?.phone_number || '-'}</span>
                         </div>
                       </div>
                     </div>

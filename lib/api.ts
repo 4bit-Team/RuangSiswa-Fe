@@ -135,6 +135,169 @@ export async function syncPembinaan(token: string | null) {
   return apiRequest('/v1/pembinaan/sync', 'POST', {}, token);
 }
 
+// ==================== PEMBINAAN RINGAN (BK) ENDPOINTS ====================
+
+export async function createPembinaanRingan(
+  data: {
+    reservasi_id: number;
+    pembinaan_id: number;
+    student_id: number;
+    student_name: string;
+    counselor_id: number;
+    hasil_pembinaan: string;
+    catatan_bk: string;
+    scheduled_date: string;
+    scheduled_time: string;
+  },
+  token: string | null
+) {
+  return apiRequest('/v1/pembinaan-ringan', 'POST', data, token);
+}
+
+export async function getPembinaanRingan(token: string | null) {
+  return apiRequest('/v1/pembinaan-ringan', 'GET', undefined, token);
+}
+
+export async function getPembinaanRinganById(id: number, token: string | null) {
+  return apiRequest(`/v1/pembinaan-ringan/${id}`, 'GET', undefined, token);
+}
+
+export async function getPendingPembinaanRingan(token: string | null) {
+  return apiRequest('/v1/pembinaan-ringan/pending', 'GET', undefined, token);
+}
+
+export async function approvePembinaanRingan(
+  id: number,
+  data: { status: 'approved' | 'rejected'; bk_feedback?: string; bk_notes?: string },
+  token: string | null
+) {
+  return apiRequest(`/v1/pembinaan-ringan/${id}/approve`, 'PATCH', data, token);
+}
+
+export async function completePembinaanRingan(
+  id: number,
+  data: {
+    status: 'completed';
+    bk_feedback: string;
+    bk_notes?: string;
+    has_follow_up?: boolean;
+    follow_up_notes?: string;
+  },
+  token: string | null
+) {
+  return apiRequest(`/v1/pembinaan-ringan/${id}/complete`, 'PATCH', data, token);
+}
+
+// ==================== PEMBINAAN ORTU (ORANG TUA) ENDPOINTS ====================
+
+export async function createPembinaanOrtu(
+  data: {
+    pembinaan_id: number;
+    student_id: number;
+    student_name: string;
+    student_class: string;
+    parent_id?: number;
+    parent_name: string;
+    parent_phone?: string;
+    violation_details: string;
+    letter_content: string;
+    scheduled_date: string;
+    scheduled_time?: string;
+    location?: string;
+    communication_method?: 'sms' | 'whatsapp' | 'email' | 'manual';
+    kesiswaan_notes?: string;
+  },
+  token: string | null
+) {
+  return apiRequest('/v1/pembinaan-ortu', 'POST', data, token);
+}
+
+export async function getPembinaanOrtu(token: string | null) {
+  return apiRequest('/v1/pembinaan-ortu', 'GET', undefined, token);
+}
+
+export async function getPembinaanOrtuById(id: number, token: string | null) {
+  return apiRequest(`/v1/pembinaan-ortu/${id}`, 'GET', undefined, token);
+}
+
+export async function getPembinaanOrtuForParent(parentId: number, token: string | null) {
+  return apiRequest(`/v1/pembinaan-ortu/parent/${parentId}`, 'GET', undefined, token);
+}
+
+export async function sendLetterToParent(
+  id: number,
+  data: { communication_method: 'sms' | 'whatsapp' | 'email' | 'manual' },
+  token: string | null
+) {
+  return apiRequest(`/v1/pembinaan-ortu/${id}/send-letter`, 'POST', data, token);
+}
+
+export async function recordParentResponse(
+  id: number,
+  data: { parent_response: string },
+  token: string | null
+) {
+  return apiRequest(`/v1/pembinaan-ortu/${id}/parent-response`, 'POST', data, token);
+}
+
+export async function recordMeetingWithParent(
+  id: number,
+  data: {
+    meeting_result: string;
+    parent_response?: string;
+    requires_follow_up?: boolean;
+    follow_up_notes?: string;
+  },
+  token: string | null
+) {
+  return apiRequest(`/v1/pembinaan-ortu/${id}/record-meeting`, 'POST', data, token);
+}
+
+// ==================== PEMBINAAN BERAT (WAKA) ENDPOINTS ====================
+
+export async function createPembinaanWaka(
+  data: {
+    reservasi_id: number;
+    pembinaan_id: number;
+    waka_id: number;
+  },
+  token: string | null
+) {
+  return apiRequest('/v1/pembinaan-berat', 'POST', data, token);
+}
+
+export async function createPembinaanBerat(
+  data: {
+    pembinaan_id: number;
+    recommendation?: string;
+    preferred_date: string;
+    preferred_time?: string;
+  },
+  token: string | null
+) {
+  return apiRequest('/v1/pembinaan-berat', 'POST', data, token);
+}
+
+export async function getPembinaanBerat(token: string | null) {
+  return apiRequest('/v1/pembinaan-berat', 'GET', undefined, token);
+}
+
+export async function getPembinaanBeratById(id: number, token: string | null) {
+  return apiRequest(`/v1/pembinaan-berat/${id}`, 'GET', undefined, token);
+}
+
+export async function getPendingPembinaanBerat(token: string | null) {
+  return apiRequest('/v1/pembinaan-berat/pending', 'GET', undefined, token);
+}
+
+export async function decidePembinaanBerat(
+  id: number,
+  data: { wak_decision: 'sp3' | 'do'; decision_reason: string; notes?: string },
+  token: string | null
+) {
+  return apiRequest(`/v1/pembinaan-berat/${id}/decide`, 'PATCH', data, token);
+}
+
 export async function createPembinaanReservasi(
   data: {
     pembinaan_id: number;
