@@ -80,82 +80,36 @@ const KehadiranPage: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-green-500 to-emerald-600 rounded-2xl p-8 text-white">
-        <h2 className="text-3xl font-bold mb-2">📊 Rekap Kehadiran</h2>
-        <p className="text-green-50">Pantau catatan kehadiran Anda secara detail setiap hari</p>
-      </div>
 
       {/* Monthly Overview */}
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-        {/* Attendance Percentage Card */}
-        <div className="md:col-span-2 bg-white rounded-xl border border-gray-200 p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-bold text-gray-900">Persentase Kehadiran</h3>
-            <TrendingUp className="w-5 h-5 text-green-600" />
-          </div>
-          <div className="flex items-center gap-4">
-            <div className="relative w-24 h-24">
-              <svg className="transform -rotate-90 w-24 h-24">
-                <circle
-                  cx="48"
-                  cy="48"
-                  r="40"
-                  stroke="#e5e7eb"
-                  strokeWidth="8"
-                  fill="none"
-                />
-                <circle
-                  cx="48"
-                  cy="48"
-                  r="40"
-                  stroke="#10b981"
-                  strokeWidth="8"
-                  fill="none"
-                  strokeDasharray={`${(attendancePercentage / 100) * 251} 251`}
-                  strokeLinecap="round"
-                />
-              </svg>
-              <div className="absolute inset-0 flex items-center justify-center">
-                <span className="text-2xl font-bold text-green-600">{attendancePercentage}%</span>
-              </div>
-            </div>
-            <div className="flex-1">
-              <p className="text-sm text-gray-600 mb-2">Status Kehadiran</p>
-              <p className="text-lg font-bold text-green-600">Sangat Baik ✅</p>
-              <p className="text-xs text-gray-500 mt-2">
-                {monthlyStats.presentDays} dari {monthlyStats.totalDays} hari hadir
-              </p>
-            </div>
-          </div>
-        </div>
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
 
         {/* Stats Grid */}
         <div className="bg-green-50 border border-green-200 rounded-xl p-4">
           <div className="flex items-center gap-2 mb-2">
             <CheckCircle className="w-5 h-5 text-green-600" />
-            <p className="text-xs text-gray-600 font-medium">Hadir</p>
+            <p className="text-sm sm:text-xs text-gray-600 font-medium">Hadir</p>
           </div>
           <p className="text-2xl font-bold text-green-700">{monthlyStats.presentDays}</p>
-          <p className="text-xs text-green-600 mt-1">Hari</p>
+          <p className="text-sm sm:text-xs text-green-600 mt-1">Hari</p>
         </div>
 
         <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4">
           <div className="flex items-center gap-2 mb-2">
             <AlertCircle className="w-5 h-5 text-yellow-600" />
-            <p className="text-xs text-gray-600 font-medium">Sakit</p>
+            <p className="text-sm sm:text-xs text-gray-600 font-medium">Sakit</p>
           </div>
           <p className="text-2xl font-bold text-yellow-700">{monthlyStats.sickDays}</p>
-          <p className="text-xs text-yellow-600 mt-1">Hari</p>
+          <p className="text-sm sm:text-xs text-yellow-600 mt-1">Hari</p>
         </div>
 
         <div className="bg-red-50 border border-red-200 rounded-xl p-4">
           <div className="flex items-center gap-2 mb-2">
             <AlertCircle className="w-5 h-5 text-red-600" />
-            <p className="text-xs text-gray-600 font-medium">Tanpa Ket.</p>
+            <p className="text-sm sm:text-xs text-gray-600 font-medium">Tanpa Ket.</p>
           </div>
           <p className="text-2xl font-bold text-red-700">{monthlyStats.noExcuseDays}</p>
-          <p className="text-xs text-red-600 mt-1">Hari</p>
+          <p className="text-sm sm:text-xs text-red-600 mt-1">Hari</p>
         </div>
       </div>
 
@@ -225,7 +179,7 @@ const KehadiranPage: React.FC = () => {
                     {record.status}
                   </span>
                   {record.time && (
-                    <p className="text-xs text-gray-600 mt-2">Jam: {record.time}</p>
+                    <p className="text-sm sm:text-xs text-gray-600 mt-2">Jam: {record.time}</p>
                   )}
                 </div>
               </div>

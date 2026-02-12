@@ -74,101 +74,45 @@ const KesiswaanIntegrationSection: React.FC<{ onNavigate?: (page: string) => voi
       </div>
 
       {/* Kesiswaan Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         {/* Attendance Card */}
-        <div
-          onClick={() => handleNavigate('kehadiran')}
-          className="bg-gradient-to-br from-green-50 to-emerald-50 border-2 border-green-200 rounded-xl p-6 cursor-pointer hover:shadow-lg hover:scale-105 transition-all duration-300"
-        >
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-3">
-              <div className="bg-green-100 p-3 rounded-lg">
-                <CheckCircle className="w-6 h-6 text-green-600" />
-              </div>
-              <div>
-                <p className="text-sm text-gray-600">Kehadiran</p>
-                <p className="text-2xl font-bold text-green-600">{data.attendance.percentage}%</p>
-              </div>
-            </div>
-            <ArrowRight className="w-5 h-5 text-green-600" />
+        <div className="bg-green-50 border border-green-200 rounded-xl p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <CheckCircle className="w-5 h-5 text-green-600" />
+            <p className="text-sm sm:text-xs text-gray-600 font-medium">Kehadiran</p>
           </div>
-          <p className="text-xs text-gray-600">
-            {data.attendance.recentDays}/{data.attendance.totalDays} hari hadir
-          </p>
-          {/* <p className="text-xs font-semibold text-green-700 mt-1">✅ {data.attendance.status}</p> */}
+          <p className="text-2xl font-bold text-green-700">{data.attendance.percentage}%</p>
+          <p className="text-sm sm:text-xs text-green-600 mt-1">Persentase</p>
         </div>
 
         {/* Tardiness Card */}
-        <div
-          onClick={() => handleNavigate('keterlambatan')}
-          className="bg-gradient-to-br from-orange-50 to-amber-50 border-2 border-orange-200 rounded-xl p-6 cursor-pointer hover:shadow-lg hover:scale-105 transition-all duration-300"
-        >
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-3">
-              <div className="bg-orange-100 p-3 rounded-lg">
-                <Clock className="w-6 h-6 text-orange-600" />
-              </div>
-              <div>
-                <p className="text-sm text-gray-600">Keterlambatan</p>
-                <p className="text-2xl font-bold text-orange-600">{data.tardiness.currentMonth}</p>
-              </div>
-            </div>
-            <ArrowRight className="w-5 h-5 text-orange-600" />
+        <div className="bg-orange-50 border border-orange-200 rounded-xl p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <Clock className="w-5 h-5 text-orange-600" />
+            <p className="text-sm sm:text-xs text-gray-600 font-medium">Keterlambatan</p>
           </div>
-          <p className="text-xs text-gray-600">
-            Bulan ini (sebelumnya: {data.tardiness.lastMonth})
-          </p>
-          {/* <p className="text-xs font-semibold text-green-700 mt-1">↓ {data.tardiness.status}</p> */}
+          <p className="text-2xl font-bold text-orange-700">{data.tardiness.currentMonth}</p>
+          <p className="text-sm sm:text-xs text-orange-600 mt-1">Bulan Ini</p>
         </div>
 
         {/* Violations Card */}
-        <div
-          onClick={() => handleNavigate('pelanggaran')}
-          className="bg-gradient-to-br from-red-50 to-rose-50 border-2 border-red-200 rounded-xl p-6 cursor-pointer hover:shadow-lg hover:scale-105 transition-all duration-300"
-        >
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-3">
-              <div className="bg-red-100 p-3 rounded-lg">
-                <AlertTriangle className="w-6 h-6 text-red-600" />
-              </div>
-              <div>
-                <p className="text-sm text-gray-600">Pelanggaran</p>
-                <p className="text-2xl font-bold text-red-600">{data.violations.total}</p>
-              </div>
-            </div>
-            <ArrowRight className="w-5 h-5 text-red-600" />
+        <div className="bg-red-50 border border-red-200 rounded-xl p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <AlertTriangle className="w-5 h-5 text-red-600" />
+            <p className="text-sm sm:text-xs text-gray-600 font-medium">Pelanggaran</p>
           </div>
-          <p className="text-xs text-gray-600">
-            {data.violations.resolved} selesai, {data.violations.pending} menunggu
-          </p>
-          {/* {data.violations.pending > 0 ? (
-            <p className="text-xs font-semibold text-red-700 mt-1">⚠️ Ada yang perlu diperhatian</p>
-          ) : (
-            <p className="text-xs font-semibold text-green-700 mt-1">✅ Semua terkelola</p>
-          )} */}
+          <p className="text-2xl font-bold text-red-700">{data.violations.total}</p>
+          <p className="text-sm sm:text-xs text-red-600 mt-1">Total</p>
         </div>
       </div>
 
       {/* Quick Summary */}
       {data.violations.pending > 0 && (
-        <div className="bg-red-50 border-2 border-red-200 rounded-xl p-4">
-          <div className="flex items-start gap-3">
-            <AlertTriangle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
-            <div>
-              <p className="font-semibold text-red-900">Ada yang memerlukan perhatian</p>
-              <p className="text-sm text-red-700 mt-1">
-                Anda memiliki {data.violations.pending} pelanggaran yang menunggu proses bimbingan. 
-                Segera hubungi Guru BK untuk memulai sesi bimbingan.
-              </p>
-              <button
-                onClick={() => handleNavigate('pelanggaran')}
-                className="mt-2 inline-flex items-center gap-1 px-3 py-1.5 bg-red-600 text-white rounded-lg text-sm font-semibold hover:bg-red-700 transition-colors"
-              >
-                Lihat Detail
-                <ArrowRight className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
+        <div className="bg-red-50 border border-red-200 rounded-xl p-4">
+          <p className="text-sm text-red-700">
+            ⚠️ <strong>Perhatian:</strong> Anda memiliki {data.violations.pending} pelanggaran yang menunggu proses bimbingan. 
+            Segera hubungi Guru BK untuk memulai sesi bimbingan.
+          </p>
         </div>
       )}
     </div>
@@ -441,29 +385,53 @@ const DashboardPage: React.FC<{ setActivePage?: (page: string) => void }> = ({ s
   return (
     <>
       <div className="space-y-6">
-        <div className="bg-gradient-to-r from-blue-500 to-purple-600 rounded-2xl p-8 text-white">
-          <h2 className="text-2xl font-bold mb-2">Selamat Datang di Portal BK! 👋</h2>
-          <p className="text-blue-50">Tempat yang aman untuk berbagi, berkonsultasi, dan berkembang bersama</p>
-        </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-          <StatCard icon={Heart} label="Sesi Konseling" value={stats.totalCounselingSessions.toString()} color="bg-pink-50 text-pink-600" />
-          <StatCard icon={MessageCircle} label="Konsultasi Bulan Ini" value={stats.thisMonthConsultations.toString()} color="bg-green-50 text-green-600" />
-          <StatCard icon={Calendar} label="Reservasi Aktif" value={stats.activeReservations.toString()} color="bg-orange-50 text-orange-600" />
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="bg-pink-50 border border-pink-200 rounded-xl p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <Heart className="w-5 h-5 text-pink-600" />
+              <p className="text-sm sm:text-xs text-gray-600 font-medium">Sesi Konseling</p>
+            </div>
+            <p className="text-2xl font-bold text-pink-700">{stats.totalCounselingSessions}</p>
+            <p className="text-sm sm:text-xs text-pink-600 mt-1">Total</p>
+          </div>
+
+          <div className="bg-green-50 border border-green-200 rounded-xl p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <MessageCircle className="w-5 h-5 text-green-600" />
+              <p className="text-sm sm:text-xs text-gray-600 font-medium">Konsultasi Bulan Ini</p>
+            </div>
+            <p className="text-2xl font-bold text-green-700">{stats.thisMonthConsultations}</p>
+            <p className="text-sm sm:text-xs text-green-600 mt-1">Bulan Ini</p>
+          </div>
+
+          <div className="bg-orange-50 border border-orange-200 rounded-xl p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <Calendar className="w-5 h-5 text-orange-600" />
+              <p className="text-sm sm:text-xs text-gray-600 font-medium">Reservasi Aktif</p>
+            </div>
+            <p className="text-2xl font-bold text-orange-700">{stats.activeReservations}</p>
+            <p className="text-sm sm:text-xs text-orange-600 mt-1">Aktif</p>
+          </div>
         </div>
 
         <KesiswaanIntegrationSection onNavigate={setActivePage} kesiswaanData={kesiswaanData} />
 
-        <div className="bg-white rounded-xl border border-gray-200 p-6">
-          <div className="flex items-center justify-between mb-6">
-            <h3 className="font-bold text-gray-900 text-lg">Berita Terbaru dari BK</h3>
-            <button
-              onClick={handleViewAll}
-              className="flex items-center gap-2 text-blue-600 hover:text-blue-700 font-semibold text-sm transition-colors cursor-pointer"
-            >
-              Lihat Semua
-              <ArrowRight className="w-4 h-4" />
-            </button>
+        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+          <div className="p-6 border-b border-gray-200">
+            <div className="flex items-center justify-between">
+              <h3 className="font-bold text-gray-900 text-lg flex items-center gap-2">
+                <Eye className="w-5 h-5 text-blue-600" />
+                Berita Terbaru dari BK
+              </h3>
+              <button
+                onClick={handleViewAll}
+                className="flex items-center gap-2 text-blue-600 hover:text-blue-700 font-semibold text-sm transition-colors cursor-pointer"
+              >
+                Lihat Semua
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            </div>
           </div>
           {loading ? (
             <div className="flex justify-center py-8">
@@ -489,14 +457,14 @@ const DashboardPage: React.FC<{ setActivePage?: (page: string) => void }> = ({ s
             </div>
           )}
         </div>
-      </div>
 
-      {/* News Detail Modal */}
-      <NewsDetailModal
-        isOpen={isNewsModalOpen}
-        onClose={() => setIsNewsModalOpen(false)}
-        news={selectedNews}
-      />
+        {/* News Detail Modal */}
+        <NewsDetailModal
+          isOpen={isNewsModalOpen}
+          onClose={() => setIsNewsModalOpen(false)}
+          news={selectedNews}
+        />
+      </div>
     </>
   );
 };

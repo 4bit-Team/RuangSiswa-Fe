@@ -116,10 +116,10 @@ const PostCard: React.FC<PostCardProps & { currentUserId?: number; currentUserRo
         <div className="flex-1 min-w-0">
           {/* Category & Author */}
           <div className="flex items-center gap-2 mb-2 flex-wrap">
-            <span className={`inline-block ${categoryColor} text-xs font-semibold px-2.5 py-0.5 rounded-full`}>
+            <span className={`inline-block ${categoryColor} text-sm sm:text-xs font-semibold px-2.5 py-0.5 rounded-full`}>
               {category}
             </span>
-            <span className="text-xs text-gray-500">
+            <span className="text-sm sm:text-xs text-gray-500">
               dibuat oleh <span className="font-medium text-gray-700">{author}</span>
             </span>
             {isVerified && (
@@ -127,7 +127,7 @@ const PostCard: React.FC<PostCardProps & { currentUserId?: number; currentUserRo
                 <Award className="w-3.5 h-3.5 text-green-500" />
               </div>
             )}
-            <span className="text-xs text-gray-400 ml-auto">{timestamp}</span>
+            <span className="text-sm sm:text-xs text-gray-400 ml-auto">{timestamp}</span>
           </div>
 
           {/* Title */}
@@ -141,7 +141,7 @@ const PostCard: React.FC<PostCardProps & { currentUserId?: number; currentUserRo
           </p>
 
           {/* Stats */}
-          <div className="flex items-center gap-4 text-xs text-gray-500">
+          <div className="flex items-center gap-4 text-sm sm:text-xs text-gray-500">
             <div className="flex items-center gap-1">
               <MessageCircle className="w-4 h-4" />
               <span>{answers} jawaban</span>
@@ -315,43 +315,46 @@ const KonsultasiPage: React.FC<{ setActivePage?: (page: string) => void }> = ({ 
   const sortedPosts = posts;
 
   return (
-    <div className="bg-gray-50 min-h-screen py-6">
-      {/* Content */}
-      <div className="max-w-7xl mx-auto px-4 mb-8">
-        <div className="mb-6 flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">Konsultasi Terbuka</h1>
-            <p className="text-gray-600">Tanya jawab dengan komunitas siswa dan konselor BK</p>
+    <div className="space-y-6">
+
+      {/* Search & Action */}
+      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <div className="p-6 border-b border-gray-200">
+          <div className="flex items-center justify-between">
+            <h3 className="font-bold text-gray-900 text-lg flex items-center gap-2">
+              <Search className="w-5 h-5 text-purple-600" />
+              Cari & Buat Pertanyaan
+            </h3>
+            <button
+              onClick={() => router.push('/home/siswa/konsultasi/bookmarks')}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+            >
+              <Bookmark className="w-5 h-5" />
+              Bookmark Saya
+            </button>
           </div>
-          <button
-            onClick={() => router.push('/home/siswa/konsultasi/bookmarks')}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
-          >
-            <Bookmark className="w-5 h-5" />
-            Bookmark Saya
-          </button>
         </div>
 
-        {/* Search & Action */}
-        <div className="flex gap-3 mb-6">
-          <div className="flex-1 relative">
-            <input
-              type="text"
-              placeholder="Cari pertanyaan..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
-            <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+        <div className="p-6">
+          <div className="flex gap-3 mb-6">
+            <div className="flex-1 relative">
+              <input
+                type="text"
+                placeholder="Cari pertanyaan..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+              <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+            </div>
+            <button
+              onClick={() => setShowModal(true)}
+              className="flex items-center gap-2 px-4 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors"
+            >
+              <Plus className="w-5 h-5" />
+              Tanya
+            </button>
           </div>
-          <button
-            onClick={() => setShowModal(true)}
-            className="flex items-center gap-2 px-4 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors"
-          >
-            <Plus className="w-5 h-5" />
-            Tanya
-          </button>
-        </div>
 
         {/* Category Filter */}
         <div className="flex gap-2 overflow-x-auto pb-2">
@@ -379,13 +382,22 @@ const KonsultasiPage: React.FC<{ setActivePage?: (page: string) => void }> = ({ 
             </button>
           ))}
         </div>
+        </div>
       </div>
 
       {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-4">
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-          {/* Posts Feed */}
-          <div className="lg:col-span-3 space-y-4">
+      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <div className="p-6 border-b border-gray-200">
+          <h3 className="font-bold text-gray-900 text-lg flex items-center gap-2">
+            <MessageCircle className="w-5 h-5 text-purple-600" />
+            Pertanyaan Terbaru
+          </h3>
+        </div>
+
+        <div className="p-6">
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+            {/* Posts Feed */}
+            <div className="lg:col-span-3 space-y-4">
             {/* Sort Options */}
             <div className="flex items-center gap-2 mb-4">
               <Filter className="w-4 h-4 text-gray-500" />
@@ -530,6 +542,7 @@ const KonsultasiPage: React.FC<{ setActivePage?: (page: string) => void }> = ({ 
               </div>
             </div>
           </div>
+        </div>
         </div>
       </div>
 

@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { Heart, MessageCircle, Calendar, MessageSquare, User, Home, CheckCircle, Clock, AlertTriangle } from 'lucide-react';
 
 interface SidebarItemProps {
@@ -29,7 +30,9 @@ interface SidebarProps {
   pathname?: string;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ pathname = '' }) => {
+const Sidebar: React.FC<SidebarProps> = ({ pathname }) => {
+  const currentPathname = usePathname();
+  const activePath = pathname || currentPathname;
   const [isOpen, setIsOpen] = useState(false);
 
   useEffect(() => {
@@ -69,25 +72,25 @@ const Sidebar: React.FC<SidebarProps> = ({ pathname = '' }) => {
   const navContent = (
     <>
       <nav className="flex-1 p-4 space-y-1">
-        <SidebarItem icon={Home} label="Dashboard" active={pathname === '/home/siswa' || pathname === '/home/siswa/'} href="/home/siswa" onClick={() => setIsOpen(false)} />
-        <SidebarItem icon={User} label="Berita" active={pathname === '/home/siswa/berita'} href="/home/siswa/berita" onClick={() => setIsOpen(false)} />
-        <SidebarItem icon={Heart} label="Konseling" active={pathname === '/home/siswa/konseling'} href="/home/siswa/konseling" onClick={() => setIsOpen(false)} />
-        <SidebarItem icon={MessageCircle} label="Konsultasi" active={pathname === '/home/siswa/konsultasi'} href="/home/siswa/konsultasi" onClick={() => setIsOpen(false)} />
-        <SidebarItem icon={Calendar} label="Reservasi Saya" active={pathname === '/home/siswa/reservasi'} href="/home/siswa/reservasi" onClick={() => setIsOpen(false)} />
-        <SidebarItem icon={MessageSquare} label="Chat BK" active={pathname === '/home/siswa/chat'} href="/home/siswa/chat" onClick={() => setIsOpen(false)} />
+        <SidebarItem icon={Home} label="Dashboard" active={activePath === '/home/siswa' || activePath === '/home/siswa/'} href="/home/siswa" onClick={() => setIsOpen(false)} />
+        <SidebarItem icon={User} label="Berita" active={activePath === '/home/siswa/berita'} href="/home/siswa/berita" onClick={() => setIsOpen(false)} />
+        <SidebarItem icon={Heart} label="Konseling" active={activePath === '/home/siswa/konseling'} href="/home/siswa/konseling" onClick={() => setIsOpen(false)} />
+        <SidebarItem icon={MessageCircle} label="Konsultasi" active={activePath === '/home/siswa/konsultasi'} href="/home/siswa/konsultasi" onClick={() => setIsOpen(false)} />
+        <SidebarItem icon={Calendar} label="Reservasi Saya" active={activePath === '/home/siswa/reservasi'} href="/home/siswa/reservasi" onClick={() => setIsOpen(false)} />
+        <SidebarItem icon={MessageSquare} label="Chat BK" active={activePath === '/home/siswa/chat'} href="/home/siswa/chat" onClick={() => setIsOpen(false)} />
 
         {/* Kesiswaan Section */}
         <div className="pt-4 pb-2">
           <h3 className="px-4 text-xs font-semibold text-gray-600 uppercase tracking-wider">Data Kesiswaan</h3>
         </div>
-        <SidebarItem icon={CheckCircle} label="Kehadiran" active={pathname === '/home/siswa/kehadiran'} href="/home/siswa/kehadiran" onClick={() => setIsOpen(false)} />
-        <SidebarItem icon={Clock} label="Keterlambatan" active={pathname === '/home/siswa/keterlambatan'} href="/home/siswa/keterlambatan" onClick={() => setIsOpen(false)} />
-        <SidebarItem icon={AlertTriangle} label="Pelanggaran" active={pathname === '/home/siswa/pelanggaran'} href="/home/siswa/pelanggaran" onClick={() => setIsOpen(false)} />
+        <SidebarItem icon={CheckCircle} label="Kehadiran" active={activePath === '/home/siswa/kehadiran'} href="/home/siswa/kehadiran" onClick={() => setIsOpen(false)} />
+        <SidebarItem icon={Clock} label="Keterlambatan" active={activePath === '/home/siswa/keterlambatan'} href="/home/siswa/keterlambatan" onClick={() => setIsOpen(false)} />
+        <SidebarItem icon={AlertTriangle} label="Pelanggaran" active={activePath === '/home/siswa/pelanggaran'} href="/home/siswa/pelanggaran" onClick={() => setIsOpen(false)} />
 
         <div className="pt-4 pb-2">
           <h3 className="px-4 text-xs font-semibold text-gray-600 uppercase tracking-wider">Akun</h3>
         </div>
-        <SidebarItem icon={User} label="Profil" active={pathname === '/home/siswa/profil'} href="/home/siswa/profil" onClick={() => setIsOpen(false)} />
+        <SidebarItem icon={User} label="Profil" active={activePath === '/home/siswa/profil'} href="/home/siswa/profil" onClick={() => setIsOpen(false)} />
       </nav>
 
       <div className="p-4 border-t border-gray-200">

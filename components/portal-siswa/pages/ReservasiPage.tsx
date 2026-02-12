@@ -182,31 +182,35 @@ const ReservasiPage: React.FC = () => {
   }
 
   return (
-    <div className="pt-16 px-8 space-y-6">
+    <div className="space-y-6">
       {/* Error/Success Messages */}
       {errorMessage && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-center gap-3">
-          <AlertCircle className="w-5 h-5 text-red-600" />
-          <p className="text-red-800">{errorMessage}</p>
-          <button onClick={() => setErrorMessage('')} className="ml-auto text-red-600 hover:text-red-700">
-            <X className="w-5 h-5" />
-          </button>
+        <div className="bg-red-50 border border-red-200 rounded-xl p-4">
+          <p className="text-sm text-red-700">
+            ❌ <strong>Error:</strong> {errorMessage}
+          </p>
         </div>
       )}
 
       {successMessage && (
-        <div className="bg-green-50 border border-green-200 rounded-lg p-4 flex items-center gap-3">
-          <p className="text-green-800">{successMessage}</p>
-          <button onClick={() => setSuccessMessage('')} className="ml-auto text-green-600 hover:text-green-700">
-            <X className="w-5 h-5" />
-          </button>
+        <div className="bg-green-50 border border-green-200 rounded-xl p-4">
+          <p className="text-sm text-green-700">
+            ✅ <strong>Berhasil:</strong> {successMessage}
+          </p>
         </div>
       )}
 
       {/* Reservasi Saya */}
-      <div className="bg-white rounded-xl border border-gray-200 p-6">
-        <h3 className="font-bold text-gray-900 mb-2">Reservasi Saya</h3>
-        <p className="text-gray-600 mb-6">Daftar reservasi konseling Anda</p>
+      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <div className="p-6 border-b border-gray-200">
+          <h3 className="font-bold text-gray-900 text-lg flex items-center gap-2">
+            <Calendar className="w-5 h-5 text-blue-600" />
+            Reservasi Saya
+          </h3>
+          <p className="text-gray-600 mt-1">Daftar reservasi konseling Anda</p>
+        </div>
+
+        <div className="p-6">
 
         {reservasiList.length === 0 ? (
           <div className="bg-gray-50 rounded-lg p-6 text-center">
@@ -232,7 +236,7 @@ const ReservasiPage: React.FC = () => {
                       </p>
                     </div>
                   </div>
-                  <span className={`text-xs px-3 py-1 rounded-full font-medium ${getStatusBadgeColor(res.status)}`}>
+                  <span className={`text-sm sm:text-xs px-3 py-1 rounded-full font-medium ${getStatusBadgeColor(res.status)}`}>
                     {getStatusLabel(res.status)}
                   </span>
                 </div>
@@ -324,8 +328,7 @@ const ReservasiPage: React.FC = () => {
             )
             })}
           </div>
-        )}
-      </div>
+        )}        </div>      </div>
 
       {/* Cancel Confirmation Modal */}
       {cancelConfirm.show && (

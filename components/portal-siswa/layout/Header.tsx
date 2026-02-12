@@ -1,15 +1,84 @@
 'use client'
 
 import React, { useEffect } from 'react';
+import { usePathname } from 'next/navigation';
 import { Bell, Mail, Phone, HelpCircle, User, Settings, LogOut } from 'lucide-react'
 import { HeaderProps } from '@types';
 import { useNotification } from '@/lib/useNotification';
 
 const Header: React.FC<HeaderProps & { onToggleSidebar?: () => void }> = ({ title, subtitle, profile, onToggleSidebar }) => {
 
+  const pathname = usePathname();
   const [showDropdown, setShowDropdown] = React.useState(false);
   const [notificationOpen, setNotificationOpen] = React.useState(false);
   const { notifications, getNotifications, markAsRead, unreadCount } = useNotification();
+
+  // Function to get title and subtitle based on current path
+  const getPageTitle = (path: string) => {
+    if (path.includes('/berita')) {
+      return {
+        title: '📰 Berita & Artikel BK',
+        subtitle: 'Baca artikel dan tips dari konselor BK'
+      };
+    } else if (path.includes('/konseling')) {
+      return {
+        title: '💬 Konseling & Bimbingan',
+        subtitle: 'Dapatkan dukungan dan bimbingan untuk perkembangan Anda'
+      };
+    } else if (path.includes('/reservasi')) {
+      return {
+        title: '📅 Manajemen Reservasi',
+        subtitle: 'Kelola jadwal konseling dan reservasi Anda'
+      };
+    } else if (path.includes('/konsultasi')) {
+      return {
+        title: '💬 Konsultasi Terbuka',
+        subtitle: 'Tanya jawab dengan komunitas siswa dan konselor BK'
+      };
+    } else if (path.includes('/chat')) {
+      return {
+        title: '💬 Chat BK',
+        subtitle: 'Komunikasi langsung dengan konselor BK Anda'
+      };
+    } else if (path.includes('/kehadiran')) {
+      return {
+        title: '📊 Rekap Kehadiran',
+        subtitle: 'Pantau catatan kehadiran Anda secara detail setiap hari'
+      };
+    } else if (path.includes('/keterlambatan')) {
+      return {
+        title: '⏰ Rekap Keterlambatan',
+        subtitle: 'Pantau catatan keterlambatan Anda'
+      };
+    } else if (path.includes('/pelanggaran')) {
+      return {
+        title: '⚠️ Rekap Pelanggaran',
+        subtitle: 'Pantau catatan pelanggaran dan bimbingan Anda'
+      };
+    } else if (path.includes('/profil')) {
+      return {
+        title: '👤 Profil Saya',
+        subtitle: 'Kelola informasi dan pengaturan akun Anda'
+      };
+    } else if (path.includes('/bookmarks')) {
+      return {
+        title: '🔖 Bookmark Saya',
+        subtitle: 'Konsultasi yang Anda simpan untuk referensi'
+      };
+    } else if (path.includes('/dashboard') || path === '/home/siswa') {
+      return {
+        title: '🏠 Dashboard Portal Siswa',
+        subtitle: 'Tempat yang aman untuk berbagi, berkonsultasi, dan berkembang bersama'
+      };
+    } else {
+      return {
+        title: title || '🏠 Dashboard Portal Siswa',
+        subtitle: subtitle || 'Tempat yang aman untuk berbagi, berkonsultasi, dan berkembang bersama'
+      };
+    }
+  };
+
+  const currentPage = getPageTitle(pathname);
 
   useEffect(() => {
     if (profile?.id) {
@@ -35,42 +104,27 @@ const Header: React.FC<HeaderProps & { onToggleSidebar?: () => void }> = ({ titl
 
 
   return (
-    <header className="fixed top-0 right-0 left-0 md:left-64 z-10 bg-white border-b border-gray-200">
-      <div className="max-w-7xl mx-auto h-20 px-4 md:px-8 flex items-center justify-between">
-        <div>
-          <div className="flex items-center gap-3">
-            {/* mobile menu button */}
-            <button
-              className="md:hidden inline-flex items-center justify-center w-10 h-10 rounded-lg text-gray-700 hover:bg-gray-100 focus:outline-none"
-              aria-label="Toggle sidebar"
-              onClick={handleToggleSidebar}
-            >
-              <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M3 6h14M3 10h14M3 14h14" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            </button>
-
-            <div>
-              <h1 className="text-lg md:text-2xl font-bold text-gray-900">{title || 'Dashboard'}</h1>
-              {/* hide subtitle on small screens to reduce crowding */}
-              {subtitle && <p className="hidden md:block text-sm text-gray-500 mt-1">{subtitle}</p>}
-            </div>
+    <header className="fixed top-0 right-0 left-0 md:left-64 z-10">
+      {/* Header Gradient */}
+      <div className="bg-gradient-to-r from-blue-500 to-purple-600 p-8 text-white">
+        <div className="max-w-7xl mx-auto flex items-center justify-between">
+          <div>
+            <h2 className="text-3xl font-bold mb-2">{currentPage.title}</h2>
+            <p className="text-blue-50">{currentPage.subtitle}</p>
           </div>
-        </div>
-
-        <div className="flex items-center gap-4">
-          {/* Notifications Bell */}
-          <div className="relative">
-            <button
-              onClick={() => {
-                setNotificationOpen(!notificationOpen);
-                setShowDropdown(false);
-              }}
-              className="relative p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-            >
-              <Bell size={20} />
-              <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
-            </button>
+          <div className="flex items-center gap-4">
+            {/* Notifications Bell */}
+            <div className="relative">
+              <button
+                onClick={() => {
+                  setNotificationOpen(!notificationOpen);
+                  setShowDropdown(false);
+                }}
+                className="relative p-2 text-white hover:bg-white/10 rounded-lg transition-colors"
+              >
+                <Bell size={20} />
+                <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
+              </button>
 
             {/* Notification Dropdown */}
             {notificationOpen && (
@@ -128,9 +182,9 @@ const Header: React.FC<HeaderProps & { onToggleSidebar?: () => void }> = ({ titl
             )}
           </div>
 
-          <div className="flex items-center gap-3 bg-gray-50 px-3 py-1 rounded-lg border border-gray-100 relative">
-            <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center">
-              <span className="text-white font-semibold text-sm">
+          <div className="flex items-center gap-3 bg-white/10 backdrop-blur-sm px-3 py-2 rounded-lg border border-white/20 relative">
+            <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center">
+              <span className="text-blue-600 font-semibold text-sm">
                 {profile?.username ? profile.username.charAt(0).toUpperCase() : "A"}
               </span>
             </div>
@@ -151,8 +205,8 @@ const Header: React.FC<HeaderProps & { onToggleSidebar?: () => void }> = ({ titl
                 setNotificationOpen(false);
               }}
             >
-              <span className="font-medium text-gray-900 text-sm">{profile?.username || "Anda"}</span>
-              <span className="text-xs text-gray-500">{profile?.role || "Siswa"}</span>
+              <span className="font-medium text-white text-sm">{profile?.username || "Anda"}</span>
+              <span className="text-xs text-blue-100">{profile?.role || "Siswa"}</span>
             </button>
             {showDropdown && (
               <div className="absolute right-0 top-14 w-80 bg-white border border-gray-200 rounded-lg shadow-lg z-40 overflow-hidden">
@@ -217,6 +271,7 @@ const Header: React.FC<HeaderProps & { onToggleSidebar?: () => void }> = ({ titl
           </div>
         </div>
       </div>
+    </div>
     </header>
   );
 }

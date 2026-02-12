@@ -279,12 +279,6 @@ const ProfilPage: React.FC = () => {
         <div>
           <SettingItem icon={Bell} label="Notifikasi" />
           <SettingItem icon={Shield} label="Privasi & Keamanan" />
-          <div className="border-t mt-2">
-            <button onClick={handleLogout} className="w-full text-left px-4 py-4 flex items-center gap-3 text-red-600 hover:bg-red-50 transition-colors duration-200">
-              <LogOut className="w-5 h-5" />
-              <span className="font-medium">Keluar</span>
-            </button>
-          </div>
         </div>
       </div>
     </div>

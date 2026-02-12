@@ -60,13 +60,13 @@ const KetarlatanganPage: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="bg-gradient-to-r from-orange-500 to-amber-600 rounded-2xl p-8 text-white">
-        <h2 className="text-3xl font-bold mb-2">⏰ Rekap Keterlambatan</h2>
-        <p className="text-orange-50">Pantau catatan keterlambatan dan capai kehadiran yang lebih disiplin</p>
+      <div className="bg-gradient-to-r from-orange-500 to-amber-600 rounded-2xl p-4 md:p-8 text-white">
+        <h2 className="text-2xl md:text-3xl font-bold mb-2">⏰ Rekap Keterlambatan</h2>
+        <p className="text-orange-50 text-sm md:text-base">Pantau catatan keterlambatan dan capai kehadiran yang lebih disiplin</p>
       </div>
 
       {/* Statistics Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
         {/* Current Month */}
         <div className="bg-white rounded-xl border border-gray-200 p-6">
           <div className="flex items-center justify-between mb-2">
@@ -74,7 +74,7 @@ const KetarlatanganPage: React.FC = () => {
             <Clock className="w-4 h-4 text-orange-600" />
           </div>
           <p className="text-3xl font-bold text-orange-600">{tardinessStats.currentMonth}</p>
-          <p className="text-xs text-gray-500 mt-2">Kali terlambat</p>
+          <p className="text-sm sm:text-xs text-gray-500 mt-2">Kali terlambat</p>
         </div>
 
         {/* Last Month */}
@@ -84,42 +84,7 @@ const KetarlatanganPage: React.FC = () => {
             <TrendingUp className="w-4 h-4 text-gray-600" />
           </div>
           <p className="text-3xl font-bold text-gray-900">{tardinessStats.lastMonth}</p>
-          <p className="text-xs text-green-600 mt-2">↓ Menurun {tardinessStats.lastMonth - tardinessStats.currentMonth} kali</p>
-        </div>
-
-        {/* Total Minutes */}
-        <div className="bg-white rounded-xl border border-gray-200 p-6">
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-sm text-gray-600">Total Menit</p>
-            <AlertTriangle className="w-4 h-4 text-yellow-600" />
-          </div>
-          <p className="text-3xl font-bold text-yellow-600">{tardinessStats.totalMinutes}</p>
-          <p className="text-xs text-gray-500 mt-2">Waktu keseluruhan</p>
-        </div>
-
-        {/* Average Minutes */}
-        <div className="bg-white rounded-xl border border-gray-200 p-6">
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-sm text-gray-600">Rata-rata</p>
-            <Clock className="w-4 h-4 text-blue-600" />
-          </div>
-          <p className="text-3xl font-bold text-blue-600">{tardinessStats.averageMinutes}</p>
-          <p className="text-xs text-gray-500 mt-2">Menit per keterlambatan</p>
-        </div>
-      </div>
-
-      {/* Trend Analysis */}
-      <div className="bg-gradient-to-br from-green-50 to-emerald-50 border border-green-200 rounded-xl p-6">
-        <div className="flex items-start gap-4">
-          <div className="bg-green-100 rounded-lg p-3">
-            <TrendingUp className="w-6 h-6 text-green-600" />
-          </div>
-          <div className="flex-1">
-            <h3 className="font-bold text-gray-900 mb-1">Tren Positif ✨</h3>
-            <p className="text-sm text-gray-700">
-              Kehadiran Anda menunjukkan peningkatan! Keterlambatan bulan ini berkurang {tardinessStats.lastMonth - tardinessStats.currentMonth} kali dibanding bulan lalu. Lanjutkan konsistensi ini!
-            </p>
-          </div>
+          <p className="text-sm sm:text-xs text-green-600 mt-2">↓ Menurun {tardinessStats.lastMonth - tardinessStats.currentMonth} kali</p>
         </div>
       </div>
 
@@ -186,12 +151,12 @@ const KetarlatanganPage: React.FC = () => {
                           Masuk pukul {record.time} ({record.minutesLate} menit terlambat)
                         </p>
                         {record.reason && (
-                          <p className="text-xs text-gray-500 mt-1">Alasan: {record.reason}</p>
+                          <p className="text-sm sm:text-xs text-gray-500 mt-1">Alasan: {record.reason}</p>
                         )}
                       </div>
                     </div>
                     <div className="text-right">
-                      <span className={`inline-block px-3 py-1.5 rounded-lg text-xs font-semibold border ${statusVariant.bg} ${statusVariant.border} ${statusVariant.text}`}>
+                      <span className={`inline-block px-3 py-1.5 rounded-lg text-sm sm:text-xs font-semibold border ${statusVariant.bg} ${statusVariant.border} ${statusVariant.text}`}>
                         {statusVariant.label}
                       </span>
                       <p className="text-sm font-bold text-orange-600 mt-2">{record.minutesLate}m</p>

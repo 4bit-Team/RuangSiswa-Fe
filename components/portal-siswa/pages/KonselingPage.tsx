@@ -101,7 +101,7 @@ const CounselingCard: React.FC<
             <Icon className="w-6 h-6 text-white" />
           </div>
           {badge && (
-            <span className="absolute top-0 right-0 bg-orange-100 text-orange-700 px-2 py-1 rounded-full text-xs font-medium">
+            <span className="absolute top-0 right-0 bg-orange-100 text-orange-700 px-2 py-1 rounded-full text-sm sm:text-xs font-medium">
               {badge}
             </span>
           )}
@@ -416,29 +416,35 @@ const KonselingPage: React.FC = () => {
   }, [mergedReservations]);
 
   return (
-    <div className="pt-16 px-8 space-y-6">
+    <div className="space-y-6">
       {/* Alert Messages */}
       {successMessage && (
-        <div className="bg-green-50 border border-green-200 rounded-lg p-4 flex items-center gap-3">
-          <CheckCircle className="w-5 h-5 text-green-600" />
-          <p className="text-green-800">{successMessage}</p>
+        <div className="bg-green-50 border border-green-200 rounded-xl p-4">
+          <p className="text-sm text-green-700">
+            ✅ <strong>Berhasil:</strong> {successMessage}
+          </p>
         </div>
       )}
 
       {errorMessage && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-center gap-3">
-          <AlertCircle className="w-5 h-5 text-red-600" />
-          <p className="text-red-800">{errorMessage}</p>
+        <div className="bg-red-50 border border-red-200 rounded-xl p-4">
+          <p className="text-sm text-red-700">
+            ❌ <strong>Error:</strong> {errorMessage}
+          </p>
         </div>
       )}
 
-      <div className="bg-white rounded-xl border border-gray-200 p-6">
-        <h3 className="font-bold text-gray-900 mb-2">Layanan Konseling</h3>
-        <p className="text-gray-600 mb-6">
-          Pilih jenis konseling yang sesuai dengan kebutuhan Anda
-        </p>
+      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <div className="p-6 border-b border-gray-200">
+          <h3 className="font-bold text-gray-900 text-lg flex items-center gap-2">
+            <Heart className="w-5 h-5 text-pink-600" />
+            Layanan Konseling
+          </h3>
+          <p className="text-gray-600 mt-1">Pilih jenis konseling yang sesuai dengan kebutuhan Anda</p>
+        </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+        <div className="p-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
           <CounselingCard
             icon={Heart}
             title="Konseling Umum"
@@ -497,24 +503,32 @@ const KonselingPage: React.FC = () => {
             </div>
           </div>
         </div>
+        </div>
       </div>
 
       {/* Daftar Reservasi */}
-      <div className="bg-white rounded-xl border border-gray-200 p-6">
-        <div className="flex items-start justify-between mb-4">
-          <div>
-            <h3 className="font-bold text-gray-900 mb-2">Daftar Reservasi</h3>
-            <p className="text-gray-600">Daftar reservasi konseling Anda</p>
-          </div>
-          <div className="flex-shrink-0">
-            <button
-              onClick={() => router.push("/home/siswa/reservasi")}
-              className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-full font-medium hover:opacity-90 transition-shadow duration-200 shadow-sm"
-            >
-              Lihat Semua
-            </button>
+      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <div className="p-6 border-b border-gray-200">
+          <div className="flex items-start justify-between">
+            <div>
+              <h3 className="font-bold text-gray-900 text-lg flex items-center gap-2">
+                <Calendar className="w-5 h-5 text-blue-600" />
+                Daftar Reservasi
+              </h3>
+              <p className="text-gray-600 mt-1">Daftar reservasi konseling Anda</p>
+            </div>
+            <div className="flex-shrink-0">
+              <button
+                onClick={() => router.push("/home/siswa/reservasi")}
+                className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-full font-medium hover:opacity-90 transition-shadow duration-200 shadow-sm"
+              >
+                Lihat Semua
+              </button>
+            </div>
           </div>
         </div>
+
+        <div className="p-6">
 
         <div className="flex items-center gap-4 mb-4">
           <label className="text-sm text-gray-600">Tipe:</label>
@@ -621,7 +635,7 @@ const KonselingPage: React.FC = () => {
                   </div>
                   <div className="flex items-center gap-3">
                     <span
-                      className={`text-xs px-3 py-1 rounded-full font-medium ${getStatusBadgeColor(item.status)}`}
+                      className={`text-sm sm:text-xs px-3 py-1 rounded-full font-medium ${getStatusBadgeColor(item.status)}`}
                     >
                       {getStatusLabel(item.status)}
                     </span>
@@ -657,6 +671,7 @@ const KonselingPage: React.FC = () => {
             </div>
           </div>
         )}
+        </div>
       </div>
     </div>
   );

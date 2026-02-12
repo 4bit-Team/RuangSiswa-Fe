@@ -154,10 +154,10 @@ const BookmarksPage: React.FC = () => {
                       {bookmark.title}
                     </h3>
                     <div className="flex items-center gap-2 mt-1 flex-wrap">
-                      <span className="px-2 py-1 bg-blue-50 text-blue-700 text-xs font-medium rounded">
+                      <span className="px-2 py-1 bg-blue-50 text-blue-700 text-sm sm:text-xs font-medium rounded">
                         {bookmark.category?.name || 'Umum'}
                       </span>
-                      <span className="text-xs text-gray-500">
+                      <span className="text-sm sm:text-xs text-gray-500">
                         oleh {bookmark.author?.name || 'Anonymous'}
                       </span>
                     </div>
@@ -179,7 +179,7 @@ const BookmarksPage: React.FC = () => {
                   {bookmark.content}
                 </p>
 
-                <div className="flex items-center gap-4 text-gray-500 text-sm">
+                <div className="flex items-center gap-4 text-gray-500 text-sm sm:text-xs">
                   <div className="flex items-center gap-1">
                     <Eye className="w-4 h-4" />
                     <span>{bookmark.views} dilihat</span>

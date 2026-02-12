@@ -120,9 +120,9 @@ const PelanggaranPage: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="bg-gradient-to-r from-red-500 to-rose-600 rounded-2xl p-8 text-white">
-        <h2 className="text-3xl font-bold mb-2">⚠️ Catatan Pelanggaran & Status Penyelesaian</h2>
-        <p className="text-red-50">Pantau pelanggaran Anda dan status bimbingan dari Guru BK</p>
+      <div className="bg-gradient-to-r from-red-500 to-rose-600 rounded-2xl p-4 md:p-8 text-white">
+        <h2 className="text-2xl md:text-3xl font-bold mb-2">⚠️ Catatan Pelanggaran & Status Penyelesaian</h2>
+        <p className="text-red-50 text-sm md:text-base">Pantau pelanggaran Anda dan status bimbingan dari Guru BK</p>
       </div>
 
       {/* Overview Stats */}
@@ -202,7 +202,7 @@ const PelanggaranPage: React.FC = () => {
               <div
                 key={violation.id}
                 onClick={handleOpenModal}
-                className={`${categoryColor.bg} border-2 ${categoryColor.border} rounded-xl p-6 cursor-pointer hover:shadow-lg hover:scale-[1.02] transition-all duration-200`}
+                className={`${categoryColor.bg} border-2 ${categoryColor.border} rounded-xl p-6 cursor-pointer hover:shadow-lg md:hover:scale-[1.02] transition-all duration-200`}
               >
                 <div className="flex items-start justify-between gap-4">
                   {/* Icon & Content */}
@@ -215,15 +215,15 @@ const PelanggaranPage: React.FC = () => {
 
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1 flex-wrap">
-                        <span className={`inline-block px-3 py-1 rounded-lg text-xs font-semibold border ${categoryColor.text} bg-white ${categoryColor.border}`}>
+                        <span className={`inline-block px-3 py-1 rounded-lg text-sm sm:text-xs font-semibold border ${categoryColor.text} bg-white ${categoryColor.border}`}>
                           {violation.category}
                         </span>
-                        <span className={`inline-block px-3 py-1 rounded-lg text-xs font-semibold border ${getSeverityColor(violation.severity)}`}>
+                        <span className={`inline-block px-3 py-1 rounded-lg text-sm sm:text-xs font-semibold border ${getSeverityColor(violation.severity)}`}>
                           {violation.severity}
                         </span>
                       </div>
                       <p className="font-bold text-gray-900 mb-1 line-clamp-2">{violation.description}</p>
-                      <div className="flex items-center gap-3 text-xs text-gray-600">
+                      <div className="flex items-center gap-3 text-sm sm:text-xs text-gray-600">
                         <span>📅 {new Date(violation.date).toLocaleDateString('id-ID')}</span>
                         <span>📝 {violation.reportedBy}</span>
                         <span>💬 {violation.guidanceSessions} sesi</span>
@@ -233,7 +233,7 @@ const PelanggaranPage: React.FC = () => {
 
                   {/* Status Badge */}
                   <div className="flex-shrink-0">
-                    <div className={`px-4 py-2 rounded-lg text-xs font-semibold border whitespace-nowrap ${statusColor.bg} ${statusColor.border} ${statusColor.text}`}>
+                    <div className={`px-4 py-2 rounded-lg text-sm sm:text-xs font-semibold border whitespace-nowrap ${statusColor.bg} ${statusColor.border} ${statusColor.text}`}>
                       {statusColor.label}
                     </div>
                   </div>

@@ -127,6 +127,10 @@ export async function updatePembinaan(
   return apiRequest(`/v1/pembinaan/${id}/`, 'PATCH', data, token);
 }
 
+export async function fetchAndSyncPembinaan(token: string | null) {
+  return apiRequest('/v1/pembinaan/fetch-sync', 'POST', {}, token);
+}
+
 export async function syncPembinaan(token: string | null) {
   return apiRequest('/v1/pembinaan/sync', 'POST', {}, token);
 }

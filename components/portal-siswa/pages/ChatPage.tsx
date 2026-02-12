@@ -1238,7 +1238,9 @@ const ChatPage: React.FC = () => {
   const activeCounselorName = activeConversation ? getCounselorName(activeConversation) : ''
 
   return (
-    <div className="flex h-[calc(100vh-72px)]">
+    <div className="space-y-6">
+
+      <div className="flex h-[calc(100vh-200px)]">
       {/* Chat List */}
       <div className="w-96 border-r border-gray-200 bg-white flex flex-col flex-shrink-0">
         <div className="p-4 border-b border-gray-200 flex-shrink-0">
@@ -1834,6 +1836,8 @@ const ChatPage: React.FC = () => {
           </div>
         </div>
       )}
+    </div>
+  )
     </div>
   )
 }

@@ -167,17 +167,17 @@ const BeritaPage: React.FC<BeritaPageProps> = ({ selectedTopic = null, setActive
   return (
     <>
       <div className="space-y-6">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-3xl font-bold text-gray-900">Berita & Artikel BK</h2>
-            <p className="text-gray-600 mt-1">Baca artikel dan tips dari konselor BK</p>
-          </div>
-        </div>
 
         {/* Filter Kategori */}
-        <div className="space-y-3 bg-white rounded-xl border border-gray-200 p-4">
-          <h3 className="text-sm font-semibold text-gray-700">Filter Kategori</h3>
+        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+          <div className="p-6 border-b border-gray-200">
+            <h3 className="font-bold text-gray-900 text-lg flex items-center gap-2">
+              <Flame className="w-5 h-5 text-orange-600" />
+              Filter Kategori
+            </h3>
+          </div>
+
+          <div className="p-6">
           {loadingCategories ? (
             <div className="flex items-center justify-center py-4">
               <Loader className="animate-spin text-blue-600" size={20} />
@@ -213,6 +213,7 @@ const BeritaPage: React.FC<BeritaPageProps> = ({ selectedTopic = null, setActive
               )}
             </div>
           )}
+        </div>
         </div>
 
         {/* Hasil Filter Info */}
@@ -374,7 +375,7 @@ const NewsCard: React.FC<{
 
       {/* Author & Date */}
       <div className={`flex items-center gap-2 text-gray-500 border-t border-gray-200 pt-2 ${
-        isSmall ? 'text-xs' : 'text-xs'
+        isSmall ? 'text-sm sm:text-xs' : 'text-sm sm:text-xs'
       }`}>
         <div className={`${isSmall ? 'w-5 h-5' : 'w-6 h-6'} bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center flex-shrink-0`}>
           <span className="text-white text-xs font-semibold">
@@ -410,7 +411,7 @@ const NewsCard: React.FC<{
 
       {/* Stats - Small version */}
       {isSmall && (
-        <div className="flex items-center gap-2 text-xs text-gray-500">
+        <div className="flex items-center gap-2 text-sm sm:text-xs text-gray-500">
           <Eye className="w-3 h-3" />
           <span>{news.views} views</span>
         </div>

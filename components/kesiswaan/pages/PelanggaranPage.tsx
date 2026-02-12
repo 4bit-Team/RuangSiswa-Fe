@@ -1,10 +1,10 @@
 'use client'
 
 import React, { useState, useMemo, useEffect } from 'react'
-import { AlertTriangle, Plus, Trash2, Filter, Eye, AlertCircle, BookOpen, X, BarChart3 } from 'lucide-react'
+import { AlertTriangle, Plus, Trash2, Filter, Eye, AlertCircle, BookOpen, X, BarChart3, Upload } from 'lucide-react'
 import ViolationDetailModal from '../modals/ViolationDetailModal'
 import { useAuth } from '@/hooks/useAuth'
-import { getPembinaan, syncPembinaan, updatePembinaan, createPembinaanReservasi } from '@/lib/api'
+import { getPembinaan, fetchAndSyncPembinaan, updatePembinaan, createPembinaanReservasi, apiRequest } from '@/lib/api'
 
 interface PembinaanRecord {
   id: number
@@ -37,6 +37,14 @@ interface Student {
   name: string
   nisn: string
   className: string
+}
+
+interface PointPelanggaran {
+  id: number
+  nama_pelanggaran: string
+  category_point: string
+  bobot: number
+  deskripsi?: string
 }
 
 const PointBadge: React.FC<{ bobot: number; nama: string }> = ({ bobot, nama }) => {
@@ -89,6 +97,7 @@ const StatCard: React.FC<{ icon: React.ReactNode; label: string; value: number; 
 
 const PelanggaranPage: React.FC = () => {
   const { token, user } = useAuth()
+  const [activeTab, setActiveTab] = useState<'pembinaan' | 'point-library'>('pembinaan')
   const [selectedClass, setSelectedClass] = useState<string>('all')
   const [selectedStudent, setSelectedStudent] = useState<string>('all')
   const [selectedStatus, setSelectedStatus] = useState<string>('all')
@@ -108,6 +117,23 @@ const PelanggaranPage: React.FC = () => {
     preferredTime: '',
     counselingType: 'khusus' as const,
   })
+  // Point Library States
+  const [points, setPoints] = useState<PointPelanggaran[]>([])
+  const [pointLoading, setPointLoading] = useState(false)
+  const [pointError, setPointError] = useState<string | null>(null)
+  const [isPointFormOpen, setIsPointFormOpen] = useState(false)
+  const [editingPoint, setEditingPoint] = useState<PointPelanggaran | null>(null)
+  const [pointFormData, setPointFormData] = useState({
+    nama_pelanggaran: '',
+    category_point: 'kehadiran',
+    bobot: 10,
+    deskripsi: '',
+  })
+  // PDF Import States
+  const [isImportPdfOpen, setIsImportPdfOpen] = useState(false)
+  const [pdfFile, setPdfFile] = useState<File | null>(null)
+  const [pdfImporting, setPdfImporting] = useState(false)
+  const [pdfImportResult, setPdfImportResult] = useState<any>(null)
 
   // Fetch pembinaan data dari backend
   const fetchPembinaan = async () => {
@@ -126,7 +152,118 @@ const PelanggaranPage: React.FC = () => {
 
   useEffect(() => {
     fetchPembinaan()
+    fetchPoints()
   }, [token])
+
+  // Fetch Point Pelanggaran
+  const fetchPoints = async () => {
+    try {
+      setPointLoading(true)
+      setPointError(null)
+      const data = await apiRequest('/point-pelanggaran', 'GET', undefined, token)
+      setPoints(Array.isArray(data) ? data : data.data || [])
+    } catch (err) {
+      setPointError(err instanceof Error ? err.message : 'Gagal memuat point pelanggaran')
+      console.error('Error fetching points:', err)
+    } finally {
+      setPointLoading(false)
+    }
+  }
+
+  // Create Point Pelanggaran
+  const handleCreatePoint = async (e: React.FormEvent) => {
+    e.preventDefault()
+    try {
+      await apiRequest('/point-pelanggaran', 'POST', pointFormData, token)
+      alert('Point pelanggaran berhasil ditambahkan!')
+      setIsPointFormOpen(false)
+      setPointFormData({ nama_pelanggaran: '', category_point: 'kehadiran', bobot: 10, deskripsi: '' })
+      await fetchPoints()
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Gagal membuat point pelanggaran')
+    }
+  }
+
+  // Update Point Pelanggaran
+  const handleUpdatePoint = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!editingPoint) return
+    try {
+      await apiRequest(`/point-pelanggaran/${editingPoint.id}`, 'PUT', pointFormData, token)
+      alert('Point pelanggaran berhasil diperbarui!')
+      setIsPointFormOpen(false)
+      setEditingPoint(null)
+      setPointFormData({ nama_pelanggaran: '', category_point: 'kehadiran', bobot: 10, deskripsi: '' })
+      await fetchPoints()
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Gagal mengupdate point pelanggaran')
+    }
+  }
+
+  // Delete Point Pelanggaran
+  const handleDeletePoint = async (pointId: number) => {
+    if (!confirm('Yakin ingin menghapus point pelanggaran ini?')) return
+    try {
+      await apiRequest(`/point-pelanggaran/${pointId}`, 'DELETE', undefined, token)
+      alert('Point pelanggaran berhasil dihapus!')
+      await fetchPoints()
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Gagal menghapus point pelanggaran')
+    }
+  }
+
+  // Handle edit point
+  const handleEditPoint = (point: PointPelanggaran) => {
+    setEditingPoint(point)
+    setPointFormData({
+      nama_pelanggaran: point.nama_pelanggaran,
+      category_point: point.category_point,
+      bobot: point.bobot,
+      deskripsi: point.deskripsi || '',
+    })
+    setIsPointFormOpen(true)
+  }
+
+  // Handle PDF Import
+  const handleImportPdf = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!pdfFile) {
+      alert('Pilih file PDF terlebih dahulu')
+      return
+    }
+
+    try {
+      setPdfImporting(true)
+      const formData = new FormData()
+      formData.append('file', pdfFile)
+
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/point-pelanggaran/import-pdf`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        body: formData,
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.message || 'Gagal mengimport PDF')
+      }
+
+      const result = await response.json()
+      setPdfImportResult(result)
+      alert(
+        `Import berhasil! Diimport: ${result.total_imported}, Dilewati: ${result.total_skipped}, Error: ${result.errors.length}`,
+      )
+      setIsImportPdfOpen(false)
+      setPdfFile(null)
+      await fetchPoints()
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Gagal mengimport PDF')
+    } finally {
+      setPdfImporting(false)
+    }
+  }
 
   // Handle sync from WALASU
   const handleSync = async () => {
@@ -134,12 +271,12 @@ const PelanggaranPage: React.FC = () => {
       setSyncing(true)
       setError(null)
 
-      const result = await syncPembinaan(token)
-      console.log('Sync result:', result)
+      const result = await fetchAndSyncPembinaan(token)
+      console.log('Fetch-sync result:', result)
 
       // Refresh data
       await fetchPembinaan()
-      alert('Sinkronisasi pembinaan berhasil!')
+      alert(`Sinkronisasi pembinaan berhasil! Synced: ${result.synced}, Skipped: ${result.skipped}`)
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Gagal sinkronisasi pembinaan'
       setError(errorMsg)
@@ -286,7 +423,7 @@ const PelanggaranPage: React.FC = () => {
                   <BarChart3 className="w-8 h-8" />
                 </div>
                 <div>
-                  <h2 className="text-3xl font-bold mb-2">Sistem Pembinaan Poin</h2>
+                  <h2 className="text-3xl font-bold mb-2">Pencatatan Pelanggaran</h2>
                   <p className="text-blue-50">Kelola pembinaan siswa berdasarkan sistem poin tata tertib</p>
                 </div>
               </div>
@@ -389,108 +526,230 @@ const PelanggaranPage: React.FC = () => {
             </div>
           </section>
 
-          {/* Data Table */}
-          <section className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50 border-b border-gray-200">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">Siswa</th>
-                    <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">Kasus</th>
-                    <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">Poin</th>
-                    <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">Kategori</th>
-                    <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">Match Type</th>
-                    <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">Status</th>
-                    <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">Aksi</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200">
-                  {filteredPembinaan.length > 0 ? (
-                    filteredPembinaan.map((p) => (
-                      <tr key={p.id} className="hover:bg-gray-50 transition-colors">
-                        <td className="px-6 py-4">
-                          <div>
-                            <p className="font-semibold text-gray-900">{p.siswas_name}</p>
-                            <p className="text-xs text-gray-600">{p.class_name}</p>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 text-sm text-gray-700">{p.kasus}</td>
-                        <td className="px-6 py-4">
-                          {p.point_pelanggaran ? (
-                            <PointBadge bobot={p.point_pelanggaran.bobot} nama={p.point_pelanggaran.nama_pelanggaran} />
-                          ) : (
-                            <span className="text-gray-500 text-sm">Belum ditugaskan</span>
-                          )}
-                        </td>
-                        <td className="px-6 py-4">
-                          {p.point_pelanggaran?.category_point ? (
-                            <CategoryBadge category={p.point_pelanggaran.category_point} />
-                          ) : (
-                            <span className="text-gray-500 text-sm">-</span>
-                          )}
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs px-2 py-1 rounded bg-blue-100 text-blue-700 font-semibold">
-                              {p.match_type}
+          {/* Tab Navigation */}
+          <div className="flex gap-2 border-b border-gray-200">
+            <button
+              onClick={() => setActiveTab('pembinaan')}
+              className={`px-6 py-3 font-semibold transition-colors ${
+                activeTab === 'pembinaan'
+                  ? 'text-indigo-600 border-b-2 border-indigo-600'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              📋 Pembinaan
+            </button>
+            <button
+              onClick={() => setActiveTab('point-library')}
+              className={`px-6 py-3 font-semibold transition-colors ${
+                activeTab === 'point-library'
+                  ? 'text-indigo-600 border-b-2 border-indigo-600'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              ⭐ Point Library
+            </button>
+          </div>
+
+          {/* Pembinaan Tab */}
+          {activeTab === 'pembinaan' && (
+            <section className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-gray-50 border-b border-gray-200">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">Siswa</th>
+                      <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">Kasus</th>
+                      <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">Poin</th>
+                      <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">Kategori</th>
+                      <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">Match Type</th>
+                      <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">Status</th>
+                      <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">Aksi</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    {filteredPembinaan.length > 0 ? (
+                      filteredPembinaan.map((p) => (
+                        <tr key={p.id} className="hover:bg-gray-50 transition-colors">
+                          <td className="px-6 py-4">
+                            <div>
+                              <p className="font-semibold text-gray-900">{p.siswas_name}</p>
+                              <p className="text-xs text-gray-600">{p.class_name}</p>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 text-sm text-gray-700">{p.kasus}</td>
+                          <td className="px-6 py-4">
+                            {p.point_pelanggaran ? (
+                              <PointBadge bobot={p.point_pelanggaran.bobot} nama={p.point_pelanggaran.nama_pelanggaran} />
+                            ) : (
+                              <span className="text-gray-500 text-sm">Belum ditugaskan</span>
+                            )}
+                          </td>
+                          <td className="px-6 py-4">
+                            {p.point_pelanggaran?.category_point ? (
+                              <CategoryBadge category={p.point_pelanggaran.category_point} />
+                            ) : (
+                              <span className="text-gray-500 text-sm">-</span>
+                            )}
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs px-2 py-1 rounded bg-blue-100 text-blue-700 font-semibold">
+                                {p.match_type}
+                              </span>
+                              <span className="text-xs text-gray-600">{p.match_confidence}%</span>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4">
+                            <span
+                              className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                                p.status === 'pending'
+                                  ? 'bg-yellow-100 text-yellow-800'
+                                  : p.status === 'in_progress'
+                                    ? 'bg-blue-100 text-blue-800'
+                                    : 'bg-green-100 text-green-800'
+                              }`}
+                            >
+                              {p.status}
                             </span>
-                            <span className="text-xs text-gray-600">{p.match_confidence}%</span>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <span
-                            className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                              p.status === 'pending'
-                                ? 'bg-yellow-100 text-yellow-800'
-                                : p.status === 'in_progress'
-                                  ? 'bg-blue-100 text-blue-800'
-                                  : 'bg-green-100 text-green-800'
-                            }`}
-                          >
-                            {p.status}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="flex items-center gap-2">
-                            <button
-                              onClick={() => {
-                                setSelectedPembinaan(p)
-                                setIsDetailOpen(true)
-                              }}
-                              className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                              title="Lihat Detail"
-                            >
-                              <Eye className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={() => handleOpenActionModal(p, 'ringan')}
-                              className="px-3 py-1 bg-orange-500 hover:bg-orange-600 text-white text-xs rounded-lg transition-colors font-semibold"
-                              title="Pembinaan Ringan ke BK"
-                            >
-                              Ringan
-                            </button>
-                            <button
-                              onClick={() => handleOpenActionModal(p, 'berat')}
-                              className="px-3 py-1 bg-red-500 hover:bg-red-600 text-white text-xs rounded-lg transition-colors font-semibold"
-                              title="Pembinaan Berat ke WAKA"
-                            >
-                              Berat
-                            </button>
-                          </div>
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => {
+                                  setSelectedPembinaan(p)
+                                  setIsDetailOpen(true)
+                                }}
+                                className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                title="Lihat Detail"
+                              >
+                                <Eye className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => handleOpenActionModal(p, 'ringan')}
+                                className="px-3 py-1 bg-orange-500 hover:bg-orange-600 text-white text-xs rounded-lg transition-colors font-semibold"
+                                title="Pembinaan Ringan ke BK"
+                              >
+                                Ringan
+                              </button>
+                              <button
+                                onClick={() => handleOpenActionModal(p, 'berat')}
+                                className="px-3 py-1 bg-red-500 hover:bg-red-600 text-white text-xs rounded-lg transition-colors font-semibold"
+                                title="Pembinaan Berat ke WAKA"
+                              >
+                                Berat
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan={7} className="px-6 py-8 text-center text-gray-500">
+                          Tidak ada data pembinaan yang sesuai
                         </td>
                       </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td colSpan={7} className="px-6 py-8 text-center text-gray-500">
-                        Tidak ada data pembinaan yang sesuai
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </section>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          )}
+
+          {/* Point Library Tab */}
+          {activeTab === 'point-library' && (
+            <section className="bg-white rounded-xl border border-gray-200 p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-lg font-semibold text-gray-900">Manajemen Point Pelanggaran</h3>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setIsImportPdfOpen(true)}
+                    className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-semibold"
+                  >
+                    <Upload className="w-4 h-4" />
+                    Import dari PDF
+                  </button>
+                  <button
+                    onClick={() => {
+                      setEditingPoint(null)
+                      setPointFormData({ nama_pelanggaran: '', category_point: 'kehadiran', bobot: 10, deskripsi: '' })
+                      setIsPointFormOpen(true)
+                    }}
+                    className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-semibold"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Tambah Point
+                  </button>
+                </div>
+              </div>
+
+              {pointError && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+                  <p className="text-red-800">{pointError}</p>
+                </div>
+              )}
+
+              {pointLoading ? (
+                <div className="text-center py-8">
+                  <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+                  <p className="mt-2 text-gray-600">Memuat data...</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead className="bg-gray-50 border-b border-gray-200">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">Nama Pelanggaran</th>
+                        <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">Kategori</th>
+                        <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">Poin</th>
+                        <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">Deskripsi</th>
+                        <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">Aksi</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200">
+                      {points.length > 0 ? (
+                        points.map((point) => (
+                          <tr key={point.id} className="hover:bg-gray-50 transition-colors">
+                            <td className="px-6 py-4 font-semibold text-gray-900">{point.nama_pelanggaran}</td>
+                            <td className="px-6 py-4">
+                              <CategoryBadge category={point.category_point} />
+                            </td>
+                            <td className="px-6 py-4">
+                              <PointBadge bobot={point.bobot} nama="" />
+                            </td>
+                            <td className="px-6 py-4 text-sm text-gray-600">{point.deskripsi || '-'}</td>
+                            <td className="px-6 py-4">
+                              <div className="flex items-center gap-2">
+                                <button
+                                  onClick={() => handleEditPoint(point)}
+                                  className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                  title="Edit"
+                                >
+                                  <BookOpen className="w-4 h-4" />
+                                </button>
+                                <button
+                                  onClick={() => handleDeletePoint(point.id)}
+                                  className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                  title="Hapus"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
+                            Belum ada point pelanggaran
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </section>
+          )}
         </div>
       )}
 
@@ -686,6 +945,217 @@ const PelanggaranPage: React.FC = () => {
                     }`}
                   >
                     Kirim
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Point Form Modal */}
+      {isPointFormOpen && (
+        <>
+          <div className="fixed inset-0 z-40 bg-black/20 backdrop-blur-sm" />
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-xl shadow-lg max-w-md w-full p-6 max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-xl font-bold text-gray-900">
+                  {editingPoint ? 'Edit Point Pelanggaran' : 'Tambah Point Pelanggaran'}
+                </h3>
+                <button
+                  onClick={() => {
+                    setIsPointFormOpen(false)
+                    setEditingPoint(null)
+                  }}
+                  className="text-gray-500 hover:text-gray-700"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <form onSubmit={editingPoint ? handleUpdatePoint : handleCreatePoint} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Nama Pelanggaran<span className="text-red-600">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={pointFormData.nama_pelanggaran}
+                    onChange={(e) =>
+                      setPointFormData({ ...pointFormData, nama_pelanggaran: e.target.value })
+                    }
+                    placeholder="Misal: Terlambat masuk sekolah"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Kategori<span className="text-red-600">*</span>
+                  </label>
+                  <select
+                    value={pointFormData.category_point}
+                    onChange={(e) =>
+                      setPointFormData({ ...pointFormData, category_point: e.target.value })
+                    }
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    required
+                  >
+                    <option value="kehadiran">Kehadiran</option>
+                    <option value="pakaian">Pakaian</option>
+                    <option value="kepribadian">Kepribadian</option>
+                    <option value="ketertiban">Ketertiban</option>
+                    <option value="kesehatan">Kesehatan</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Poin<span className="text-red-600">*</span>
+                  </label>
+                  <input
+                    type="number"
+                    value={pointFormData.bobot}
+                    onChange={(e) =>
+                      setPointFormData({ ...pointFormData, bobot: parseInt(e.target.value) })
+                    }
+                    min="1"
+                    max="100"
+                    placeholder="Misal: 10"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    required
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Skala 1-100 poin</p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Deskripsi</label>
+                  <textarea
+                    value={pointFormData.deskripsi}
+                    onChange={(e) =>
+                      setPointFormData({ ...pointFormData, deskripsi: e.target.value })
+                    }
+                    rows={3}
+                    placeholder="Jelaskan deskripsi singkat pelanggaran..."
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+
+                <div className="flex gap-3 pt-4 border-t border-gray-200">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsPointFormOpen(false)
+                      setEditingPoint(null)
+                    }}
+                    className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-semibold"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    type="submit"
+                    className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-semibold"
+                  >
+                    {editingPoint ? 'Perbarui' : 'Tambah'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* PDF Import Modal */}
+      {isImportPdfOpen && (
+        <>
+          <div className="fixed inset-0 z-40 bg-black/20 backdrop-blur-sm" />
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-xl shadow-lg max-w-md w-full p-6 max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-xl font-bold text-gray-900">Import Tata Tertib dari PDF</h3>
+                <button
+                  onClick={() => {
+                    setIsImportPdfOpen(false)
+                    setPdfFile(null)
+                    setPdfImportResult(null)
+                  }}
+                  className="text-gray-500 hover:text-gray-700"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+                <p className="text-sm text-blue-800 mb-2">
+                  <span className="font-semibold">ℹ️ Format PDF:</span>
+                </p>
+                <ul className="text-xs text-blue-700 space-y-1 list-disc list-inside">
+                  <li>Halaman 1: Nama sekolah dengan tahun (misal: SMKN 1 Cbn-CabDin.Wil 1/2023)</li>
+                  <li>Halaman 4-5: Tabel "DAFTAR KREDIT POIN PELANGGARAN SISWA"</li>
+                  <li>Kolom: JENIS PELANGGARAN | KODE | BOBOT</li>
+                </ul>
+              </div>
+
+              {pdfImportResult && (
+                <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
+                  <p className="text-sm font-semibold text-green-800 mb-2">✅ Import Berhasil!</p>
+                  <div className="text-xs text-green-700 space-y-1">
+                    <p>Diimport: <span className="font-bold">{pdfImportResult.total_imported}</span></p>
+                    <p>Dilewati: <span className="font-bold">{pdfImportResult.total_skipped}</span></p>
+                    <p>Error: <span className="font-bold">{pdfImportResult.errors.length}</span></p>
+                  </div>
+                </div>
+              )}
+
+              <form onSubmit={handleImportPdf} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Pilih File PDF<span className="text-red-600">*</span>
+                  </label>
+                  <input
+                    type="file"
+                    accept=".pdf"
+                    onChange={(e) => setPdfFile(e.target.files?.[0] || null)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                    required
+                  />
+                  {pdfFile && (
+                    <p className="text-xs text-gray-500 mt-2">
+                      📄 {pdfFile.name} ({(pdfFile.size / 1024).toFixed(2)} KB)
+                    </p>
+                  )}
+                </div>
+
+                <div className="flex gap-3 pt-4 border-t border-gray-200">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsImportPdfOpen(false)
+                      setPdfFile(null)
+                      setPdfImportResult(null)
+                    }}
+                    className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-semibold"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={pdfImporting || !pdfFile}
+                    className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-semibold disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  >
+                    {pdfImporting ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                        Mengimport...
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="w-4 h-4" />
+                        Import
+                      </>
+                    )}
                   </button>
                 </div>
               </form>
