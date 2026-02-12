@@ -153,7 +153,12 @@ const Header: React.FC<HeaderProps> = ({ title, subtitle, onToggleSidebar }) => 
                   </div>
 
                   <div className="p-3 border-t border-gray-200 flex gap-2 sticky bottom-0 bg-white">
-                    <button className="flex-1 text-sm text-blue-600 hover:text-blue-700 font-medium">
+                    <button 
+                      onClick={() => {
+                        markAsRead(profile?.id);
+                      }}
+                      className="flex-1 text-sm text-blue-600 hover:text-blue-700 font-medium"
+                    >
                       ✓ Tandai Semua Dibaca
                     </button>
                     <button className="flex-1 text-sm text-gray-600 hover:text-gray-700 font-medium">

@@ -509,9 +509,8 @@ const PelanggaranPage: React.FC = () => {
     if (!selectedPembinaan || !user) return
 
     try {
-      // Create pembinaan ringan record
+      // Create pembinaan ringan record with SP level
       await createPembinaanRingan({
-        reservasi_id: 0, // Will be created separately
         pembinaan_id: selectedPembinaan.id,
         student_id: selectedPembinaan.siswas_id,
         student_name: selectedPembinaan.siswas_name,
@@ -520,6 +519,7 @@ const PelanggaranPage: React.FC = () => {
         catatan_bk: data.catatan_bk || '',
         scheduled_date: data.scheduled_date,
         scheduled_time: data.scheduled_time,
+        sp_level: data.sp_level || null,
       }, token)
 
       // Update pembinaan status
@@ -548,6 +548,7 @@ const PelanggaranPage: React.FC = () => {
         student_id: selectedPembinaan.siswas_id,
         student_name: selectedPembinaan.siswas_name,
         student_class: selectedPembinaan.class_name,
+        parent_id: data.parent_id,
         parent_name: data.parent_name,
         parent_phone: data.parent_phone,
         violation_details: data.violation_details,

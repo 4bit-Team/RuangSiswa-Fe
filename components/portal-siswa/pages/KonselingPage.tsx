@@ -454,7 +454,7 @@ const KonselingPage: React.FC = () => {
           <CounselingCard
             icon={Heart}
             title="Konseling Umum"
-            description="Sesi one-on-one dengan konselor untuk membahas masalah Umum, emosional, atau sosial"
+            description="Sesi one-on-one dengan konselor untuk membahas masalah umum, emosional, atau sosial"
             duration="45-60 menit"
             color="bg-pink-500"
             handleSubmitReservasi={handleSubmitReservasi}
@@ -478,7 +478,7 @@ const KonselingPage: React.FC = () => {
           <CounselingCard
             icon={Users}
             title="Konseling Kelompok"
-            description="Sesi bersama siswa lain untuk membahas topik tertentu dan saling mendukung"
+            description="Sesi berkelompok dipandu konselor untuk membahas topik bersama, berbagi pengalaman, dan saling mendukung." 
             duration="90 menit"
             color="bg-green-500"
             badge="Terbatas"
@@ -536,72 +536,80 @@ const KonselingPage: React.FC = () => {
 
         <div className="p-6">
 
-        <div className="flex items-center gap-4 mb-4">
-          <label className="text-sm text-gray-600">Tipe:</label>
-          <select
-            value={sessionFilter}
-            onChange={(e) => {
-              setSessionFilter(e.target.value as any);
-            }}
-            className="px-3 py-1 border rounded"
-          >
-            <option value="all">Semua</option>
-            <option value="personal">Konseling Pribadi</option>
-            <option value="group">Konseling Kelompok</option>
-          </select>
+        <div className="flex flex-col sm:flex-row sm:flex-wrap items-start sm:items-center gap-3 mb-4">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 w-full sm:w-auto">
+            <label className="text-sm text-gray-600">Tipe:</label>
+            <select
+              value={sessionFilter}
+              onChange={(e) => {
+                setSessionFilter(e.target.value as any);
+              }}
+              className="px-3 py-1 border rounded w-full sm:w-auto"
+            >
+              <option value="all">Semua</option>
+              <option value="personal">Konseling Pribadi</option>
+              <option value="group">Konseling Kelompok</option>
+            </select>
+          </div>
 
-          <label className="text-sm text-gray-600">Konselor:</label>
-          <select
-            value={counselorFilter}
-            onChange={(e) => {
-              setCounselorFilter(
-                e.target.value === "" ? "" : Number(e.target.value),
-              );
-              setPage(1);
-            }}
-            className="px-3 py-1 border rounded"
-          >
-            <option value="">Semua</option>
-            {counselorOptions.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.fullName || c.username || `Konselor ${c.id}`}
-              </option>
-            ))}
-          </select>
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 w-full sm:w-auto">
+            <label className="text-sm text-gray-600">Konselor:</label>
+            <select
+              value={counselorFilter}
+              onChange={(e) => {
+                setCounselorFilter(
+                  e.target.value === "" ? "" : Number(e.target.value),
+                );
+                setPage(1);
+              }}
+              className="px-3 py-1 border rounded w-full sm:w-auto"
+            >
+              <option value="">Semua</option>
+              {counselorOptions.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.fullName || c.username || `Konselor ${c.id}`}
+                </option>
+              ))}
+            </select>
+          </div>
 
-          <label className="text-sm text-gray-600">Topik:</label>
-          <select
-            value={topicFilter}
-            onChange={(e) => {
-              setTopicFilter(
-                e.target.value === "" ? "" : Number(e.target.value),
-              );
-              setPage(1);
-            }}
-            className="px-3 py-1 border rounded"
-          >
-            <option value="">Semua Topik</option>
-            {categories.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 w-full sm:w-auto">
+            <label className="text-sm text-gray-600">Topik:</label>
+            <select
+              value={topicFilter}
+              onChange={(e) => {
+                setTopicFilter(
+                  e.target.value === "" ? "" : Number(e.target.value),
+                );
+                setPage(1);
+              }}
+              className="px-3 py-1 border rounded w-full sm:w-auto"
+            >
+              <option value="">Semua Topik</option>
+              {categories.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </div>
 
-          <label className="text-sm text-gray-600">Per halaman:</label>
-          <select
-            value={pageSize}
-            onChange={(e) => {
-              setPageSize(Number(e.target.value));
-            }}
-            className="px-3 py-1 border rounded"
-          >
-            {[5, 10, 15, 20, 25, 50].map((n) => (
-              <option key={n} value={n}>
-                {n}
-              </option>
-            ))}
-          </select>
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 w-full sm:w-auto">
+            <label className="text-sm text-gray-600">Per halaman:</label>
+            <select
+              value={pageSize}
+              onChange={(e) => {
+                setPageSize(Number(e.target.value));
+              }}
+              className="px-3 py-1 border rounded w-full sm:w-auto"
+            >
+              {[5, 10, 15, 20, 25, 50].map((n) => (
+                <option key={n} value={n}>
+                  {n}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
 
         {totalFiltered === 0 ? (
@@ -650,26 +658,26 @@ const KonselingPage: React.FC = () => {
               ))}
             </div>
 
-            <div className="mt-4 flex items-center justify-between">
-              <div className="text-sm text-gray-600">
+            <div className="mt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div className="text-sm text-gray-600 break-words">
                 Menampilkan {(page - 1) * pageSize + 1} -{" "}
                 {Math.min(page * pageSize, totalFiltered)} dari {totalFiltered}
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <button
                   onClick={() => setPage((p) => Math.max(1, p - 1))}
                   disabled={page === 1}
-                  className="px-3 py-1 border rounded disabled:opacity-50"
+                  className="px-3 py-1 border rounded disabled:opacity-50 text-sm w-full sm:w-auto"
                 >
                   Prev
                 </button>
-                <div className="text-sm">
+                <div className="text-sm px-2">
                   {page} / {totalPages}
                 </div>
                 <button
                   onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                   disabled={page === totalPages}
-                  className="px-3 py-1 border rounded disabled:opacity-50"
+                  className="px-3 py-1 border rounded disabled:opacity-50 text-sm w-full sm:w-auto"
                 >
                   Next
                 </button>

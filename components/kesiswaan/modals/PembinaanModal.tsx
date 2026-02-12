@@ -8,6 +8,7 @@ import { AlertCircle, X, Calendar, Clock, User, ChevronRight } from 'lucide-reac
 interface PembinaanRecord {
   id: number
   siswas_id: number
+  student_user_id?: number
   siswas_name: string
   kasus: string
   class_name: string
@@ -54,6 +55,7 @@ export const BKActionModal = ({ isOpen, pembinaan, onClose, onSubmit }: ModalPro
     session_type: 'tatap-muka',
     counseling_type: 'khusus',
     pembinaan_type: 'ringan',
+    sp_level: null as 'SP1' | 'SP2' | null,
   })
 
   // Get today's date in YYYY-MM-DD format
@@ -142,6 +144,12 @@ export const BKActionModal = ({ isOpen, pembinaan, onClose, onSubmit }: ModalPro
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    
+    // Prevent submit jika belum step 3
+    if (step !== 3) {
+      return
+    }
+    
     if (!formData.counselor_id || !formData.scheduled_date || !formData.scheduled_time) {
       setError('Semua field harus diisi')
       return
@@ -165,6 +173,7 @@ export const BKActionModal = ({ isOpen, pembinaan, onClose, onSubmit }: ModalPro
         session_type: 'tatap-muka',
         counseling_type: 'khusus',
         pembinaan_type: 'ringan',
+        sp_level: null,
       })
       setStep(1)
       onClose()
@@ -374,7 +383,21 @@ export const BKActionModal = ({ isOpen, pembinaan, onClose, onSubmit }: ModalPro
                     rows={3}
                   />
                 </div>
-              </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Tingkat Surat Peringatan (SP)
+                  </label>
+                  <select
+                    value={formData.sp_level || ''}
+                    onChange={e => setFormData({ ...formData, sp_level: (e.target.value as 'SP1' | 'SP2' | null) || null })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
+                  >
+                    <option value="">Tidak ada SP / Pembinaan Langsung</option>
+                    <option value="SP1">SP1 (Surat Peringatan 1)</option>
+                    <option value="SP2">SP2 (Surat Peringatan 2)</option>
+                  </select>
+                  <p className="text-xs text-gray-500 mt-1">Pilih tingkat surat peringatan yang sesuai dengan kasus siswa</p>
+                </div>              </div>
             )}
 
             <div className="flex gap-3 pt-4 border-t border-gray-200">
@@ -442,18 +465,20 @@ export const OrtuActionModal = ({ isOpen, pembinaan, onClose, onSubmit }: ModalP
 
   // Fetch parent users for this student
   useEffect(() => {
-    if (isOpen && pembinaan?.siswas_id) {
+    if (isOpen && pembinaan?.student_user_id) {
       fetchParentUsers()
+    } else if (isOpen && !pembinaan?.student_user_id) {
+      setError('Data student_user_id tidak tersedia')
     }
-  }, [isOpen, pembinaan?.siswas_id])
+  }, [isOpen, pembinaan?.student_user_id])
 
   const fetchParentUsers = async () => {
     try {
       setLoadingParents(true)
       setError(null)
-      // Fetch users with role orang_tua that have this student_id
+      // Fetch users dengan role orang_tua yang terhubung dengan student_user_id ini
       const data = await apiRequest(
-        `/users/by-role/orang_tua?student_id=${pembinaan?.siswas_id}`,
+        `/users/by-role/orang_tua?student_id=${pembinaan?.student_user_id}`,
         'GET',
         undefined,
         token
@@ -462,7 +487,7 @@ export const OrtuActionModal = ({ isOpen, pembinaan, onClose, onSubmit }: ModalP
       setParentUsers(parents)
 
       if (parents.length === 0) {
-        setError('Tidak ada data orang tua untuk siswa ini')
+        setError(`Tidak ada data orang tua untuk siswa ini. Pastikan parent users sudah dibuat saat sync.`)
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Gagal memuat data orang tua')

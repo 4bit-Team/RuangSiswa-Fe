@@ -305,7 +305,7 @@ const DashboardPage: React.FC<{ setActivePage?: (page: string) => void }> = ({ s
           <p className="text-blue-50">Pantau aktivitas konseling, kehadiran, dan berita terbaru dari BK</p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <div className="bg-pink-50 border border-pink-200 rounded-xl p-4">
             <div className="flex items-center gap-2 mb-2">
               <Heart className="w-5 h-5 text-pink-600" />

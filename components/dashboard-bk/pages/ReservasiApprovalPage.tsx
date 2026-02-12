@@ -4,6 +4,8 @@ import React, { useState, useEffect } from 'react';
 import { Search, CheckCircle, XCircle, Clock, User, Calendar, MessageCircle, MapPin, Loader, AlertCircle, Eye, QrCode } from 'lucide-react';
 import { apiRequest } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
+import { getPembinaanRingan, approvePembinaanRingan, completePembinaanRingan } from '@/lib/api';
+import { createLaporanBk } from '@/lib/laporanBkAPI';
 import { getStatusLabel, getStatusBadgeColor, statusBadgeColor, getTypeColor, getStatusColor, formatDate, typeLabel } from '@/lib/reservasi';
 
 interface Reservasi {
@@ -27,31 +29,36 @@ interface Reservasi {
   counselor?: { fullName: string };
   createdAt?: string;
   updatedAt?: string;
+  counselingType?: 'umum' | 'kelompok' | 'khusus';
+  pembinaanType?: 'ringan' | 'berat';
+  pembinaan_id?: number;
 }
 
-interface GroupReservasi {
+interface PembinaanRingan {
   id: number;
-  groupName: string;
-  creatorId: number;
-  students?: { id: number; username: string; fullName: string }[];
-  counselorId: number;
-  preferredDate: string;
-  preferredTime: string;
-  type: 'chat' | 'tatap-muka';
-  topic?: { id: number; name: string } | null;
-  topicId?: number | null;
-  notes?: string;
-  status: 'pending' | 'approved' | 'rejected' | 'in_counseling' | 'completed' | 'cancelled';
-  conversationId?: number;
-  rejectionReason?: string;
-  room?: string;
-  qrCode?: string;
-  attendanceConfirmed?: boolean;
-  completedAt?: string;
-  creator?: { id: number; fullName: string; username: string };
-  counselor?: { fullName: string };
-  createdAt?: string;
-  updatedAt?: string;
+  pembinaan_id: number;
+  student_id: number;
+  student_name: string;
+  counselor_id: number;
+  scheduled_date: string;
+  scheduled_time: string;
+  status: string;
+  hasil_pembinaan: string;
+  catatan_bk: string;
+  sp_level?: 'SP1' | 'SP2' | null;
+  pembinaan?: {
+    id: number;
+    siswas_id: number;
+    siswas_name: string;
+    class_id: number;
+    class_name: string;
+    kasus: string;
+    walas_id?: number;
+    point_pelanggaran?: {
+      id: number;
+      nama_pelanggaran: string;
+    };
+  };
 }
 
 interface ReservasiCardProps {
@@ -414,130 +421,112 @@ const DetailModal: React.FC<DetailModalProps> = ({ reservasi, isOpen, onClose, o
 // Main Page Component
 const ReservasiApprovalPage: React.FC = () => {
   const { token } = useAuth();
+  const [activeTab, setActiveTab] = useState<'umum' | 'khusus'>('umum');
   const [reservasiList, setReservasiList] = useState<Reservasi[]>([]);
-  const [groupReservasiList, setGroupReservasiList] = useState<GroupReservasi[]>([]);
   const [filteredReservasi, setFilteredReservasi] = useState<Reservasi[]>([]);
-  const [filteredGroupReservasi, setFilteredGroupReservasi] = useState<GroupReservasi[]>([]);
+  const [pembinaanRinganList, setPembinaanRinganList] = useState<PembinaanRingan[]>([]);
+  const [filteredPembinaanRingan, setFilteredPembinaanRingan] = useState<PembinaanRingan[]>([]);
   const [loading, setLoading] = useState(false);
   const [searching, setSearching] = useState(false);
-  const [selectedDetail, setSelectedDetail] = useState<Reservasi | GroupReservasi | null>(null);
+  const [selectedDetail, setSelectedDetail] = useState<Reservasi | null>(null);
+  const [selectedPembinaanDetail, setSelectedPembinaanDetail] = useState<PembinaanRingan | null>(null);
   const [detailModalOpen, setDetailModalOpen] = useState(false);
+  const [pembinaanDetailOpen, setPembinaanDetailOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
   const [filterType, setFilterType] = useState('all');
-  const [activeTab, setActiveTab] = useState<'individual' | 'group'>('individual');
 
-  // Load both reservasi and group reservasi on mount
+  // Load reservasi
   useEffect(() => {
     if (token) {
       loadReservasi();
-      loadGroupReservasi();
+      loadPembinaanRingan();
     }
   }, [token]);
 
-  // Apply filters when search/filter changes
+  // Filter reservasi saat search/filter berubah
   useEffect(() => {
     applyFilters();
-  }, [searchQuery, filterStatus, filterType, reservasiList, groupReservasiList]);
+  }, [searchQuery, filterStatus, filterType, reservasiList, pembinaanRinganList]);
 
-  // Load individual reservasi
   const loadReservasi = async () => {
     try {
       setLoading(true);
-      console.log('📥 Loading individual reservasi...');
+      console.log('📥 Fetching reservasi...');
       const response = await apiRequest('/reservasi', 'GET', undefined, token);
-      console.log('✅ Individual Reservasi loaded:', response);
+      console.log('✅ Reservasi loaded:', response);
       setReservasiList(Array.isArray(response) ? response : []);
     } catch (error: any) {
-      console.error('❌ Error loading individual reservasi:', error);
+      console.error('❌ Error loading reservasi:', error);
       setReservasiList([]);
     } finally {
       setLoading(false);
     }
   };
 
-  // Load group reservasi
-  const loadGroupReservasi = async () => {
+  const loadPembinaanRingan = async () => {
     try {
       setLoading(true);
-      console.log('📥 Loading group reservasi...');
-      const response = await apiRequest('/reservasi/group', 'GET', undefined, token);
-      console.log('✅ Group Reservasi loaded:', response);
-      setGroupReservasiList(Array.isArray(response) ? response : []);
+      console.log('📥 Fetching pembinaan ringan...');
+      const response = await getPembinaanRingan(token);
+      console.log('✅ Pembinaan ringan loaded:', response);
+      setPembinaanRinganList(Array.isArray(response) ? response : []);
     } catch (error: any) {
-      console.error('❌ Error loading group reservasi:', error);
-      setGroupReservasiList([]);
+      console.error('❌ Error loading pembinaan ringan:', error);
+      setPembinaanRinganList([]);
     } finally {
       setLoading(false);
     }
   };
 
-  // Apply filters to both individual and group reservasi
   const applyFilters = () => {
-    // Filter individual reservasi
-    let filteredIndividual = [...reservasiList];
+    let filtered = [...reservasiList];
 
     // Filter by status
     if (filterStatus !== 'all') {
-      filteredIndividual = filteredIndividual.filter((r) => r.status === filterStatus);
+      filtered = filtered.filter((r) => r.status === filterStatus);
     }
 
     // Filter by type
     if (filterType !== 'all') {
-      filteredIndividual = filteredIndividual.filter((r) => r.type === filterType);
+      filtered = filtered.filter((r) => r.type === filterType);
     }
 
     // Filter by search query
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
-      filteredIndividual = filteredIndividual.filter(
+      filtered = filtered.filter(
         (r) =>
           r.student?.fullName?.toLowerCase().includes(query) ||
+          r.student?.username?.toLowerCase().includes(query) ||
           r.student?.email?.toLowerCase().includes(query) ||
           (typeof r.topic === 'object' ? r.topic?.name?.toLowerCase().includes(query) : false)
       );
     }
 
-    setFilteredReservasi(filteredIndividual);
+    setFilteredReservasi(filtered);
 
-    // Filter group reservasi
-    let filteredGroup = [...groupReservasiList];
-
-    // Filter by status
-    if (filterStatus !== 'all') {
-      filteredGroup = filteredGroup.filter((r) => r.status === filterStatus);
-    }
-
-    // Filter by type
-    if (filterType !== 'all') {
-      filteredGroup = filteredGroup.filter((r) => r.type === filterType);
-    }
-
-    // Filter by search query
+    // Filter Pembinaan Ringan
+    let filteredPembinaan = [...pembinaanRinganList];
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
-      filteredGroup = filteredGroup.filter(
-        (r) =>
-          r.groupName.toLowerCase().includes(query) ||
-          r.creator?.fullName?.toLowerCase().includes(query) ||
-          (typeof r.topic === 'object' ? r.topic?.name?.toLowerCase().includes(query) : false) ||
-          (r.students && r.students.some(s => s.fullName?.toLowerCase().includes(query)))
+      filteredPembinaan = filteredPembinaan.filter(
+        (p) =>
+          p.student_name?.toLowerCase().includes(query) ||
+          p.pembinaan?.siswas_name?.toLowerCase().includes(query)
       );
     }
-
-    setFilteredGroupReservasi(filteredGroup);
+    setFilteredPembinaanRingan(filteredPembinaan);
   };
 
-  const handleApprove = async (reservasiId: number, isGroup: boolean = false) => {
+  const handleApprove = async (reservasiId: number) => {
     try {
       setSearching(true);
-      const endpoint = isGroup ? `/reservasi/group/${reservasiId}/status` : `/reservasi/${reservasiId}/status`;
-      console.log('✅ Approving reservasi:', reservasiId, 'isGroup:', isGroup);
-      await apiRequest(endpoint, 'PUT', { status: 'approved' }, token);
+      console.log('✅ Approving reservasi:', reservasiId);
+      await apiRequest(`/reservasi/${reservasiId}/status`, 'PUT', { status: 'approved' }, token);
 
-      // Reload both lists & close modal
+      // Reload & close modal
       await loadReservasi();
-      await loadGroupReservasi();
       setDetailModalOpen(false);
       setSelectedDetail(null);
     } catch (error: any) {
@@ -548,16 +537,14 @@ const ReservasiApprovalPage: React.FC = () => {
     }
   };
 
-  const handleReject = async (reservasiId: number, reason: string = '', isGroup: boolean = false) => {
+  const handleReject = async (reservasiId: number, reason: string = '') => {
     try {
       setSearching(true);
-      const endpoint = isGroup ? `/reservasi/group/${reservasiId}/status` : `/reservasi/${reservasiId}/status`;
-      console.log('❌ Rejecting reservasi:', reservasiId, 'isGroup:', isGroup);
-      await apiRequest(endpoint, 'PUT', { status: 'rejected', rejectionReason: reason }, token);
+      console.log('❌ Rejecting reservasi:', reservasiId);
+      await apiRequest(`/reservasi/${reservasiId}/status`, 'PUT', { status: 'rejected', rejectionReason: reason }, token);
 
-      // Reload both lists & close modal
+      // Reload & close modal
       await loadReservasi();
-      await loadGroupReservasi();
       setDetailModalOpen(false);
       setSelectedDetail(null);
     } catch (error: any) {
@@ -575,7 +562,6 @@ const ReservasiApprovalPage: React.FC = () => {
       const response = await apiRequest(`/reservasi/${id}/complete`, 'PATCH', undefined, token);
       console.log('✅ Session marked complete:', response);
       await loadReservasi();
-      await loadGroupReservasi();
       setDetailModalOpen(false);
       setSelectedDetail(null);
       alert('Sesi berhasil ditandai sebagai selesai!');
@@ -587,10 +573,107 @@ const ReservasiApprovalPage: React.FC = () => {
     }
   };
 
-  const pendingCount = reservasiList.filter((r) => r.status === 'pending').length + groupReservasiList.filter((r) => r.status === 'pending').length;
-  const approvedCount = reservasiList.filter((r) => r.status === 'approved').length + groupReservasiList.filter((r) => r.status === 'approved').length;
-  const rejectedCount = reservasiList.filter((r) => r.status === 'rejected').length + groupReservasiList.filter((r) => r.status === 'rejected').length;
-  const completedCount = reservasiList.filter((r) => r.status === 'completed').length + groupReservasiList.filter((r) => r.status === 'completed').length;
+  const handleMarkCompletePembinaanRingan = async (pembinaanRinganId: number) => {
+    try {
+      setSearching(true);
+      console.log('🔍 Checking laporan BK for pembinaan ringan:', pembinaanRinganId);
+
+      // Get laporan BK data for this pembinaan ringan
+      const { getAllLaporanBk } = await import('@/lib/laporanBkAPI');
+      const laporanList = await getAllLaporanBk(token);
+      
+      // Find laporan related to this pembinaan
+      const relatedLaporan = laporanList?.find((l: any) => l.id === pembinaanRinganId);
+
+      if (!relatedLaporan) {
+        alert('❌ Laporan Bimbingan belum dibuat. Silakan buat laporan BK terlebih dahulu di halaman Laporan.');
+        return;
+      }
+
+      // Check if laporan has been filled properly
+      const requiredFields = [
+        'bentukPenanganganSebelumnya',
+        'riwayatSpDanKasus',
+        'layananBk',
+        'followUpTindakanBk',
+        'hasilPemantauanKeterangan',
+      ];
+
+      const incompleteFields = requiredFields.filter(field => !relatedLaporan[field]);
+
+      if (incompleteFields.length > 0) {
+        alert(`❌ Laporan Bimbingan belum lengkap. Field yang harus diisi:\n${incompleteFields.join('\n')}\n\nSilakan lengkapi di halaman Laporan terlebih dahulu.`);
+        return;
+      }
+
+      // If all validations pass, complete the session
+      console.log('✅ Laporan BK valid. Completing pembinaan ringan...');
+      const result = await completePembinaanRingan(
+        pembinaanRinganId,
+        {
+          status: 'completed',
+          bk_feedback: 'Konseling selesai dan laporan BK telah dikompilasi',
+        },
+        token
+      );
+
+      console.log('✅ Pembinaan ringan completed:', result);
+      alert('Sesi pembinaan ringan berhasil diselesaikan!');
+
+      // Update pembinaan status to completed
+      await apiRequest(
+        `/v1/pembinaan/${result.pembinaan_id}/`,
+        'PATCH',
+        { status: 'completed' },
+        token
+      );
+
+      // Reload data
+      await loadPembinaanRingan();
+      setPembinaanDetailOpen(false);
+      setSelectedPembinaanDetail(null);
+    } catch (error: any) {
+      console.error('❌ Error completing pembinaan ringan:', error);
+      alert('Gagal menyelesaikan sesi: ' + (error?.message || 'Unknown error'));
+    } finally {
+      setSearching(false);
+    }
+  };
+
+  const handleApprovePembinaanRingan = async (pembinaanRingan: PembinaanRingan) => {
+    try {
+      setSearching(true);
+      console.log('🔄 Approving pembinaan ringan:', pembinaanRingan.id);
+
+      // Import helper function
+      const { approvePembinaanRinganAndCreateLaporan } = await import('@/lib/pembinaanBkHelper');
+
+      // Get BK user info from context if available
+      const result = await approvePembinaanRinganAndCreateLaporan(
+        pembinaanRingan,
+        { id: pembinaanRingan.counselor_id }, // Simple BK user object
+        token
+      );
+
+      console.log('✅ Pembinaan ringan approved with laporan:', result);
+      alert('Pembinaan ringan berhasil disetujui dan laporan BK dibuat!');
+
+      // Reload data
+      await loadPembinaanRingan();
+      setPembinaanDetailOpen(false);
+      setSelectedPembinaanDetail(null);
+    } catch (error: any) {
+      console.error('❌ Error approving pembinaan ringan:', error);
+      alert('Gagal menyetujui pembinaan ringan: ' + (error?.message || 'Unknown error'));
+    } finally {
+      setSearching(false);
+    }
+  };
+
+  const pendingCount = reservasiList.filter((r) => r.status === 'pending').length;
+  const approvedCount = reservasiList.filter((r) => r.status === 'approved').length;
+  const rejectedCount = reservasiList.filter((r) => r.status === 'rejected').length;
+  const completedCount = reservasiList.filter((r) => r.status === 'completed').length;
 
   return (
     <div className="space-y-6">
@@ -645,32 +728,32 @@ const ReservasiApprovalPage: React.FC = () => {
         </div>
       </div>
 
+      {/* Tab Navigation */}
+      <div className="flex gap-4 border-b border-gray-300">
+        <button
+          onClick={() => setActiveTab('umum')}
+          className={`px-6 py-3 font-semibold transition-colors ${
+            activeTab === 'umum'
+              ? 'text-blue-600 border-b-2 border-blue-600'
+              : 'text-gray-600 hover:text-gray-900'
+          }`}
+        >
+          Konseling Umum & Kelompok
+        </button>
+        <button
+          onClick={() => setActiveTab('khusus')}
+          className={`px-6 py-3 font-semibold transition-colors ${
+            activeTab === 'khusus'
+              ? 'text-blue-600 border-b-2 border-blue-600'
+              : 'text-gray-600 hover:text-gray-900'
+          }`}
+        >
+          Konseling Khusus
+        </button>
+      </div>
+
       {/* Search and Filter */}
       <div className="bg-white rounded-xl p-6 border border-gray-200">
-        {/* Tabs */}
-        <div className="flex gap-2 mb-6 border-b border-gray-200">
-          <button
-            onClick={() => setActiveTab('individual')}
-            className={`px-4 py-3 font-medium border-b-2 transition-colors ${
-              activeTab === 'individual'
-                ? 'border-blue-600 text-blue-600'
-                : 'border-transparent text-gray-600 hover:text-gray-900'
-            }`}
-          >
-            Konseling Individu ({filteredReservasi.length})
-          </button>
-          <button
-            onClick={() => setActiveTab('group')}
-            className={`px-4 py-3 font-medium border-b-2 transition-colors ${
-              activeTab === 'group'
-                ? 'border-green-600 text-green-600'
-                : 'border-transparent text-gray-600 hover:text-gray-900'
-            }`}
-          >
-            Konseling Kelompok ({filteredGroupReservasi.length})
-          </button>
-        </div>
-
         <div className="flex items-center space-x-3 mb-6">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
@@ -706,133 +789,332 @@ const ReservasiApprovalPage: React.FC = () => {
         </div>
 
         {/* Reservasi List */}
-        {loading ? (
-          <div className="flex items-center justify-center py-12">
-            <div className="text-center">
-              <Loader className="w-8 h-8 animate-spin text-blue-600 mx-auto mb-2" />
-              <p className="text-gray-600">Memuat reservasi...</p>
-            </div>
-          </div>
-        ) : activeTab === 'individual' ? (
-          filteredReservasi.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12">
-              <AlertCircle className="w-12 h-12 text-gray-300 mb-4" />
-              <p className="text-gray-600">Tidak ada reservasi individu</p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {filteredReservasi.map((reservasi) => (
-                <ReservasiCard
-                  key={reservasi.id}
-                  reservasi={reservasi}
-                  onViewDetail={(res) => {
-                    setSelectedDetail(res);
-                    setDetailModalOpen(true);
-                  }}
-                  onApprove={handleApprove}
-                  onReject={handleReject}
-                  loading={searching}
-                />
-              ))}
-            </div>
-          )
-        ) : filteredGroupReservasi.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-12">
-            <AlertCircle className="w-12 h-12 text-gray-300 mb-4" />
-            <p className="text-gray-600">Tidak ada reservasi kelompok</p>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {filteredGroupReservasi.map((groupRes) => (
-              <div key={groupRes.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
-                <div className="flex items-center space-x-4 flex-1">
-                  {/* Avatar */}
-                  <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-teal-600 rounded-full flex items-center justify-center text-white font-semibold flex-shrink-0">
-                    {groupRes.groupName.charAt(0).toUpperCase()}
-                  </div>
-
-                  {/* Info */}
-                  <div className="flex-1">
-                    <div className="flex items-center space-x-3 mb-1">
-                      <p className="font-semibold text-gray-900">{groupRes.groupName}</p>
-                      <span className={`text-xs px-2 py-1 rounded-full font-medium ${getStatusColor(groupRes.status)}`}>
-                        {groupRes.status === 'pending' ? 'Menunggu' : groupRes.status === 'approved' ? 'Diterima' : groupRes.status === 'rejected' ? 'Ditolak' : groupRes.status === 'in_counseling' ? 'Sedang Berlangsung' : 'Selesai'}
-                      </span>
-                    </div>
-                    <div className="flex items-center space-x-4 text-xs text-gray-500">
-                      <span className={`px-2 py-1 rounded ${getTypeColor(groupRes.type)}`}>
-                        {groupRes.type === 'chat' ? 'Chat' : 'Tatap Muka'}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <MessageCircle size={12} />
-                        {typeof groupRes.topic === 'object' ? groupRes.topic?.name : (groupRes.topicId ? `Topic #${groupRes.topicId}` : '-')}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <Calendar size={12} />
-                        {formatDate(groupRes.preferredDate)}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <Clock size={12} />
-                        {groupRes.preferredTime}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <User size={12} />
-                        {groupRes.students?.length || 0} siswa
-                      </span>
-                      {groupRes.type === 'tatap-muka' && (
-                        <span className="flex items-center gap-1">
-                          <MapPin size={12} />
-                          {groupRes.room || '-'}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Actions */}
-                <div className="flex items-center space-x-2">
-                  {/* View detail button - Note: DetailModal is designed for individual reservasi only */}
-                  {/* Skipping detail view for group reservasi for now */}
-
-                  {groupRes.status === 'pending' && (
-                    <>
-                      <button
-                        onClick={() => {
-                          if (window.confirm('Setujui reservasi ini?')) {
-                            handleApprove(groupRes.id, true);
-                          }
-                        }}
-                        className="p-2 hover:bg-green-200 rounded-lg transition-colors"
-                        disabled={searching}
-                        title="Setujui"
-                      >
-                        <CheckCircle size={18} className="text-green-600" />
-                      </button>
-                      <button
-                        onClick={() => {
-                          const reason = window.prompt('Alasan penolakan:');
-                          if (reason !== null) {
-                            handleReject(groupRes.id, reason, true);
-                          }
-                        }}
-                        className="p-2 hover:bg-red-200 rounded-lg transition-colors"
-                        disabled={searching}
-                        title="Tolak"
-                      >
-                        <XCircle size={18} className="text-red-600" />
-                      </button>
-                    </>
-                  )}
+        {activeTab === 'umum' && (
+          <>
+            {loading ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="text-center">
+                  <Loader className="w-8 h-8 animate-spin text-blue-600 mx-auto mb-2" />
+                  <p className="text-gray-600">Memuat reservasi...</p>
                 </div>
               </div>
-            ))}
-          </div>
+            ) : filteredReservasi.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12">
+                <AlertCircle className="w-12 h-12 text-gray-300 mb-4" />
+                <p className="text-gray-600">Tidak ada reservasi</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {filteredReservasi.map((reservasi) => (
+                  <ReservasiCard
+                    key={reservasi.id}
+                    reservasi={reservasi}
+                    onViewDetail={(res) => {
+                      setSelectedDetail(res);
+                      setDetailModalOpen(true);
+                    }}
+                    onApprove={handleApprove}
+                    onReject={handleReject}
+                    loading={searching}
+                  />
+                ))}
+              </div>
+            )}
+          </>
+        )}
+
+        {/* Pembinaan Khusus List */}
+        {activeTab === 'khusus' && (
+          <>
+            {loading ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="text-center">
+                  <Loader className="w-8 h-8 animate-spin text-blue-600 mx-auto mb-2" />
+                  <p className="text-gray-600">Memuat pembinaan khusus...</p>
+                </div>
+              </div>
+            ) : filteredPembinaanRingan.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12">
+                <AlertCircle className="w-12 h-12 text-gray-300 mb-4" />
+                <p className="text-gray-600">Tidak ada pembinaan khusus</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {filteredPembinaanRingan.map((pembinaanRingan) => (
+                  <div
+                    key={pembinaanRingan.id}
+                    className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow"
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-3 mb-2">
+                          <div className="w-10 h-10 bg-gradient-to-br from-purple-400 to-purple-600 rounded-lg flex items-center justify-center">
+                            <User className="text-white" size={20} />
+                          </div>
+                          <div>
+                            <h3 className="font-semibold text-gray-900">
+                              {pembinaanRingan.pembinaan?.siswas_name || 'N/A'}
+                            </h3>
+                            <p className="text-sm text-gray-600">
+                              {pembinaanRingan.pembinaan?.class_name || 'N/A'}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
+                          <div>
+                            <p className="text-xs text-gray-600 mb-1">Kasus</p>
+                            <p className="text-sm font-medium text-gray-900">
+                              {pembinaanRingan.pembinaan?.kasus || '-'}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-gray-600 mb-1">SP Level</p>
+                            <p className="text-sm font-medium">
+                              <span
+                                className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                                  pembinaanRingan.sp_level === 'SP1'
+                                    ? 'bg-yellow-100 text-yellow-800'
+                                    : pembinaanRingan.sp_level === 'SP2'
+                                    ? 'bg-red-100 text-red-800'
+                                    : 'bg-green-100 text-green-800'
+                                }`}
+                              >
+                                {pembinaanRingan.sp_level || 'Pembinaan Langsung'}
+                              </span>
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-gray-600 mb-1">Tanggal</p>
+                            <p className="text-sm font-medium text-gray-900">
+                              {pembinaanRingan.scheduled_date
+                                ? new Date(pembinaanRingan.scheduled_date).toLocaleDateString('id-ID')
+                                : '-'}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-gray-600 mb-1">Status</p>
+                            <p className="text-sm font-medium">
+                              <span
+                                className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                                  pembinaanRingan.status === 'pending'
+                                    ? 'bg-yellow-100 text-yellow-800'
+                                    : pembinaanRingan.status === 'approved'
+                                    ? 'bg-green-100 text-green-800'
+                                    : pembinaanRingan.status === 'completed'
+                                    ? 'bg-blue-100 text-blue-800'
+                                    : 'bg-gray-100 text-gray-800'
+                                }`}
+                              >
+                                {pembinaanRingan.status}
+                              </span>
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex gap-2 ml-4">
+                        <button
+                          onClick={() => {
+                            setSelectedPembinaanDetail(pembinaanRingan);
+                            setPembinaanDetailOpen(true);
+                          }}
+                          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors flex items-center gap-2"
+                        >
+                          <Eye size={18} />
+                          Detail
+                        </button>
+                        {pembinaanRingan.status === 'pending' && (
+                          <button
+                            onClick={() => handleApprovePembinaanRingan(pembinaanRingan)}
+                            disabled={searching}
+                            className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors flex items-center gap-2 disabled:opacity-50"
+                          >
+                            <CheckCircle size={18} />
+                            {searching ? 'Memproses...' : 'Setujui'}
+                          </button>
+                        )}
+                        {pembinaanRingan.status === 'approved' && (
+                          <button
+                            onClick={() => handleMarkCompletePembinaanRingan(pembinaanRingan.id)}
+                            disabled={searching}
+                            className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors flex items-center gap-2 disabled:opacity-50"
+                          >
+                            <CheckCircle size={18} />
+                            {searching ? 'Memproses...' : 'Selesai'}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
         )}
       </div>
 
+      {/* Pembinaan Detail Modal */}
+      {pembinaanDetailOpen && selectedPembinaanDetail && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-bold text-gray-900">Detail Pembinaan Khusus</h3>
+              <button
+                onClick={() => {
+                  setPembinaanDetailOpen(false);
+                  setSelectedPembinaanDetail(null);
+                }}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-3 border-t border-gray-200 pt-4">
+              <div>
+                <p className="text-xs text-gray-600 mb-1">Nama Siswa</p>
+                <p className="font-semibold text-gray-900">
+                  {selectedPembinaanDetail.pembinaan?.siswas_name || 'N/A'}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-600 mb-1">Kelas</p>
+                <p className="font-semibold text-gray-900">
+                  {selectedPembinaanDetail.pembinaan?.class_name || 'N/A'}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-600 mb-1">Kasus/Masalah</p>
+                <p className="font-semibold text-gray-900">
+                  {selectedPembinaanDetail.pembinaan?.kasus}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-600 mb-1">SP Level</p>
+                <span
+                  className={`inline-block px-3 py-1 rounded-full text-xs font-semibold ${
+                    selectedPembinaanDetail.sp_level === 'SP1'
+                      ? 'bg-yellow-100 text-yellow-800'
+                      : selectedPembinaanDetail.sp_level === 'SP2'
+                      ? 'bg-red-100 text-red-800'
+                      : 'bg-green-100 text-green-800'
+                  }`}
+                >
+                  {selectedPembinaanDetail.sp_level || 'Pembinaan Langsung'}
+                </span>
+              </div>
+              <div>
+                <p className="text-xs text-gray-600 mb-1">Tanggal Terjadwal</p>
+                <p className="font-semibold text-gray-900">
+                  {selectedPembinaanDetail.scheduled_date
+                    ? new Date(selectedPembinaanDetail.scheduled_date).toLocaleDateString('id-ID')
+                    : '-'}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-600 mb-1">Status</p>
+                <span
+                  className={`inline-block px-3 py-1 rounded-full text-xs font-semibold ${
+                    selectedPembinaanDetail.status === 'pending'
+                      ? 'bg-yellow-100 text-yellow-800'
+                      : selectedPembinaanDetail.status === 'approved'
+                      ? 'bg-green-100 text-green-800'
+                      : selectedPembinaanDetail.status === 'completed'
+                      ? 'bg-blue-100 text-blue-800'
+                      : 'bg-gray-100 text-gray-800'
+                  }`}
+                >
+                  {selectedPembinaanDetail.status}
+                </span>
+              </div>
+            </div>
+
+            <div className="flex gap-2 pt-4 border-t border-gray-200">
+              {selectedPembinaanDetail.status === 'pending' && (
+                <button
+                  onClick={() => {
+                    handleApprovePembinaanRingan(selectedPembinaanDetail);
+                    setTimeout(() => {
+                      setPembinaanDetailOpen(false);
+                      setSelectedPembinaanDetail(null);
+                    }, 1000);
+                  }}
+                  disabled={searching}
+                  className="flex-1 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors disabled:opacity-50"
+                >
+                  {searching ? 'Memproses...' : 'Setujui'}
+                </button>
+              )}
+              {selectedPembinaanDetail.status === 'approved' && (
+                <button
+                  onClick={() => {
+                    handleMarkCompletePembinaanRingan(selectedPembinaanDetail.id);
+                    setTimeout(() => {
+                      setPembinaanDetailOpen(false);
+                      setSelectedPembinaanDetail(null);
+                    }, 1000);
+                  }}
+                  disabled={searching}
+                  className="flex-1 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors disabled:opacity-50"
+                >
+                  {searching ? 'Memproses...' : 'Selesai'}
+                </button>
+              )}
+              <button
+                onClick={() => {
+                  setPembinaanDetailOpen(false);
+                  setSelectedPembinaanDetail(null);
+                }}
+                className="flex-1 px-4 py-2 bg-gray-300 hover:bg-gray-400 text-gray-900 rounded-lg transition-colors"
+              >
+                Tutup
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Original Reservasi List (kept for backward compatibility) */}
+      {activeTab === 'umum' && (
+        <div className="bg-white rounded-xl p-6 border border-gray-200 mt-6">
+          <div className="space-y-4">
+            {loading ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="text-center">
+                  <Loader className="w-8 h-8 animate-spin text-blue-600 mx-auto mb-2" />
+                  <p className="text-gray-600">Memuat reservasi...</p>
+                </div>
+              </div>
+            ) : filteredReservasi.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12">
+                <AlertCircle className="w-12 h-12 text-gray-300 mb-4" />
+                <p className="text-gray-600">Tidak ada reservasi</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {filteredReservasi.map((reservasi) => (
+                  <ReservasiCard
+                    key={reservasi.id}
+                    reservasi={reservasi}
+                    onViewDetail={(res) => {
+                      setSelectedDetail(res);
+                      setDetailModalOpen(true);
+                    }}
+                    onApprove={handleApprove}
+                    onReject={handleReject}
+                    loading={searching}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Detail Modal */}
       <DetailModal
-        reservasi={selectedDetail as Reservasi | null}
+        reservasi={selectedDetail}
         isOpen={detailModalOpen}
         onClose={() => {
           setDetailModalOpen(false);

@@ -67,13 +67,15 @@ const LoginPage: React.FC = () => {
   const handleLogin = async () => {
 
     if (!email || !password) {
-      alert("Email dan password wajib diisi!");
+      // alert("Email dan password wajib diisi!");
       return;
     }
 
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    // Email validation: RFC 5321 compliant (allow internal domains without TLD)
+    // Accept formats like: user@domain, user@domain.com, 45-ayah@ruangsiswa, etc
+    const emailRegex = /^[^\s@]+@[^\s@]+$/;
     if (!emailRegex.test(email)) {
-      alert("Format email tidak valid!");
+      // alert("Format email tidak valid!");
       return;
     }
 
@@ -84,7 +86,7 @@ const LoginPage: React.FC = () => {
       const username = res.user?.username;
 
       if (!role) {
-        alert("Login gagal! Anda tidak memiliki role yang valid.");
+        // alert("Login gagal! Anda tidak memiliki role yang valid.");
         setIsLoading(false);
         return;
       }
@@ -125,14 +127,14 @@ const LoginPage: React.FC = () => {
       } else if (role === "admin") {
         window.location.href = "/home/admin";
       } else {
-        alert("Role tidak dikenali! Login dibatalkan.");
+        // alert("Role tidak dikenali! Login dibatalkan.");
         localStorage.removeItem("token");
       }
     } catch (err: any) {
       if (err.response?.status === 400) {
-        alert(err.response.data?.message || "Login gagal! Email atau password salah.");
+        // alert(err.response.data?.message || "Login gagal! Email atau password salah.");
       } else {
-        alert(err.message || "Terjadi kesalahan, coba lagi nanti.");
+        // alert(err.message || "Terjadi kesalahan, coba lagi nanti.");
       }
     } finally {
       setIsLoading(false);

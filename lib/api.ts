@@ -139,7 +139,7 @@ export async function syncPembinaan(token: string | null) {
 
 export async function createPembinaanRingan(
   data: {
-    reservasi_id: number;
+    reservasi_id?: number;
     pembinaan_id: number;
     student_id: number;
     student_name: string;
@@ -148,6 +148,7 @@ export async function createPembinaanRingan(
     catatan_bk: string;
     scheduled_date: string;
     scheduled_time: string;
+    sp_level?: 'SP1' | 'SP2' | null;
   },
   token: string | null
 ) {
@@ -168,7 +169,7 @@ export async function getPendingPembinaanRingan(token: string | null) {
 
 export async function approvePembinaanRingan(
   id: number,
-  data: { status: 'approved' | 'rejected'; bk_feedback?: string; bk_notes?: string },
+  data: { status: 'approved' | 'rejected'; bk_feedback?: string; bk_notes?: string; sp_level?: 'SP1' | 'SP2' | null },
   token: string | null
 ) {
   return apiRequest(`/v1/pembinaan-ringan/${id}/approve`, 'PATCH', data, token);

@@ -6,6 +6,9 @@ import {
   ArrowLeft,
   MessageCircle,
   Share2,
+  Facebook,
+  Instagram,
+  Smartphone,
   Flag,
   Eye,
   ThumbsUp,
@@ -67,10 +70,110 @@ const DetailKonsultasiPage: React.FC<DetailKonsultasiPageProps> = ({ onBack }) =
   const [sortByHelpful, setSortByHelpful] = useState(true)
   const [showMoreAnswers, setShowMoreAnswers] = useState(false)
   const [votedAnswers, setVotedAnswers] = useState<Map<string, 1 | -1>>(new Map())
-  const [filteredAnswers, setFilteredAnswers] = useState<'all' | 'verified' | 'bk'>('all')
+  const [filteredAnswers, setFilteredAnswers] = useState<'all' | 'popular' | 'bk'>('all')
+
+  useEffect(() => {
+    // When user selects "Paling Populer", ensure answers are sorted by helpful (likes)
+    if (filteredAnswers === 'popular') {
+      setSortByHelpful(true)
+    }
+  }, [filteredAnswers])
+
+  // Persist user's per-answer votes to localStorage so vote state (colors) survive page refresh
+  useEffect(() => {
+    const key = `konsultasi_votes_${user?.id ?? 'guest'}`
+    try {
+      const raw = localStorage.getItem(key)
+      if (raw) {
+        const obj = JSON.parse(raw)
+        const map = new Map<string, 1 | -1>(Object.entries(obj).map(([k, v]) => [k, v as 1 | -1]))
+        setVotedAnswers(map)
+      }
+    } catch (err) {
+      console.error('Error loading persisted votes:', err)
+    }
+  }, [user?.id])
   const [isBookmarked, setIsBookmarked] = useState(false)
   const [bookmarkLoading, setBookmarkLoading] = useState(false)
+  const [questionLiked, setQuestionLiked] = useState(false)
+  const [questionLikeLoading, setQuestionLikeLoading] = useState(false)
   const [shareModalOpen, setShareModalOpen] = useState(false)
+  const [openReplyFor, setOpenReplyFor] = useState<string | null>(null)
+  const [replyTexts, setReplyTexts] = useState<Record<string, string>>({})
+  const [replySubmitting, setReplySubmitting] = useState(false)
+
+  // Load persisted question-like state (per-user) from localStorage
+  useEffect(() => {
+    try {
+      const key = `konsultasi_question_likes_${user?.id ?? 'guest'}`
+      const raw = localStorage.getItem(key)
+      if (raw) {
+        const obj = JSON.parse(raw || '{}')
+        // use slug as question identifier
+        if (slug && obj[slug]) setQuestionLiked(true)
+      }
+    } catch (err) {
+      console.error('Error loading persisted question likes:', err)
+    }
+  }, [user?.id, slug])
+
+  const handleToggleQuestionLike = async () => {
+    if (!slug) return
+    setQuestionLikeLoading(true)
+    try {
+      // optimistic toggle and persist locally
+      const next = !questionLiked
+      setQuestionLiked(next)
+      try {
+        const key = `konsultasi_question_likes_${user?.id ?? 'guest'}`
+        const raw = localStorage.getItem(key)
+        const obj = raw ? JSON.parse(raw) : {}
+        if (next) obj[slug] = true
+        else delete obj[slug]
+        localStorage.setItem(key, JSON.stringify(obj))
+      } catch (err) {
+        console.error('Error persisting question like:', err)
+      }
+
+      // attempt to inform backend if endpoint exists
+      try {
+        await apiRequest(`/v1/konsultasi/${question?.id}/like`, next ? 'POST' : 'DELETE')
+      } catch (err) {
+        // ignore backend errors (local persistence kept)
+        console.warn('Question like API failed, keeping local state', err)
+      }
+    } finally {
+      setQuestionLikeLoading(false)
+    }
+  }
+
+  const handleSubmitReply = async (answerId: string) => {
+    if (!question) return
+    const text = (replyTexts[answerId] || '').trim()
+    if (!text) return alert('Isi balasan terlebih dahulu')
+
+    try {
+      setReplySubmitting(true)
+      const token = localStorage.getItem('token')
+      await apiRequest(
+        `/v1/konsultasi/${question.id}/answers`,
+        'POST',
+        { content: text, parentId: answerId },
+        token
+      )
+
+      // Refresh answers after successful reply
+      await fetchDetail()
+      setReplyTexts(prev => ({ ...prev, [answerId]: '' }))
+      setOpenReplyFor(null)
+      alert('Balasan berhasil dikirim')
+    } catch (err) {
+      console.error('Error submitting reply:', err)
+      alert('Gagal mengirim balasan')
+    } finally {
+      setReplySubmitting(false)
+    }
+  }
 
   const categoryMap = {
     personal: 'Pribadi',
@@ -95,82 +198,87 @@ const DetailKonsultasiPage: React.FC<DetailKonsultasiPageProps> = ({ onBack }) =
   }, [])
 
   // Fetch question detail dan answers
+  const fetchDetail = async () => {
+    try {
+      setLoading(true)
+      const token = localStorage.getItem('token')
+      console.log('Fetching slug:', slug)
+      const data = await apiRequest(
+        `/v1/konsultasi/slug/${slug}`,
+        'GET',
+        undefined,
+        token
+      )
+
+      console.log('Response data:', data)
+
+      const category = categories.find(c => c.id === data.question.categoryId)
+      // Prefer topic name when available; fall back to category name or explicit fields from API
+      const categoryLabel =
+        data.question.topic?.name ||
+        data.question.topicName ||
+        category?.name ||
+        data.question.categoryName ||
+        'Umum'
+      const authorName = data.question.author?.username || data.question.author?.name || 'Anonymous'
+      const authorRole = data.question.author?.role
+      const isQuestionCurrentUser = String(user?.id) === String(data.question.authorId)
+      const questionDisplayName = getDisplayAuthorName(authorName, data.question.authorId, authorRole, user ? { id: user.id as number, role: user.role } : undefined, isQuestionCurrentUser)
+      setQuestion({
+        id: data.question.id,
+        title: data.question.title,
+        category: categoryLabel,
+        author: authorName,
+        authorId: data.question.authorId,
+        authorRole: authorRole,
+        avatar: questionDisplayName === 'Anonymous' ? 'A' : (authorName || 'A').substring(0, 2).toUpperCase(),
+        timestamp: formatDate(data.question.createdAt),
+        content: data.question.content,
+        views: data.question.views,
+        votes: data.question.votes,
+        answers: data.question.answerCount,
+        bookmarks: data.question.bookmarkCount || 0,
+      })
+
+      const transformedAnswers = data.answers.map((ans: any) => {
+        const answerAuthorName = ans.author?.username || ans.author?.name || 'Anonymous'
+        const isAnswerCurrentUser = String(user?.id) === String(ans.authorId)
+        const answerDisplayName = getDisplayAuthorName(answerAuthorName, ans.authorId, ans.author?.role, user ? { id: user.id as number, role: user.role } : undefined, isAnswerCurrentUser)
+        return {
+          id: ans.id,
+          authorId: ans.authorId,
+          authorName: answerAuthorName,
+          authorRole: ans.author?.role || 'siswa',
+          avatar: answerDisplayName === 'Anonymous' ? 'A' : (answerAuthorName || 'A').substring(0, 2).toUpperCase(),
+          timestamp: formatDate(ans.createdAt),
+          content: ans.content,
+          likes: ans.votes || 0,
+          dislikes: ans.downvotes || 0,
+          isVerified: ans.isVerified,
+          isAuthorAnswer: false,
+        }
+      })
+
+      setAnswers(transformedAnswers)
+      
+      // Check if bookmarked
+      const isBookmarkedRes = await apiRequest(
+        `/v1/konsultasi/${data.question.id}/is-bookmarked`,
+        'GET',
+        undefined,
+        token
+      )
+      setIsBookmarked(isBookmarkedRes?.isBookmarked || false)
+      
+      setLoading(false)
+    } catch (error) {
+      console.error('Error fetching question:', error)
+      setLoading(false)
+    }
+  }
+
   useEffect(() => {
-    const fetchDetail = async () => {
-      try {
-        setLoading(true)
-        const token = localStorage.getItem('token')
-        console.log('Fetching slug:', slug)
-        const data = await apiRequest(
-          `/v1/konsultasi/slug/${slug}`,
-          'GET',
-          undefined,
-          token
-        )
-
-        console.log('Response data:', data)
-
-        const category = categories.find(c => c.id === data.question.categoryId)
-        const authorName = data.question.author?.username || data.question.author?.name || 'Anonymous'
-        const authorRole = data.question.author?.role
-        const isQuestionCurrentUser = String(user?.id) === String(data.question.authorId)
-        const questionDisplayName = getDisplayAuthorName(authorName, data.question.authorId, authorRole, user ? { id: user.id as number, role: user.role } : undefined, isQuestionCurrentUser)
-        setQuestion({
-          id: data.question.id,
-          title: data.question.title,
-          category: category?.name || 'Umum',
-          author: authorName,
-          authorId: data.question.authorId,
-          authorRole: authorRole,
-          avatar: questionDisplayName === 'Anonymous' ? 'A' : (authorName || 'A').substring(0, 2).toUpperCase(),
-          timestamp: formatDate(data.question.createdAt),
-          content: data.question.content,
-          views: data.question.views,
-          votes: data.question.votes,
-          answers: data.question.answerCount,
-          bookmarks: data.question.bookmarkCount || 0,
-        })
-
-        const transformedAnswers = data.answers.map((ans: any) => {
-          const answerAuthorName = ans.author?.username || ans.author?.name || 'Anonymous'
-          const isAnswerCurrentUser = String(user?.id) === String(ans.authorId)
-          const answerDisplayName = getDisplayAuthorName(answerAuthorName, ans.authorId, ans.author?.role, user ? { id: user.id as number, role: user.role } : undefined, isAnswerCurrentUser)
-          return {
-            id: ans.id,
-            authorId: ans.authorId,
-            authorName: answerAuthorName,
-            authorRole: ans.author?.role || 'siswa',
-            avatar: answerDisplayName === 'Anonymous' ? 'A' : (answerAuthorName || 'A').substring(0, 2).toUpperCase(),
-            timestamp: formatDate(ans.createdAt),
-            content: ans.content,
-            likes: ans.votes || 0,
-            dislikes: ans.downvotes || 0,
-            isVerified: ans.isVerified,
-            isAuthorAnswer: false,
-          }
-        })
-
-        setAnswers(transformedAnswers)
-        
-        // Check if bookmarked
-        const isBookmarkedRes = await apiRequest(
-          `/v1/konsultasi/${data.question.id}/is-bookmarked`,
-          'GET',
-          undefined,
-          token
-        )
-        setIsBookmarked(isBookmarkedRes?.isBookmarked || false)
-        
-        setLoading(false)
-      } catch (error) {
-        console.error('Error fetching question:', error)
-        setLoading(false)
-      }
-    }
-
-    if (slug) {
-      fetchDetail()
-    }
+    if (slug) fetchDetail()
   }, [slug])
 
   const formatDate = (date: string) => {
@@ -189,8 +297,8 @@ const DetailKonsultasiPage: React.FC<DetailKonsultasiPageProps> = ({ onBack }) =
   }
 
   const displayAnswers = answers.filter(answer => {
-    if (filteredAnswers === 'verified') return answer.isVerified
     if (filteredAnswers === 'bk') return answer.authorRole === 'bk'
+    // 'popular' will be handled by sorting (sortByHelpful), so we do not filter out answers here
     return true
   })
 
@@ -281,6 +389,12 @@ const DetailKonsultasiPage: React.FC<DetailKonsultasiPageProps> = ({ onBack }) =
       setVotedAnswers(prev => {
         const newMap = new Map(prev)
         newMap.set(answerId, voteValue)
+        try {
+          const key = `konsultasi_votes_${user?.id ?? 'guest'}`
+          localStorage.setItem(key, JSON.stringify(Object.fromEntries(newMap)))
+        } catch (err) {
+          console.error('Error persisting vote state:', err)
+        }
         return newMap
       })
     } catch (error) {
@@ -483,21 +597,24 @@ const DetailKonsultasiPage: React.FC<DetailKonsultasiPageProps> = ({ onBack }) =
           </div>
 
           {/* Actions */}
-          <div className="flex gap-3 mt-4">
-            <button className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors text-sm font-medium">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-4">
+            <button
+              onClick={handleToggleQuestionLike}
+              disabled={questionLikeLoading}
+              className={`w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed ${questionLiked ? 'bg-green-50 text-green-700' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'}`}>
               <ThumbsUp className="w-4 h-4" />
-              Vote ({question.votes})
+              {questionLiked ? `Like (${question.votes + 1})` : `Like (${question.votes})`}
             </button>
             <button 
               onClick={handleShare}
-              className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors text-sm font-medium">
+              className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors text-sm font-medium">
               <Share2 className="w-4 h-4" />
               Bagikan
             </button>
             <button 
               onClick={handleBookmark}
               disabled={bookmarkLoading}
-              className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg transition-colors text-sm font-medium ${
+              className={`w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg transition-colors text-sm font-medium ${
                 isBookmarked
                   ? 'bg-blue-600 text-white hover:bg-blue-700'
                   : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
@@ -505,10 +622,12 @@ const DetailKonsultasiPage: React.FC<DetailKonsultasiPageProps> = ({ onBack }) =
               <Bookmark className="w-4 h-4" />
               {isBookmarked ? 'Tersimpan' : 'Simpan'}
             </button>
-            <button className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors text-sm font-medium">
+            {/* Report button intentionally hidden (kept for reference)
+            <button className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors text-sm font-medium">
               <Flag className="w-4 h-4" />
               Laporkan
             </button>
+            */}
           </div>
         </div>
 
@@ -525,7 +644,7 @@ const DetailKonsultasiPage: React.FC<DetailKonsultasiPageProps> = ({ onBack }) =
               className="px-3 py-2 text-sm bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="all">Semua Jawaban</option>
-              <option value="verified">Terverifikasi</option>
+              <option value="popular">Paling Populer</option>
               <option value="bk">Dari Konselor</option>
             </select>
           </div>
@@ -589,7 +708,9 @@ const DetailKonsultasiPage: React.FC<DetailKonsultasiPageProps> = ({ onBack }) =
                   <ThumbsUp className="w-4 h-4 rotate-180" />
                   Tidak Setuju ({answer.dislikes})
                 </button>
-                <button className="flex items-center gap-2 px-3 py-1.5 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors text-sm font-medium">
+                <button
+                  onClick={() => setOpenReplyFor(answer.id)}
+                  className="flex items-center gap-2 px-3 py-1.5 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors text-sm font-medium">
                   <MessageCircle className="w-4 h-4" />
                   Balas
                 </button>
@@ -598,6 +719,39 @@ const DetailKonsultasiPage: React.FC<DetailKonsultasiPageProps> = ({ onBack }) =
                   Laporkan
                 </button>
               </div>
+              {openReplyFor === answer.id && (
+                <div className="mt-4">
+                  <textarea
+                    value={replyTexts[answer.id] || ''}
+                    onChange={(e) => setReplyTexts(prev => ({ ...prev, [answer.id]: e.target.value }))}
+                    placeholder="Tulis balasan Anda..."
+                    className="w-full px-4 py-3 bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white resize-none"
+                    rows={3}
+                  />
+                  <div className="flex gap-3 mt-2">
+                    <button
+                      onClick={() => handleSubmitReply(answer.id)}
+                      disabled={replySubmitting}
+                      className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium"
+                    >
+                      {replySubmitting ? (
+                        <>
+                          <Loader className="w-4 h-4 animate-spin" />
+                          Mengirim...
+                        </>
+                      ) : (
+                        'Kirim Balasan'
+                      )}
+                    </button>
+                    <button
+                      onClick={() => { setOpenReplyFor(null); setReplyTexts(prev => ({ ...prev, [answer.id]: '' })); }}
+                      className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-sm font-medium"
+                    >
+                      Batal
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           ))}
 
@@ -674,33 +828,33 @@ const DetailKonsultasiPage: React.FC<DetailKonsultasiPageProps> = ({ onBack }) =
               </div>
 
               <div className="grid grid-cols-3 gap-3">
-                <button
-                  onClick={() => shareOnPlatform('whatsapp')}
-                  className="flex flex-col items-center gap-2 p-4 bg-green-50 hover:bg-green-100 rounded-lg transition-colors"
-                >
-                  <div className="w-10 h-10 bg-green-600 rounded-full flex items-center justify-center text-white font-bold">
-                    W
-                  </div>
-                  <span className="text-xs font-medium text-gray-700">WhatsApp</span>
-                </button>
-                <button
-                  onClick={() => shareOnPlatform('instagram')}
-                  className="flex flex-col items-center gap-2 p-4 bg-pink-50 hover:bg-pink-100 rounded-lg transition-colors"
-                >
-                  <div className="w-10 h-10 bg-gradient-to-br from-pink-500 to-purple-500 rounded-full flex items-center justify-center text-white font-bold">
-                    I
-                  </div>
-                  <span className="text-xs font-medium text-gray-700">Instagram</span>
-                </button>
-                <button
-                  onClick={() => shareOnPlatform('facebook')}
-                  className="flex flex-col items-center gap-2 p-4 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"
-                >
-                  <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center text-white font-bold">
-                    F
-                  </div>
-                  <span className="text-xs font-medium text-gray-700">Facebook</span>
-                </button>
+                  <button
+                    onClick={() => shareOnPlatform('whatsapp')}
+                    className="flex flex-col items-center gap-2 p-4 bg-green-50 hover:bg-green-100 rounded-lg transition-colors"
+                  >
+                    <div className="w-10 h-10 bg-green-600 rounded-full flex items-center justify-center text-white">
+                      <Smartphone className="w-5 h-5" />
+                    </div>
+                    <span className="text-xs font-medium text-gray-700">WhatsApp</span>
+                  </button>
+                  <button
+                    onClick={() => shareOnPlatform('instagram')}
+                    className="flex flex-col items-center gap-2 p-4 bg-pink-50 hover:bg-pink-100 rounded-lg transition-colors"
+                  >
+                    <div className="w-10 h-10 bg-gradient-to-br from-pink-500 to-purple-500 rounded-full flex items-center justify-center text-white">
+                      <Instagram className="w-5 h-5" />
+                    </div>
+                    <span className="text-xs font-medium text-gray-700">Instagram</span>
+                  </button>
+                  <button
+                    onClick={() => shareOnPlatform('facebook')}
+                    className="flex flex-col items-center gap-2 p-4 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"
+                  >
+                    <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center text-white">
+                      <Facebook className="w-5 h-5" />
+                    </div>
+                    <span className="text-xs font-medium text-gray-700">Facebook</span>
+                  </button>
               </div>
 
               <button
