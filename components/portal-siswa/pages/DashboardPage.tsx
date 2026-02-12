@@ -31,93 +31,7 @@ const ContentWrapper: React.FC<{ children: React.ReactNode }> = ({ children }) =
 
 
 
-// Kesiswaan Integration Component
-const KesiswaanIntegrationSection: React.FC<{ onNavigate?: (page: string) => void; kesiswaanData?: any }> = ({ onNavigate, kesiswaanData }) => {
-  const router = useRouter();
-
-  // Default data if not provided
-  const data = kesiswaanData || {
-    attendance: {
-      percentage: 0,
-      status: 'Memuat...',
-      recentDays: 0,
-      totalDays: 0
-    },
-    tardiness: {
-      currentMonth: 0,
-      lastMonth: 0,
-      trend: 'decreasing' as 'decreasing' | 'increasing',
-      status: 'Memuat...'
-    },
-    violations: {
-      total: 0,
-      pending: 0,
-      inProgress: 0,
-      resolved: 0
-    }
-  };
-
-  const handleNavigate = (page: string) => {
-    if (onNavigate) {
-      onNavigate(page);
-    } else {
-      router.push(`/home/siswa/${page}`);
-    }
-  };
-
-  return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-indigo-500 to-purple-600 rounded-2xl p-8 text-white">
-        <h3 className="text-2xl font-bold mb-2">📋 Data Kesiswaan Anda</h3>
-        <p className="text-indigo-50">Pantau kehadiran, keterlambatan, dan pelanggaran Anda di sekolah</p>
-      </div>
-
-      {/* Kesiswaan Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        {/* Attendance Card */}
-        <div className="bg-green-50 border border-green-200 rounded-xl p-4">
-          <div className="flex items-center gap-2 mb-2">
-            <CheckCircle className="w-5 h-5 text-green-600" />
-            <p className="text-sm sm:text-xs text-gray-600 font-medium">Kehadiran</p>
-          </div>
-          <p className="text-2xl font-bold text-green-700">{data.attendance.percentage}%</p>
-          <p className="text-sm sm:text-xs text-green-600 mt-1">Persentase</p>
-        </div>
-
-        {/* Tardiness Card */}
-        <div className="bg-orange-50 border border-orange-200 rounded-xl p-4">
-          <div className="flex items-center gap-2 mb-2">
-            <Clock className="w-5 h-5 text-orange-600" />
-            <p className="text-sm sm:text-xs text-gray-600 font-medium">Keterlambatan</p>
-          </div>
-          <p className="text-2xl font-bold text-orange-700">{data.tardiness.currentMonth}</p>
-          <p className="text-sm sm:text-xs text-orange-600 mt-1">Bulan Ini</p>
-        </div>
-
-        {/* Violations Card */}
-        <div className="bg-red-50 border border-red-200 rounded-xl p-4">
-          <div className="flex items-center gap-2 mb-2">
-            <AlertTriangle className="w-5 h-5 text-red-600" />
-            <p className="text-sm sm:text-xs text-gray-600 font-medium">Pelanggaran</p>
-          </div>
-          <p className="text-2xl font-bold text-red-700">{data.violations.total}</p>
-          <p className="text-sm sm:text-xs text-red-600 mt-1">Total</p>
-        </div>
-      </div>
-
-      {/* Quick Summary */}
-      {data.violations.pending > 0 && (
-        <div className="bg-red-50 border border-red-200 rounded-xl p-4">
-          <p className="text-sm text-red-700">
-            ⚠️ <strong>Perhatian:</strong> Anda memiliki {data.violations.pending} pelanggaran yang menunggu proses bimbingan. 
-            Segera hubungi Guru BK untuk memulai sesi bimbingan.
-          </p>
-        </div>
-      )}
-    </div>
-  );
-};
+// Kesiswaan Integration Component - DEPRECATED: Cards now integrated in main dashboard
 
 const NewsPreviewCard: React.FC<{
   news: NewsItemProps;
@@ -385,6 +299,11 @@ const DashboardPage: React.FC<{ setActivePage?: (page: string) => void }> = ({ s
   return (
     <>
       <div className="space-y-6">
+        {/* Header */}
+        <div className="bg-gradient-to-r from-blue-500 to-indigo-600 rounded-2xl p-8 text-white">
+          <h3 className="text-2xl font-bold mb-2">🏠 Dashboard Siswa</h3>
+          <p className="text-blue-50">Pantau aktivitas konseling, kehadiran, dan berita terbaru dari BK</p>
+        </div>
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div className="bg-pink-50 border border-pink-200 rounded-xl p-4">
@@ -413,9 +332,47 @@ const DashboardPage: React.FC<{ setActivePage?: (page: string) => void }> = ({ s
             <p className="text-2xl font-bold text-orange-700">{stats.activeReservations}</p>
             <p className="text-sm sm:text-xs text-orange-600 mt-1">Aktif</p>
           </div>
+
+          {/* Attendance Card */}
+          <div className="bg-green-50 border border-green-200 rounded-xl p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <CheckCircle className="w-5 h-5 text-green-600" />
+              <p className="text-sm sm:text-xs text-gray-600 font-medium">Kehadiran</p>
+            </div>
+            <p className="text-2xl font-bold text-green-700">{kesiswaanData.attendance.percentage}%</p>
+            <p className="text-sm sm:text-xs text-green-600 mt-1">Persentase</p>
+          </div>
+
+          {/* Tardiness Card */}
+          <div className="bg-orange-50 border border-orange-200 rounded-xl p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <Clock className="w-5 h-5 text-orange-600" />
+              <p className="text-sm sm:text-xs text-gray-600 font-medium">Keterlambatan</p>
+            </div>
+            <p className="text-2xl font-bold text-orange-700">{kesiswaanData.tardiness.currentMonth}</p>
+            <p className="text-sm sm:text-xs text-orange-600 mt-1">Bulan Ini</p>
+          </div>
+
+          {/* Violations Card */}
+          <div className="bg-red-50 border border-red-200 rounded-xl p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <AlertTriangle className="w-5 h-5 text-red-600" />
+              <p className="text-sm sm:text-xs text-gray-600 font-medium">Pelanggaran</p>
+            </div>
+            <p className="text-2xl font-bold text-red-700">{kesiswaanData.violations.total}</p>
+            <p className="text-sm sm:text-xs text-red-600 mt-1">Total</p>
+          </div>
         </div>
 
-        <KesiswaanIntegrationSection onNavigate={setActivePage} kesiswaanData={kesiswaanData} />
+        {/* Quick Summary */}
+        {kesiswaanData.violations.pending > 0 && (
+          <div className="bg-red-50 border border-red-200 rounded-xl p-4">
+            <p className="text-sm text-red-700">
+              ⚠️ <strong>Perhatian:</strong> Anda memiliki {kesiswaanData.violations.pending} pelanggaran yang menunggu proses bimbingan. 
+              Segera hubungi Guru BK untuk memulai sesi bimbingan.
+            </p>
+          </div>
+        )}
 
         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
           <div className="p-6 border-b border-gray-200">

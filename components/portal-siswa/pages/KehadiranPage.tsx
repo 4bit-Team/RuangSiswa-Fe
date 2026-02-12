@@ -37,13 +37,19 @@ const KehadiranPage: React.FC = () => {
     { date: '2025-01-28', status: 'Hadir', time: '07:18' },
   ];
 
-  // Calculate monthly stats
+  // Calculate monthly stats from dummy data
+  const presentDays = attendanceData.filter(r => r.status === 'Hadir').length;
+  const sickDays = attendanceData.filter(r => r.status === 'Sakit').length;
+  const permissionDays = attendanceData.filter(r => r.status === 'Izin').length;
+  const noExcuseDays = attendanceData.filter(r => r.status === 'Tanpa Keterangan').length;
+  const totalDays = attendanceData.length;
+
   const monthlyStats: MonthlyStats = {
-    totalDays: 20,
-    presentDays: 18,
-    sickDays: 1,
-    permissionDays: 1,
-    noExcuseDays: 1
+    totalDays,
+    presentDays,
+    sickDays,
+    permissionDays,
+    noExcuseDays
   };
 
   const attendancePercentage = Math.round((monthlyStats.presentDays / monthlyStats.totalDays) * 100);
@@ -80,6 +86,11 @@ const KehadiranPage: React.FC = () => {
 
   return (
     <div className="space-y-6">
+      {/* Header */}
+      <div className="bg-gradient-to-r from-indigo-500 to-blue-600 rounded-2xl p-8 text-white">
+        <h3 className="text-2xl font-bold mb-2">📊 Kehadiran Siswa</h3>
+        <p className="text-indigo-50">Pantau dan kelola catatan kehadiran Anda di sekolah</p>
+      </div>
 
       {/* Monthly Overview */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -110,6 +121,15 @@ const KehadiranPage: React.FC = () => {
           </div>
           <p className="text-2xl font-bold text-red-700">{monthlyStats.noExcuseDays}</p>
           <p className="text-sm sm:text-xs text-red-600 mt-1">Hari</p>
+        </div>
+
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <Clock className="w-5 h-5 text-blue-600" />
+            <p className="text-sm sm:text-xs text-gray-600 font-medium">Izin</p>
+          </div>
+          <p className="text-2xl font-bold text-blue-700">{monthlyStats.permissionDays}</p>
+          <p className="text-sm sm:text-xs text-blue-600 mt-1">Hari</p>
         </div>
       </div>
 

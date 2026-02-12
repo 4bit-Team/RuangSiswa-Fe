@@ -417,6 +417,12 @@ const KonselingPage: React.FC = () => {
 
   return (
     <div className="space-y-6">
+      {/* Header */}
+      <div className="bg-gradient-to-r from-pink-500 to-rose-600 rounded-2xl p-8 text-white">
+        <h3 className="text-2xl font-bold mb-2">💙 Konseling BK</h3>
+        <p className="text-pink-50">Layanan konseling profesional untuk mendukung kesehatan mental dan perkembangan siswa</p>
+      </div>
+
       {/* Alert Messages */}
       {successMessage && (
         <div className="bg-green-50 border border-green-200 rounded-xl p-4">

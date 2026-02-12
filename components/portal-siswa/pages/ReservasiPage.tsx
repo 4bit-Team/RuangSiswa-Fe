@@ -183,6 +183,12 @@ const ReservasiPage: React.FC = () => {
 
   return (
     <div className="space-y-6">
+      {/* Header */}
+      <div className="bg-gradient-to-r from-blue-500 to-indigo-600 rounded-2xl p-4 md:p-8 text-white">
+        <h3 className="text-xl md:text-2xl font-bold mb-2">📅 Reservasi Saya</h3>
+        <p className="text-blue-50 text-sm md:text-base">Kelola jadwal konseling dan reservasi Anda dengan konselor BK</p>
+      </div>
+
       {/* Error/Success Messages */}
       {errorMessage && (
         <div className="bg-red-50 border border-red-200 rounded-xl p-4">

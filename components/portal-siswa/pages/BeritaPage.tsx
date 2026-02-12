@@ -167,6 +167,11 @@ const BeritaPage: React.FC<BeritaPageProps> = ({ selectedTopic = null, setActive
   return (
     <>
       <div className="space-y-6">
+        {/* Header */}
+        <div className="bg-gradient-to-r from-blue-500 to-purple-600 rounded-2xl p-8 text-white">
+          <h3 className="text-2xl font-bold mb-2">📰 Berita & Artikel BK</h3>
+          <p className="text-blue-50">Baca artikel dan tips dari konselor BK untuk mendukung perkembangan Anda</p>
+        </div>
 
         {/* Filter Kategori */}
         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">

@@ -412,25 +412,84 @@ export const BKActionModal = ({ isOpen, pembinaan, onClose, onSubmit }: ModalPro
   )
 }
 
+interface ParentUser {
+  id: number
+  fullName: string
+  email: string
+  phone_number: string
+  role: string
+}
+
 export const OrtuActionModal = ({ isOpen, pembinaan, onClose, onSubmit }: ModalProps) => {
   const { token } = useAuth()
   const [loading, setLoading] = useState(false)
+  const [loadingParents, setLoadingParents] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [parentUsers, setParentUsers] = useState<ParentUser[]>([])
+  const [selectedParentId, setSelectedParentId] = useState<number | null>(null)
   const [formData, setFormData] = useState({
+    parent_id: '',
     parent_name: '',
     parent_phone: '',
+    parent_email: '',
     violation_details: '',
     letter_content: '',
     scheduled_date: '',
     scheduled_time: '',
     location: '',
-    communication_method: 'manual',
+    communication_method: 'akun',
   })
+
+  // Fetch parent users for this student
+  useEffect(() => {
+    if (isOpen && pembinaan?.siswas_id) {
+      fetchParentUsers()
+    }
+  }, [isOpen, pembinaan?.siswas_id])
+
+  const fetchParentUsers = async () => {
+    try {
+      setLoadingParents(true)
+      setError(null)
+      // Fetch users with role orang_tua that have this student_id
+      const data = await apiRequest(
+        `/users/by-role/orang_tua?student_id=${pembinaan?.siswas_id}`,
+        'GET',
+        undefined,
+        token
+      )
+      const parents = Array.isArray(data) ? data : data.data || []
+      setParentUsers(parents)
+
+      if (parents.length === 0) {
+        setError('Tidak ada data orang tua untuk siswa ini')
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Gagal memuat data orang tua')
+      setParentUsers([])
+    } finally {
+      setLoadingParents(false)
+    }
+  }
+
+  const handleParentSelect = (parentId: number) => {
+    const selectedParent = parentUsers.find(p => p.id === parentId)
+    if (selectedParent) {
+      setSelectedParentId(parentId)
+      setFormData(prev => ({
+        ...prev,
+        parent_id: parentId.toString(),
+        parent_name: selectedParent.fullName,
+        parent_phone: selectedParent.phone_number || '',
+        parent_email: selectedParent.email,
+      }))
+    }
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!formData.parent_name || !formData.violation_details || !formData.letter_content || !formData.scheduled_date) {
-      setError('Field yang wajib diisi: Nama Ortu, Detail Pelanggaran, Surat, dan Tanggal')
+    if (!formData.parent_id || !formData.violation_details || !formData.letter_content || !formData.scheduled_date) {
+      setError('Field yang wajib diisi: Pilih Orang Tua, Detail Pelanggaran, Surat, dan Tanggal')
       return
     }
 
@@ -439,20 +498,24 @@ export const OrtuActionModal = ({ isOpen, pembinaan, onClose, onSubmit }: ModalP
       setError(null)
       await onSubmit({
         ...formData,
-        communication_method: formData.communication_method || 'manual',
+        parent_id: parseInt(formData.parent_id),
+        communication_method: formData.communication_method || 'email',
         type: 'ortu',
       })
       // Reset form
       setFormData({
+        parent_id: '',
         parent_name: '',
         parent_phone: '',
+        parent_email: '',
         violation_details: '',
         letter_content: '',
         scheduled_date: '',
         scheduled_time: '',
         location: '',
-        communication_method: 'manual',
+        communication_method: 'akun',
       })
+      setSelectedParentId(null)
       onClose()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Gagal membuat pemanggilan ortu')
@@ -489,30 +552,91 @@ export const OrtuActionModal = ({ isOpen, pembinaan, onClose, onSubmit }: ModalP
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
+            {loadingParents && (
+              <div className="text-center py-4">
+                <p className="text-sm text-gray-600">Memuat data orang tua...</p>
+              </div>
+            )}
+
+            {!loadingParents && parentUsers.length > 0 && (
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Pilih Orang Tua <span className="text-red-600">*</span>
+                </label>
+                <div className="grid grid-cols-1 gap-2 max-h-48 overflow-y-auto">
+                  {parentUsers.map(parent => (
+                    <button
+                      key={parent.id}
+                      type="button"
+                      onClick={() => handleParentSelect(parent.id)}
+                      className={`p-3 rounded-lg text-left transition-colors ${
+                        selectedParentId === parent.id
+                          ? 'bg-cyan-100 border-2 border-cyan-600 text-cyan-900'
+                          : 'border border-gray-300 text-gray-700 hover:bg-gray-50'
+                      }`}
+                    >
+                      <div className="font-semibold">{parent.fullName}</div>
+                      <div className="text-xs text-gray-600 mt-1">
+                        {parent.email}
+                      </div>
+                      {parent.phone_number && (
+                        <div className="text-xs text-gray-600">
+                          {parent.phone_number}
+                        </div>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {!loadingParents && parentUsers.length === 0 && (
+              <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                <p className="text-sm text-yellow-700">{error}</p>
+              </div>
+            )}
+
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Nama Orang Tua <span className="text-red-600">*</span>
+                  Nama Orang Tua
                 </label>
-                <input
-                  type="text"
-                  placeholder="Nama lengkap orang tua"
-                  value={formData.parent_name}
-                  onChange={e => setFormData({ ...formData, parent_name: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500"
-                />
+                <div className="px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-700">
+                  {formData.parent_name || '—'}
+                </div>
               </div>
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Nomor Telepon
+                  Email
                 </label>
-                <input
-                  type="tel"
-                  placeholder="08xxxxxxxxxx"
-                  value={formData.parent_phone}
-                  onChange={e => setFormData({ ...formData, parent_phone: e.target.value })}
+                <div className="px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-700 text-sm">
+                  {formData.parent_email || '—'}
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Nomor WhatsApp
+                </label>
+                <div className="px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-700">
+                  {formData.parent_phone || '—'}
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Metode Pengiriman <span className="text-red-600">*</span>
+                </label>
+                <select
+                  value={formData.communication_method}
+                  onChange={e => setFormData({ ...formData, communication_method: e.target.value })}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500"
-                />
+                >
+                  <option value="akun">Akun RuangSiswa</option>
+                  <option value="email">Email</option>
+                  <option value="whatsapp">WhatsApp</option>
+                </select>
               </div>
             </div>
 
@@ -580,22 +704,6 @@ export const OrtuActionModal = ({ isOpen, pembinaan, onClose, onSubmit }: ModalP
               />
             </div>
 
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Metode Pengiriman Surat
-              </label>
-              <select
-                value={formData.communication_method}
-                onChange={e => setFormData({ ...formData, communication_method: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500"
-              >
-                <option value="manual">Manual (Diserahkan Langsung)</option>
-                <option value="sms">SMS</option>
-                <option value="whatsapp">WhatsApp</option>
-                <option value="email">Email</option>
-              </select>
-            </div>
-
             <div className="flex gap-3 pt-4 border-t border-gray-200">
               <button
                 type="button"
@@ -606,7 +714,7 @@ export const OrtuActionModal = ({ isOpen, pembinaan, onClose, onSubmit }: ModalP
               </button>
               <button
                 type="submit"
-                disabled={loading}
+                disabled={loading || !selectedParentId || loadingParents}
                 className="flex-1 px-4 py-2 bg-cyan-600 text-white rounded-lg hover:bg-cyan-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-semibold"
               >
                 {loading ? 'Memproses...' : 'Buat Pemanggilan'}

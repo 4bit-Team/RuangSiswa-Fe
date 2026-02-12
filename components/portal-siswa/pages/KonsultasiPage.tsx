@@ -316,6 +316,11 @@ const KonsultasiPage: React.FC<{ setActivePage?: (page: string) => void }> = ({ 
 
   return (
     <div className="space-y-6">
+      {/* Header */}
+      <div className="bg-gradient-to-r from-purple-500 to-indigo-600 rounded-2xl p-8 text-white">
+        <h3 className="text-2xl font-bold mb-2">💬 Konsultasi Siswa</h3>
+        <p className="text-purple-50">Tanyakan pertanyaan Anda dan dapatkan jawaban dari konselor BK atau siswa lainnya</p>
+      </div>
 
       {/* Search & Action */}
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">

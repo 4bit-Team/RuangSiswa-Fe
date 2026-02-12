@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useRef, useEffect } from 'react'
-import { Send, Search, Phone, Video, MoreVertical, Smile, Paperclip, Loader, Mic, Square, Play, X } from 'lucide-react'
+import { Send, Search, Phone, Video, MoreVertical, Smile, Paperclip, Loader, Mic, Square, Play, X, ArrowLeft, MessageCircle } from 'lucide-react'
 import { ChatListItemProps, ChatBubbleProps } from '@types'
 import CallModal from '../modals/CallModal'
 import CallUI from '../../call/CallUI'
@@ -131,16 +131,21 @@ const ChatPage: React.FC = () => {
   const rtpMonitoringRef = useRef<boolean>(false) // ✅ Track if RTP monitoring is active
   const iceThrottlerRef = useRef<IceCandidateThrottler>(new IceCandidateThrottler()) // ✅ Throttle ICE candidates to prevent spam
   
+  // Mobile responsiveness state
+  const [showMobileChatList, setShowMobileChatList] = useState(false)
+  
   // Pinned topics state
   const [pinnedTopics, setPinnedTopics] = useState<Array<{ id: string; topic: string; subject: string; timestamp: number }>>([])
   const [showPinnedModal, setShowPinnedModal] = useState(false)
   const [reservasiHistory, setReservasiHistory] = useState<Reservasi[]>([])
   const topicSeparatorRefs = useRef<{ [key: string]: HTMLDivElement | null }>({})
 
-  // Auto-scroll to bottom
+  // Close mobile drawer when conversation changes
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages])
+    if (activeCounselorId) {
+      setShowMobileChatList(false)
+    }
+  }, [activeCounselorId])
 
   // Fetch reservasi history from backend
   useEffect(() => {
@@ -1239,79 +1244,95 @@ const ChatPage: React.FC = () => {
 
   return (
     <div className="space-y-6">
-
-      <div className="flex h-[calc(100vh-200px)]">
-      {/* Chat List */}
-      <div className="w-96 border-r border-gray-200 bg-white flex flex-col flex-shrink-0">
-        <div className="p-4 border-b border-gray-200 flex-shrink-0">
-          <div className="relative">
-            <input
-              type="text"
-              placeholder="Cari percakapan..."
-              className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+      {/* Header */}
+      <div className="bg-gradient-to-r from-green-500 to-teal-600 rounded-2xl p-4 md:p-8 text-white">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-xl md:text-2xl font-bold mb-2">💬 Chat BK</h3>
+            <p className="text-green-50 text-sm md:text-base">Percakapan langsung dengan konselor BK untuk bimbingan dan dukungan</p>
           </div>
-        </div>
-        <div className="overflow-y-auto flex-1 scrollbar-hide">
-          {loading ? (
-            <div className="flex items-center justify-center h-full">
-              <Loader className="w-6 h-6 animate-spin text-blue-500" />
-            </div>
-          ) : conversations.length > 0 ? (
-            conversations.map((conversation: APIConversation) => {
-              const initial = getCounselorInitial(conversation)
-              const name = getCounselorName(conversation)
-              const message = conversation.lastMessage?.content || 'Mulai percakapan'
-              const isActive = conversation.id === activeCounselorId
-
-              return (
-                <button
-                  key={conversation.id}
-                  onClick={() => setActiveCounselorId(conversation.id)}
-                  className={`w-full p-4 border-b border-gray-200 cursor-pointer ${
-                    isActive ? 'bg-blue-50' : 'hover:bg-gray-50'
-                  }`}
-                >
-                  <div className="flex gap-3">
-                    <div className="relative">
-                      <div className={`w-12 h-12 ${getAvatarBgColor(initial)} rounded-full flex items-center justify-center`}>
-                        <span className="text-white font-semibold">{initial}</span>
-                      </div>
-                      <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-white" />
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex items-center justify-between mb-1">
-                        <h4 className="font-medium text-gray-900">{name}</h4>
-                        <span className="text-xs text-gray-500">
-                          {conversation.lastMessageAt ? new Date(conversation.lastMessageAt).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : ''}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-sm text-gray-600 truncate">{message}</p>
-                        </div>
-                        {conversation.unreadCount && conversation.unreadCount > 0 && (
-                          <div className="flex items-center gap-1">
-                            <span className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0"></span>
-                            <span className="bg-blue-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center flex-shrink-0">
-                              {conversation.unreadCount > 99 ? '99+' : conversation.unreadCount}
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </button>
-              )
-            })
-          ) : (
-            <div className="flex items-center justify-center h-full">
-              <p className="text-gray-500">Tidak ada percakapan</p>
-            </div>
-          )}
+          {/* Mobile chat list toggle */}
+          <button
+            onClick={() => setShowMobileChatList(true)}
+            className="md:hidden bg-white/20 hover:bg-white/30 p-2 rounded-lg transition-colors"
+          >
+            <MessageCircle className="w-5 h-5" />
+          </button>
         </div>
       </div>
+
+      <div className="flex h-[calc(100vh-180px)] md:h-[calc(100vh-200px)]">
+        {/* Chat List - Desktop */}
+        <div className="hidden md:flex w-80 lg:w-96 border-r border-gray-200 bg-white flex-col flex-shrink-0">
+          <div className="p-4 border-b border-gray-200 flex-shrink-0">
+            <div className="relative">
+              <input
+                type="text"
+                placeholder="Cari percakapan..."
+                className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+            </div>
+          </div>
+          <div className="overflow-y-auto flex-1 scrollbar-hide">
+            {loading ? (
+              <div className="flex items-center justify-center h-full">
+                <Loader className="w-6 h-6 animate-spin text-blue-500" />
+              </div>
+            ) : conversations.length > 0 ? (
+              conversations.map((conversation: APIConversation) => {
+                const initial = getCounselorInitial(conversation)
+                const name = getCounselorName(conversation)
+                const message = conversation.lastMessage?.content || 'Mulai percakapan'
+                const isActive = conversation.id === activeCounselorId
+
+                return (
+                  <button
+                    key={conversation.id}
+                    onClick={() => setActiveCounselorId(conversation.id)}
+                    className={`w-full p-4 border-b border-gray-200 cursor-pointer ${
+                      isActive ? 'bg-blue-50' : 'hover:bg-gray-50'
+                    }`}
+                  >
+                    <div className="flex gap-3">
+                      <div className="relative">
+                        <div className={`w-12 h-12 ${getAvatarBgColor(initial)} rounded-full flex items-center justify-center`}>
+                          <span className="text-white font-semibold">{initial}</span>
+                        </div>
+                        <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-white" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between mb-1">
+                          <h4 className="font-medium text-gray-900 truncate">{name}</h4>
+                          <span className="text-xs text-gray-500 flex-shrink-0">
+                            {conversation.lastMessageAt ? new Date(conversation.lastMessageAt).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : ''}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm text-gray-600 truncate">{message}</p>
+                          </div>
+                          {conversation.unreadCount && conversation.unreadCount > 0 && (
+                            <div className="flex items-center gap-1 ml-2">
+                              <span className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0"></span>
+                              <span className="bg-blue-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center flex-shrink-0">
+                                {conversation.unreadCount > 99 ? '99+' : conversation.unreadCount}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </button>
+                )
+              })
+            ) : (
+              <div className="flex items-center justify-center h-full">
+                <p className="text-gray-500">Tidak ada percakapan</p>
+              </div>
+            )}
+          </div>
+        </div>
 
       {/* Chat Window */}
       <div className="flex-1 flex flex-col bg-white">
@@ -1319,6 +1340,13 @@ const ChatPage: React.FC = () => {
           <>
             <div className="p-3 border-b border-gray-200 flex items-center justify-between flex-shrink-0">
               <div className="flex items-center gap-3">
+                {/* Mobile back button */}
+                <button
+                  onClick={() => setShowMobileChatList(true)}
+                  className="md:hidden p-2 -ml-2 hover:bg-gray-100 rounded-lg transition-colors"
+                >
+                  <ArrowLeft className="w-5 h-5" />
+                </button>
                 <div className={`w-9 h-9 ${getAvatarBgColor(activeCounselorInitial)} rounded-full flex items-center justify-center`}>
                   <span className="text-white font-semibold text-sm">{activeCounselorInitial}</span>
                 </div>
@@ -1667,6 +1695,96 @@ const ChatPage: React.FC = () => {
           </div>
         )}
       </div>
+    </div>
+
+    {/* Mobile Chat List Drawer */}
+      {showMobileChatList && (
+        <div className="fixed inset-0 z-40 md:hidden">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setShowMobileChatList(false)} />
+          <div className="absolute left-0 top-0 h-full w-80 bg-white shadow-xl flex flex-col">
+            <div className="p-4 border-b border-gray-200 flex items-center justify-between flex-shrink-0">
+              <h3 className="font-semibold text-gray-900">Percakapan</h3>
+              <button
+                onClick={() => setShowMobileChatList(false)}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-4 border-b border-gray-200 flex-shrink-0">
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="Cari percakapan..."
+                  className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+              </div>
+            </div>
+            <div className="overflow-y-auto flex-1">
+              {loading ? (
+                <div className="flex items-center justify-center h-full">
+                  <Loader className="w-6 h-6 animate-spin text-blue-500" />
+                </div>
+              ) : conversations.length > 0 ? (
+                conversations.map((conversation: APIConversation) => {
+                  const initial = getCounselorInitial(conversation)
+                  const name = getCounselorName(conversation)
+                  const message = conversation.lastMessage?.content || 'Mulai percakapan'
+                  const isActive = conversation.id === activeCounselorId
+
+                  return (
+                    <button
+                      key={conversation.id}
+                      onClick={() => {
+                        setActiveCounselorId(conversation.id)
+                        setShowMobileChatList(false)
+                      }}
+                      className={`w-full p-4 border-b border-gray-200 cursor-pointer ${
+                        isActive ? 'bg-blue-50' : 'hover:bg-gray-50'
+                      }`}
+                    >
+                      <div className="flex gap-3">
+                        <div className="relative">
+                          <div className={`w-12 h-12 ${getAvatarBgColor(initial)} rounded-full flex items-center justify-center`}>
+                            <span className="text-white font-semibold">{initial}</span>
+                          </div>
+                          <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-white" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between mb-1">
+                            <h4 className="font-medium text-gray-900 truncate">{name}</h4>
+                            <span className="text-xs text-gray-500 flex-shrink-0">
+                              {conversation.lastMessageAt ? new Date(conversation.lastMessageAt).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : ''}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <div className="min-w-0 flex-1">
+                              <p className="text-sm text-gray-600 truncate">{message}</p>
+                            </div>
+                            {conversation.unreadCount && conversation.unreadCount > 0 && (
+                              <div className="flex items-center gap-1 ml-2">
+                                <span className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0"></span>
+                                <span className="bg-blue-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center flex-shrink-0">
+                                  {conversation.unreadCount > 99 ? '99+' : conversation.unreadCount}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </button>
+                  )
+                })
+              ) : (
+                <div className="flex items-center justify-center h-full">
+                  <p className="text-gray-500">Tidak ada percakapan</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Call Confirmation Modal */}
       {callModalOpen && callType && (
@@ -1836,8 +1954,6 @@ const ChatPage: React.FC = () => {
           </div>
         </div>
       )}
-    </div>
-  )
     </div>
   )
 }

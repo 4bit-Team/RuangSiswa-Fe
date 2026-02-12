@@ -17,12 +17,17 @@ const SidebarItem: React.FC<SidebarItemProps> = ({ icon: Icon, label, active, hr
   <Link
     href={href}
     onClick={onClick}
-    className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
-      active ? 'bg-blue-50 text-blue-600' : 'text-gray-600 hover:bg-gray-50'
+    className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 relative ${
+      active
+        ? 'bg-blue-50 text-blue-600 border-l-4 border-blue-600 shadow-sm'
+        : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
     }`}
   >
-    <Icon className="w-5 h-5" />
-    <span className="font-medium">{label}</span>
+    <Icon className={`w-5 h-5 ${active ? 'text-blue-600' : 'text-gray-500'}`} />
+    <span className={`font-medium ${active ? 'text-blue-700' : ''}`}>{label}</span>
+    {active && (
+      <div className="absolute right-3 w-2 h-2 bg-blue-600 rounded-full animate-pulse"></div>
+    )}
   </Link>
 );
 
@@ -34,6 +39,24 @@ const Sidebar: React.FC<SidebarProps> = ({ pathname }) => {
   const currentPathname = usePathname();
   const activePath = pathname || currentPathname;
   const [isOpen, setIsOpen] = useState(false);
+
+  // Normalize and match paths so parent nav items are marked active
+  const normalizePath = (p?: string) => {
+    if (!p) return ''
+    // strip query/hash
+    const noQuery = p.split(/[?#]/)[0]
+    // remove trailing slashes (but keep root "/")
+    if (noQuery === '/') return '/'
+    return noQuery.replace(/\/+$/, '')
+  }
+
+  const isActive = (base: string, exact = false) => {
+    if (!activePath) return false
+    const np = normalizePath(activePath)
+    const nb = normalizePath(base)
+    if (exact) return np === nb
+    return np === nb || np.startsWith(nb + '/')
+  }
 
   useEffect(() => {
     const handleToggle = () => setIsOpen((v) => !v);
@@ -72,25 +95,38 @@ const Sidebar: React.FC<SidebarProps> = ({ pathname }) => {
   const navContent = (
     <>
       <nav className="flex-1 p-4 space-y-1">
-        <SidebarItem icon={Home} label="Dashboard" active={activePath === '/home/siswa' || activePath === '/home/siswa/'} href="/home/siswa" onClick={() => setIsOpen(false)} />
-        <SidebarItem icon={User} label="Berita" active={activePath === '/home/siswa/berita'} href="/home/siswa/berita" onClick={() => setIsOpen(false)} />
-        <SidebarItem icon={Heart} label="Konseling" active={activePath === '/home/siswa/konseling'} href="/home/siswa/konseling" onClick={() => setIsOpen(false)} />
-        <SidebarItem icon={MessageCircle} label="Konsultasi" active={activePath === '/home/siswa/konsultasi'} href="/home/siswa/konsultasi" onClick={() => setIsOpen(false)} />
-        <SidebarItem icon={Calendar} label="Reservasi Saya" active={activePath === '/home/siswa/reservasi'} href="/home/siswa/reservasi" onClick={() => setIsOpen(false)} />
-        <SidebarItem icon={MessageSquare} label="Chat BK" active={activePath === '/home/siswa/chat'} href="/home/siswa/chat" onClick={() => setIsOpen(false)} />
+        {/* Main Section Indicator */}
+        <div className="pb-2">
+          <div className="flex items-center gap-2 px-4 mb-2">
+            <div className="w-1 h-4 bg-gradient-to-b from-indigo-500 to-blue-500 rounded-full"></div>
+            <span className="text-xs font-semibold text-gray-600 uppercase tracking-wider">Menu Utama</span>
+          </div>
+        </div>
+        <SidebarItem icon={Home} label="Dashboard" active={isActive('/home/siswa', true)} href="/home/siswa" onClick={() => setIsOpen(false)} />
+        <SidebarItem icon={User} label="Berita" active={isActive('/home/siswa/berita')} href="/home/siswa/berita" onClick={() => setIsOpen(false)} />
+        <SidebarItem icon={Heart} label="Konseling" active={isActive('/home/siswa/konseling')} href="/home/siswa/konseling" onClick={() => setIsOpen(false)} />
+        <SidebarItem icon={MessageCircle} label="Konsultasi" active={isActive('/home/siswa/konsultasi')} href="/home/siswa/konsultasi" onClick={() => setIsOpen(false)} />
+        <SidebarItem icon={Calendar} label="Reservasi Saya" active={isActive('/home/siswa/reservasi')} href="/home/siswa/reservasi" onClick={() => setIsOpen(false)} />
+        <SidebarItem icon={MessageSquare} label="Chat BK" active={isActive('/home/siswa/chat')} href="/home/siswa/chat" onClick={() => setIsOpen(false)} />
 
         {/* Kesiswaan Section */}
-        <div className="pt-4 pb-2">
-          <h3 className="px-4 text-xs font-semibold text-gray-600 uppercase tracking-wider">Data Kesiswaan</h3>
+        <div className="pt-6 pb-2">
+          <div className="flex items-center gap-2 px-4">
+            <div className="w-1 h-4 bg-gradient-to-b from-blue-500 to-purple-500 rounded-full"></div>
+            <h3 className="text-xs font-semibold text-gray-600 uppercase tracking-wider">Data Kesiswaan</h3>
+          </div>
         </div>
-        <SidebarItem icon={CheckCircle} label="Kehadiran" active={activePath === '/home/siswa/kehadiran'} href="/home/siswa/kehadiran" onClick={() => setIsOpen(false)} />
-        <SidebarItem icon={Clock} label="Keterlambatan" active={activePath === '/home/siswa/keterlambatan'} href="/home/siswa/keterlambatan" onClick={() => setIsOpen(false)} />
-        <SidebarItem icon={AlertTriangle} label="Pelanggaran" active={activePath === '/home/siswa/pelanggaran'} href="/home/siswa/pelanggaran" onClick={() => setIsOpen(false)} />
+        <SidebarItem icon={CheckCircle} label="Kehadiran" active={isActive('/home/siswa/kehadiran')} href="/home/siswa/kehadiran" onClick={() => setIsOpen(false)} />
+        <SidebarItem icon={Clock} label="Keterlambatan" active={isActive('/home/siswa/keterlambatan')} href="/home/siswa/keterlambatan" onClick={() => setIsOpen(false)} />
+        <SidebarItem icon={AlertTriangle} label="Pelanggaran" active={isActive('/home/siswa/pelanggaran')} href="/home/siswa/pelanggaran" onClick={() => setIsOpen(false)} />
 
-        <div className="pt-4 pb-2">
-          <h3 className="px-4 text-xs font-semibold text-gray-600 uppercase tracking-wider">Akun</h3>
+        <div className="pt-6 pb-2">
+          <div className="flex items-center gap-2 px-4">
+            <div className="w-1 h-4 bg-gradient-to-b from-green-500 to-teal-500 rounded-full"></div>
+            <h3 className="text-xs font-semibold text-gray-600 uppercase tracking-wider">Akun</h3>
+          </div>
         </div>
-        <SidebarItem icon={User} label="Profil" active={activePath === '/home/siswa/profil'} href="/home/siswa/profil" onClick={() => setIsOpen(false)} />
+        <SidebarItem icon={User} label="Profil" active={isActive('/home/siswa/profil')} href="/home/siswa/profil" onClick={() => setIsOpen(false)} />
       </nav>
 
       <div className="p-4 border-t border-gray-200">
