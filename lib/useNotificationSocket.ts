@@ -48,7 +48,7 @@ export const useNotificationSocket = (
       });
 
       socketRef.current.on('connect', () => {
-        console.log('✓ WebSocket connected for notifications');
+        console.log('✓ WebSocket connected for notifications (userId:', userId, ')');
         setIsConnected(true);
       });
 
@@ -80,13 +80,14 @@ export const useNotificationSocket = (
         const mappedNotification: SocketNotification = {
           id: notification.id,
           title: notification.title || 'Notifikasi',
-          description: notification.description || '',
+          description: notification.message || notification.description || '',
           time: 'Baru saja',
           icon: getIconByType(notification.type),
           read: false,
           type: notification.type,
           metadata: notification.metadata,
         };
+        console.log('📩 New notification received:', mappedNotification);
         callback(mappedNotification);
       });
     }
@@ -136,6 +137,14 @@ function getIconByType(type?: string): string {
       return '📢';
     case 'system_notification':
       return '⚙️';
+    case 'pelanggaran_baru':
+      return '⚠️';
+    case 'sp_dibuat':
+      return '📄';
+    case 'reservasi_pembinaan_dibuat':
+      return '📝';
+    case 'pembinaan_disetujui':
+      return '✓';
     default:
       return '🔔';
   }
