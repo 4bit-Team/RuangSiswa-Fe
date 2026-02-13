@@ -15,7 +15,6 @@ import {
   CheckCircle,
   Send,
   Bookmark,
-  MoreVertical,
   Loader,
 } from 'lucide-react'
 import { apiRequest } from '@/lib/api'
@@ -43,6 +42,8 @@ interface Answer {
   isVerified: boolean
   isAuthorAnswer: boolean
   edited?: string
+  parentId?: string | null
+  replies?: Answer[]
 }
 
 interface DetailKonsultasiPageProps {
@@ -240,7 +241,8 @@ const DetailKonsultasiPage: React.FC<DetailKonsultasiPageProps> = ({ onBack }) =
         bookmarks: data.question.bookmarkCount || 0,
       })
 
-      const transformedAnswers = data.answers.map((ans: any) => {
+      // Transform answers and build threaded structure (parentId -> replies)
+      const flatAnswers: Answer[] = data.answers.map((ans: any) => {
         const answerAuthorName = ans.author?.username || ans.author?.name || 'Anonymous'
         const isAnswerCurrentUser = String(user?.id) === String(ans.authorId)
         const answerDisplayName = getDisplayAuthorName(answerAuthorName, ans.authorId, ans.author?.role, user ? { id: user.id as number, role: user.role } : undefined, isAnswerCurrentUser)
@@ -256,10 +258,31 @@ const DetailKonsultasiPage: React.FC<DetailKonsultasiPageProps> = ({ onBack }) =
           dislikes: ans.downvotes || 0,
           isVerified: ans.isVerified,
           isAuthorAnswer: false,
+          parentId: ans.parentId ?? null,
+          replies: [],
         }
       })
 
-      setAnswers(transformedAnswers)
+      // Build nested replies (one level deep tree)
+      const byId = new Map<string, Answer>()
+      flatAnswers.forEach(a => byId.set(a.id, a))
+      const rootAnswers: Answer[] = []
+      flatAnswers.forEach(a => {
+        if (a.parentId) {
+          const parent = byId.get(a.parentId)
+          if (parent) {
+            parent.replies = parent.replies || []
+            parent.replies.push(a)
+          } else {
+            // parent not found, treat as root
+            rootAnswers.push(a)
+          }
+        } else {
+          rootAnswers.push(a)
+        }
+      })
+
+      setAnswers(rootAnswers)
       
       // Check if bookmarked
       const isBookmarkedRes = await apiRequest(
@@ -516,26 +539,24 @@ const DetailKonsultasiPage: React.FC<DetailKonsultasiPageProps> = ({ onBack }) =
   }
 
   return (
-    <div className="bg-gray-50 min-h-screen py-6">
+    <div className="bg-gray-50 min-h-screen py-6 px-2 sm:px-4">
       {/* Header */}
-      <div className="bg-white border-b border-gray-200 sticky top-0 z-40">
-        <div className="max-w-3xl mx-auto px-4 py-4 flex items-center gap-3">
-          <button
-            onClick={() => router.push('/home/siswa/konsultasi')}
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-          >
-            <ArrowLeft className="w-5 h-5 text-gray-600" />
-          </button>
-          <div className="flex-1">
-            <span className="text-sm text-gray-500">← Kembali ke Konsultasi</span>
+      <div className="sticky top-0 z-40">
+        <div className="max-w-4xl mx-auto px-2 sm:px-4 py-3">
+          <div className="bg-white border border-gray-100 rounded-md shadow-sm flex items-center gap-3 px-3 py-2">
+            <button
+              onClick={() => router.push('/home/siswa/konsultasi')}
+              className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-800 hover:bg-gray-50 px-2 py-1 rounded-md transition"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              <span className="hidden sm:inline">Kembali ke Konsultasi</span>
+            </button>
+            <div className="flex-1" />
           </div>
-          <button className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
-            <MoreVertical className="w-5 h-5 text-gray-600" />
-          </button>
         </div>
       </div>
 
-      <div className="max-w-3xl mx-auto px-4 py-8">
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Loading State */}
         {loading ? (
           <div className="flex items-center justify-center py-12">
@@ -551,11 +572,11 @@ const DetailKonsultasiPage: React.FC<DetailKonsultasiPageProps> = ({ onBack }) =
         ) : (
           <>
         {/* Question Section */}
-        <div className="bg-white rounded-lg border border-gray-200 p-6 mb-6">
+        <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4 sm:p-6 mb-6">
           {/* Header */}
           <div className="flex items-start justify-between mb-4">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white font-semibold text-sm">
+              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white font-semibold text-sm">
                 {question.avatar}
               </div>
               <div>
@@ -569,7 +590,7 @@ const DetailKonsultasiPage: React.FC<DetailKonsultasiPageProps> = ({ onBack }) =
           </div>
 
           {/* Title */}
-          <h1 className="text-2xl font-bold text-gray-900 mb-4 leading-tight">
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-4 leading-tight">
             {question.title}
           </h1>
 
@@ -581,7 +602,7 @@ const DetailKonsultasiPage: React.FC<DetailKonsultasiPageProps> = ({ onBack }) =
           </div>
 
           {/* Stats */}
-          <div className="flex items-center gap-6 py-4 border-t border-b border-gray-200">
+          <div className="flex flex-wrap items-center gap-4 py-4 border-t border-b border-gray-200">
             <div className="flex items-center gap-2 text-gray-600">
               <Eye className="w-4 h-4" />
               <span className="text-sm">{question.views} dilihat</span>
@@ -651,11 +672,11 @@ const DetailKonsultasiPage: React.FC<DetailKonsultasiPageProps> = ({ onBack }) =
 
           {/* Answer Cards */}
           {visibleAnswers.map((answer) => (
-            <div key={answer.id} className="bg-white rounded-lg border border-gray-200 p-6">
+            <div key={answer.id} className="bg-white rounded-lg border border-gray-200 p-4 sm:p-6">
               {/* Author Info */}
               <div className="flex items-start justify-between mb-4">
                 <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-full bg-gradient-to-br from-green-400 to-green-600 flex items-center justify-center text-white font-semibold text-sm">
+                  <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-gradient-to-br from-green-400 to-green-600 flex items-center justify-center text-white font-semibold text-sm">
                     {answer.avatar}
                   </div>
                   <div>
@@ -685,7 +706,7 @@ const DetailKonsultasiPage: React.FC<DetailKonsultasiPageProps> = ({ onBack }) =
               </div>
 
               {/* Actions */}
-              <div className="flex items-center gap-4 pt-4 border-t border-gray-100">
+              <div className="flex flex-wrap items-center gap-3 pt-4 border-t border-gray-100">
                 <button
                   onClick={() => handleVoteAnswer(answer.id, 1)}
                   className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition-colors text-sm font-medium ${
@@ -725,14 +746,14 @@ const DetailKonsultasiPage: React.FC<DetailKonsultasiPageProps> = ({ onBack }) =
                     value={replyTexts[answer.id] || ''}
                     onChange={(e) => setReplyTexts(prev => ({ ...prev, [answer.id]: e.target.value }))}
                     placeholder="Tulis balasan Anda..."
-                    className="w-full px-4 py-3 bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white resize-none"
+                    className="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white resize-none"
                     rows={3}
                   />
-                  <div className="flex gap-3 mt-2">
+                  <div className="flex gap-3 mt-2 flex-wrap">
                     <button
                       onClick={() => handleSubmitReply(answer.id)}
                       disabled={replySubmitting}
-                      className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium"
+                      className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium"
                     >
                       {replySubmitting ? (
                         <>
@@ -745,11 +766,72 @@ const DetailKonsultasiPage: React.FC<DetailKonsultasiPageProps> = ({ onBack }) =
                     </button>
                     <button
                       onClick={() => { setOpenReplyFor(null); setReplyTexts(prev => ({ ...prev, [answer.id]: '' })); }}
-                      className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-sm font-medium"
+                      className="px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors text-sm font-medium"
                     >
                       Batal
                     </button>
                   </div>
+                </div>
+              )}
+
+              {/* Replies (threaded) */}
+              {answer.replies && answer.replies.length > 0 && (
+                <div className="mt-4 ml-8 sm:ml-12 pl-3 sm:pl-4 border-l border-gray-200 space-y-4">
+                  {answer.replies.map((reply) => (
+                    <div key={reply.id} className="bg-gray-50 rounded-lg border border-gray-100 p-3 sm:p-4">
+                      <div className="flex items-start justify-between mb-2">
+                        <div className="flex items-center gap-3">
+                          <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-gradient-to-br from-gray-400 to-gray-600 flex items-center justify-center text-white font-semibold text-sm">
+                            {reply.avatar}
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <p className="font-medium text-gray-900">{getDisplayAuthorName(reply.authorName, reply.authorId, reply.authorRole, user ? { id: user.id as number, role: user.role } : undefined, String(user?.id) === String(reply.authorId))}</p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className={`text-xs px-2 py-0.5 rounded border font-medium ${getRoleColor(reply.authorRole)}`}>
+                                {getRoleLabel(reply.authorRole)}
+                              </span>
+                              <p className="text-xs text-gray-500">{reply.timestamp}</p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="prose prose-sm max-w-none mb-2">
+                        <p className="text-gray-700 whitespace-pre-wrap leading-relaxed">{reply.content}</p>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-2 pt-2">
+                        <button
+                          onClick={() => handleVoteAnswer(reply.id, 1)}
+                          className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition-colors text-sm font-medium ${
+                            votedAnswers.get(reply.id) === 1
+                              ? 'bg-green-50 text-green-600'
+                              : 'text-gray-600 hover:bg-gray-100'
+                          }`}
+                        >
+                          <ThumbsUp className="w-4 h-4" />
+                          Setuju ({reply.likes})
+                        </button>
+                        <button
+                          onClick={() => handleVoteAnswer(reply.id, -1)}
+                          className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition-colors text-sm font-medium ${
+                            votedAnswers.get(reply.id) === -1
+                              ? 'bg-red-50 text-red-600'
+                              : 'text-gray-600 hover:bg-gray-100'
+                          }`}
+                        >
+                          <ThumbsUp className="w-4 h-4 rotate-180" />
+                          Tidak Setuju ({reply.dislikes})
+                        </button>
+                        <button className="flex items-center gap-2 px-3 py-1.5 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors text-sm font-medium">
+                          <Flag className="w-4 h-4" />
+                          Laporkan
+                        </button>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
